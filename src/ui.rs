@@ -8,9 +8,12 @@ use parking_lot::Mutex;
 
 use crate::channels::{self, ToAudio, ToUi};
 
+mod icons;
+
 pub struct Ui {
     inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
+    should_exit: bool,
 }
 
 pub struct Flags {
@@ -34,6 +37,7 @@ impl Application for Ui {
         let initial_state = Self {
             inbox: flags.inbox,
             to_audio: flags.to_audio,
+            should_exit: false,
         };
 
         (initial_state, Command::none())
@@ -45,6 +49,10 @@ impl Application for Ui {
 
     fn theme(&self) -> Theme {
         Theme::Dark
+    }
+
+    fn should_exit(&self) -> bool {
+        self.should_exit
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
@@ -59,8 +67,16 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::FromAudio(msg) => {
-                log::info!("message from audio thread: {:?}", msg);
+            Message::FromAudio(ToUi::ProgressPercentage { elapsed, .. }) => {
+                let progress = elapsed.seconds;
+                log::info!("progress: {progress}");
+
+                Command::none()
+            }
+
+            Message::FromAudio(ToUi::AudioDied) => {
+                self.should_exit = true;
+
                 Command::none()
             }
         }
@@ -73,7 +89,7 @@ impl Application for Ui {
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
         column![
             vertical_space(Length::Fill),
-            button("Play").on_press(Message::PlayClicked)
+            button(icons::play()).on_press(Message::PlayClicked)
         ]
         .padding(20)
         .width(Length::Fill)

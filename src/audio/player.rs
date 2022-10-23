@@ -39,7 +39,7 @@ struct PlayingState {
     reader: Box<dyn FormatReader>,
     audio_output: Option<Box<dyn output::AudioOutput>>,
     decoder: Box<dyn Decoder>,
-    seek_ts: u64, // 0 = not seeking
+    seek_ts: u64, // 0 = not seeking, play from beginning
     track_info: TrackInfo,
 }
 
@@ -228,7 +228,7 @@ fn begin_playing(file_name: &str) -> Result<PlayingState, PlayerError> {
     match symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts) {
         Err(err) => {
             let message = format!("The input was not supported by any format reader: {err}");
-            return Err(PlayerError::Other(message));
+            Err(PlayerError::Other(message))
         }
 
         Ok(probed) => {
@@ -244,13 +244,13 @@ fn begin_playing(file_name: &str) -> Result<PlayingState, PlayerError> {
             let decoder =
                 symphonia::default::get_codecs().make(&track.codec_params, &Default::default())?;
 
-            return Ok(PlayingState {
+            Ok(PlayingState {
                 reader: probed.format,
                 seek_ts: 0,
                 audio_output: None,
                 decoder,
                 track_info,
-            });
+            })
         }
     }
 }
