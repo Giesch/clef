@@ -6,3 +6,24 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+parking_lot = "0.12.1"
+symphonia = { version = "0.5.1", features = ["mp3"] }
+flume = { version = "0.10.14" }
+
+# from symphonia-play
+lazy_static = "1.4.0"
+log = { version = "0.4", features = ["release_max_level_info"] }
+pretty_env_logger = "0.4"
+
+[dependencies.iced]
+git = "https://github.com/iced-rs/iced"
+rev = "82217947aa80287282ed6deb02d238a31303e0d6"
+features = ["svg"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libpulse-binding = "2.5.0"
+libpulse-simple-binding = "2.5.0"
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+cpal = "0.13.3"
+rb = "0.3.2"
