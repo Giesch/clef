@@ -12,8 +12,8 @@ use clef::ui::{Flags, Ui};
 fn main() -> iced::Result {
     pretty_env_logger::init();
 
-    let (to_audio_tx, to_audio_rx) = flume::bounded::<ToAudio>(1);
-    let (to_ui_tx, to_ui_rx) = flume::bounded::<ToUi>(1);
+    let (to_audio_tx, to_audio_rx) = flume::bounded::<ToAudio>(10);
+    let (to_ui_tx, to_ui_rx) = flume::bounded::<ToUi>(10);
 
     spawn_player(to_audio_rx, to_ui_tx);
 
