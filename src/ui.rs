@@ -1,24 +1,27 @@
+use std::sync::Arc;
+
 use flume::{Receiver, Sender};
 use iced::executor;
 use iced::widget::{button, column, vertical_space};
-use iced::{Alignment, Application, Command, Length, Theme};
+use iced::{Alignment, Application, Command, Length, Subscription, Theme};
+use parking_lot::Mutex;
 
-use crate::channels::{self, ToAudio};
+use crate::channels::{self, ToAudio, ToUi};
 
 pub struct Ui {
-    inbox: Receiver<channels::ToUi>,
-    to_audio: Sender<channels::ToAudio>,
-    playing: bool,
+    inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
+    to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
 }
 
 pub struct Flags {
-    pub inbox: Receiver<channels::ToUi>,
-    pub to_audio: Sender<channels::ToAudio>,
+    pub inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
+    pub to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
     PlayClicked,
+    FromAudio(ToUi),
 }
 
 impl Application for Ui {
@@ -31,7 +34,6 @@ impl Application for Ui {
         let initial_state = Self {
             inbox: flags.inbox,
             to_audio: flags.to_audio,
-            playing: false,
         };
 
         (initial_state, Command::none())
@@ -50,12 +52,22 @@ impl Application for Ui {
             Message::PlayClicked => {
                 let file_name = String::from(BENNY_HILL);
                 self.to_audio
+                    .lock()
                     .send(ToAudio::PlayFilename(file_name))
-                    .unwrap();
+                    .unwrap_or_else(|e| log::error!("failed to send to audio: {e}"));
 
                 Command::none()
             }
+
+            Message::FromAudio(msg) => {
+                log::info!("message from audio thread: {:?}", msg);
+                Command::none()
+            }
         }
+    }
+
+    fn subscription(&self) -> Subscription<Self::Message> {
+        channels::audio_subscription(self.inbox.clone()).map(Message::FromAudio)
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {

@@ -3,17 +3,13 @@ name = "clef"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-parking_lot = "0.12.1"
-symphonia = { version = "0.5.1", features = ["mp3"] }
 flume = { version = "0.10.14" }
-
-# from symphonia-play
-lazy_static = "1.4.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
+parking_lot = "0.12.1"
 pretty_env_logger = "0.4"
+symphonia = { version = "0.5.1", features = ["mp3"] }
+thiserror = "1.0.37"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"

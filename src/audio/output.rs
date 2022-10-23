@@ -17,12 +17,14 @@ pub trait AudioOutput {
     fn flush(&mut self);
 }
 
-#[allow(dead_code)]
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AudioOutputError {
+    #[error("OpenStreamError")]
     OpenStreamError,
+    #[error("PlayStreamError")]
     PlayStreamError,
+    #[error("StreamClosedError")]
     StreamClosedError,
 }
 
@@ -76,7 +78,7 @@ mod pulseaudio {
             // Create a PulseAudio connection.
             let pa_result = psimple::Simple::new(
                 None,                               // Use default server
-                "Symphonia Player",                 // Application name
+                "Clef",                             // Application name
                 pulse::stream::Direction::Playback, // Playback stream
                 None,                               // Default playback device
                 "Music",                            // Description of the stream
@@ -327,6 +329,7 @@ pub fn try_open(spec: SignalSpec, duration: Duration) -> Result<Box<dyn AudioOut
     pulseaudio::PulseAudioOutput::try_open(spec, duration)
 }
 
+#[allow(unused)]
 #[cfg(not(target_os = "linux"))]
 pub fn try_open(spec: SignalSpec, duration: Duration) -> Result<Box<dyn AudioOutput>> {
     cpal::CpalAudioOutput::try_open(spec, duration)

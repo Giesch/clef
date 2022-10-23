@@ -1,31 +1,71 @@
-use std::thread;
+use std::sync::Arc;
 
 use flume::{Receiver, Sender, TryRecvError};
+use parking_lot::Mutex;
+use symphonia::core::units::Time;
+
+use crate::audio::player::Player;
 
 // A message to the audio thread
+#[derive(Debug, Clone)]
 pub enum ToAudio {
     PlayFilename(String),
 }
 
 // A message to the main/ui thread
+#[derive(Debug, Clone)]
 pub enum ToUi {
-    SeekStatus(f32),
+    ProgressPercentage { elapsed: Time, remaining: Time },
+    AudioDied,
 }
 
-pub fn spawn_audio_thread(to_audio_rx: Receiver<ToAudio>, to_ui_tx: Sender<ToUi>) {
-    thread::spawn(move || loop {
-        match to_audio_rx.try_recv() {
-            Ok(ToAudio::PlayFilename(file_name)) => {
-                // TODO this blocks forever, which also ends up blocking the ui
-                crate::audio::play_file(&file_name);
-            }
+pub fn spawn_player(inbox: Receiver<ToAudio>, to_ui: Sender<ToUi>) {
+    std::thread::spawn(move || {
+        let mut player = Player::new(inbox, to_ui.clone());
+        // TODO need better traces for this
+        if let Err(err) = player.run() {
+            player.flush();
 
-            Err(TryRecvError::Empty) => {}
+            // TODO try to restart the player instead of dying
 
-            Err(TryRecvError::Disconnected) => {
-                // TODO should this do cleanup?
-                panic!("orphaned audio thread");
-            }
+            to_ui.send(ToUi::AudioDied).ok();
+
+            panic!("unrecovered error from audio thread: {err}");
         }
     });
+}
+
+// Iced Integration
+
+#[derive(Debug, PartialEq, Eq)]
+enum AudioSubState {
+    Ready,
+    Disconnected,
+}
+
+pub fn audio_subscription(inbox: Arc<Mutex<Receiver<ToUi>>>) -> iced::Subscription<ToUi> {
+    struct AudioSub;
+
+    iced::subscription::unfold(
+        std::any::TypeId::of::<AudioSub>(),
+        AudioSubState::Ready,
+        move |state| listen(state, inbox.clone()),
+    )
+}
+
+async fn listen(
+    state: AudioSubState,
+    inbox: Arc<Mutex<Receiver<ToUi>>>,
+) -> (Option<ToUi>, AudioSubState) {
+    if state == AudioSubState::Disconnected {
+        return (None, AudioSubState::Disconnected);
+    }
+
+    match inbox.lock().try_recv() {
+        Ok(msg) => (Some(msg), AudioSubState::Ready),
+
+        Err(TryRecvError::Empty) => (None, AudioSubState::Ready),
+
+        Err(TryRecvError::Disconnected) => (None, AudioSubState::Disconnected),
+    }
 }

@@ -285,7 +285,6 @@ dependencies = [
  "cpal",
  "flume",
  "iced",
- "lazy_static",
  "libpulse-binding",
  "libpulse-simple-binding",
  "log",
@@ -293,6 +292,7 @@ dependencies = [
  "pretty_env_logger",
  "rb",
  "symphonia",
+ "thiserror",
 ]
 
 [[package]]
