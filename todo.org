@@ -1,0 +1,28 @@
+* Now
+
+* Next
+- [ ] seekable progress bar
+  how to do this fast?
+
+* Someday
+- [ ] album ui
+  - [ ] crawl music directory
+  - [ ] show list of albums
+  - [ ] show album covers
+
+- [ ] sqlite setup
+  - [ ] last played song
+  - [ ] music directory index
+  - [ ] tags
+
+- [ ] queue
+- [ ] playlists
+- [ ] other views
+- [ ] drag and drop import
+
+- [ ] integration tests
+- [ ] unit tests with nicer mocks
+  - [ ] test that eof flushes audio
+- [ ] restart audio thread after a crash
+
+- [ ] animate the slider

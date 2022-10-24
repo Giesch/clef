@@ -17,6 +17,7 @@ pub trait AudioOutput {
     fn flush(&mut self);
 }
 
+#[allow(unused)]
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, thiserror::Error)]
 pub enum AudioOutputError {

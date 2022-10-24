@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use flume::{Receiver, Sender, TryRecvError};
+use log::error;
 use parking_lot::Mutex;
 use symphonia::core::units::Time;
 
 use crate::audio::player::Player;
 
 // A message to the audio thread
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToAudio {
     PlayFilename(String),
     Pause,
@@ -15,26 +16,29 @@ pub enum ToAudio {
 }
 
 // A message to the main/ui thread
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ToUi {
-    ProgressPercentage { elapsed: Time, remaining: Time },
+    Progress(ProgressTimes),
     AudioDied,
+    Stopped, // end of track
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProgressTimes {
+    pub elapsed: Time,
+    pub remaining: Time,
+    pub total: Time,
 }
 
 pub fn spawn_player(inbox: Receiver<ToAudio>, to_ui: Sender<ToUi>) {
     std::thread::spawn(move || {
         let player = Player::new(inbox, to_ui.clone());
-        // TODO need better traces for this
-        if let Err(err) = player.run() {
-            // FIXME if this doesn't happen here,
-            // then it should happen in a more graceful end-of-file
-            // player.flush();
-
-            // TODO try to restart the player instead of dying
+        if let Err(err) = player.run_loop() {
+            error!("unrecovered error from audio thread: {:?}", err);
 
             to_ui.send(ToUi::AudioDied).ok();
 
-            panic!("unrecovered error from audio thread: {err}");
+            panic!("unrecovered error from audio thread: {:?}", err);
         }
     });
 }

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = { version = "1.0.66", features = ["backtrace"] }
 flume = { version = "0.10.14" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 parking_lot = "0.12.1"
@@ -23,3 +24,4 @@ libpulse-simple-binding = "2.5.0"
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 cpal = "0.13.3"
 rb = "0.3.2"
+

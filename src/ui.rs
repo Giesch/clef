@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use flume::{Receiver, Sender};
 use iced::executor;
-use iced::widget::{button, column, vertical_space};
+use iced::widget::{button, column, slider, vertical_space};
 use iced::{Alignment, Application, Command, Length, Subscription, Theme};
-use log::{debug, error};
+use log::error;
 use parking_lot::Mutex;
 
-use crate::channels::{self, ToAudio, ToUi};
+use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
 
 mod icons;
 
@@ -17,6 +17,7 @@ pub struct Ui {
     inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
     should_exit: bool,
+    progress: Option<ProgressTimes>,
 }
 
 #[derive(Debug)]
@@ -37,7 +38,19 @@ pub enum Message {
     PlayClicked,
     PauseClicked,
     FromAudio(ToUi),
+    Seek(f32),
 }
+
+impl Ui {
+    fn send_to_audio(&mut self, to_audio: ToAudio) {
+        self.to_audio
+            .lock()
+            .send(to_audio)
+            .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
+    }
+}
+
+const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
 
 impl Application for Ui {
     type Message = Message;
@@ -51,6 +64,7 @@ impl Application for Ui {
             inbox: flags.inbox,
             to_audio: flags.to_audio,
             should_exit: false,
+            progress: None,
         };
 
         (initial_state, Command::none())
@@ -69,8 +83,6 @@ impl Application for Ui {
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
-        debug!("in update; message: {:?}", message);
-
         match message {
             Message::PlayClicked => {
                 match self.player_state {
@@ -78,21 +90,13 @@ impl Application for Ui {
 
                     PlayerStateView::Paused => {
                         self.player_state = PlayerStateView::Playing;
-
-                        self.to_audio
-                            .lock()
-                            .send(ToAudio::PlayPaused)
-                            .unwrap_or_else(|e| error!("failed to send to audio: {e}"));
+                        self.send_to_audio(ToAudio::PlayPaused);
                     }
 
                     PlayerStateView::Stopped => {
                         let file_name = String::from(BENNY_HILL);
                         self.player_state = PlayerStateView::Playing;
-
-                        self.to_audio
-                            .lock()
-                            .send(ToAudio::PlayFilename(file_name))
-                            .unwrap_or_else(|e| error!("failed to send to audio: {e}"));
+                        self.send_to_audio(ToAudio::PlayFilename(file_name));
                     }
                 }
 
@@ -110,8 +114,19 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::ProgressPercentage { .. }) => {
-                // TODO this message should have a percentage instead of a remaining
+            Message::Seek(_) => {
+                // TODO emit seek to audio
+                Command::none()
+            }
+
+            Message::FromAudio(ToUi::Progress(times)) => {
+                self.progress = Some(times);
+                Command::none()
+            }
+
+            Message::FromAudio(ToUi::Stopped) => {
+                self.player_state = PlayerStateView::Stopped;
+                self.progress = None;
                 Command::none()
             }
 
@@ -134,12 +149,18 @@ impl Application for Ui {
             PlayerStateView::Stopped => button(icons::play()).on_press(Message::PlayClicked),
         };
 
-        column![vertical_space(Length::Fill), play_pause_button]
+        let slide = match &self.progress {
+            Some(times) => {
+                let progress = 100.0 * (times.elapsed.seconds as f32 / times.total.seconds as f32);
+                slider(0.0..=100.0, progress, Message::Seek).step(0.01)
+            }
+            None => slider(0.0..=100.0, 0.0, Message::Seek).step(0.01),
+        };
+
+        column![vertical_space(Length::Fill), play_pause_button, slide]
             .padding(20)
             .width(Length::Fill)
             .align_items(Alignment::Center)
             .into()
     }
 }
-
-const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
