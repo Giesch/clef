@@ -157,10 +157,15 @@ impl Application for Ui {
             None => slider(0.0..=100.0, 0.0, Message::Seek).step(0.01),
         };
 
-        column![vertical_space(Length::Fill), play_pause_button, slide]
-            .padding(20)
-            .width(Length::Fill)
-            .align_items(Alignment::Center)
-            .into()
+        column![
+            vertical_space(Length::Fill),
+            play_pause_button,
+            vertical_space(Length::Units(10)),
+            slide
+        ]
+        .padding(20)
+        .width(Length::Fill)
+        .align_items(Alignment::Center)
+        .into()
     }
 }

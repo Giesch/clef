@@ -1,28 +1,33 @@
 * Now
+- [ ] album ui
+  - [ ] crawl music directory on startup
+  - [ ] show list of albums
+  - [ ] show album covers
 
 * Next
 - [ ] seekable progress bar
   how to do this fast?
 
 * Someday
-- [ ] album ui
-  - [ ] crawl music directory
-  - [ ] show list of albums
-  - [ ] show album covers
-
 - [ ] sqlite setup
+  - [ ] load a nice startup ui quickly
   - [ ] last played song
   - [ ] music directory index
   - [ ] tags
 
-- [ ] queue
 - [ ] playlists
+- [ ] current queue (treat like another kind of playlist)
 - [ ] other views
-- [ ] drag and drop import
 
 - [ ] integration tests
 - [ ] unit tests with nicer mocks
   - [ ] test that eof flushes audio
 - [ ] restart audio thread after a crash
 
-- [ ] animate the slider
+- [ ] make the slider smoother
+  replace audio thread progress updates with a finer-grained timer
+  use a duration that's decoded/persisted instead of from audio thread
+
+- [ ] keyboard navigation
+
+- [ ] drag and drop import
