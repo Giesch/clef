@@ -1,8 +1,7 @@
 * Now
 - [-] album ui
   - [X] crawl music directory on startup
-  - [ ] decode mp3s for display data
-    use symphonia
+  - [X] decode mp3 tags for display data
   - [ ] show list of albums
   - [ ] make tracks playable
   - [ ] show album covers
@@ -10,9 +9,21 @@
 * Next
 - [ ] seekable progress bar
   how to do this fast?
-- [ ] unit tests with nicer mocks
+
+- [ ] handle metadata correctly in the audio thread
+  https://github.com/pdeljanov/Symphonia/blob/master/GETTING_STARTED.md#consuming-metadata
+  was symphonia-play doing that in the print helpers?
+
+- [X] unit tests with nicer mocks
   https://docs.rs/mockall/latest/mockall/#external-traits
-  - [ ] test that eof flushes audio
+  - [X] test that eof flushes audio
+
+- [ ] switch to tracing from env-logger
+  look into whether it plays nice with async-std
+
+- [ ] read symphonia docs thoroughly
+- [ ] read iced examples thoroughly
+  - [ ] todos app
 
 * Someday
 - [ ] sqlite setup
@@ -39,5 +50,3 @@
 
 - [ ] drag and drop import
 
-- [ ] switch to tracing from env-logger
-  look into whether it plays nice with async-std

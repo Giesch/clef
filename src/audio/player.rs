@@ -314,23 +314,34 @@ fn first_supported_track(tracks: &[Track]) -> Option<&Track> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::output::AudioOutput;
+    use mockall::mock;
 
     #[test]
-    fn continue_playing_doesnt_crash_for_expected_eof() {
+    fn continue_playing_doesnt_crash_for_eof() {
         let track_info = TrackInfo {
             id: 0,
             time_base: None,
             duration: None,
         };
 
-        let reader = Box::new(EOFReader {});
-        let decoder = Box::new(FakeDecoder {});
+        let mut reader = MockReader::new();
+        reader.expect_next_packet().times(1).returning(|| {
+            let kind = std::io::ErrorKind::UnexpectedEof;
+            let io_error = std::io::Error::new(kind, anyhow::anyhow!("EOF"));
+
+            return Err(SymphoniaError::IoError(io_error));
+        });
+
+        let decoder = MockDecoder::new();
+
+        let output = MockOutput::default();
 
         let playing_state = PlayingState {
-            audio_output: None,
+            audio_output: Some(Box::new(output)),
+            reader: Box::new(reader),
+            decoder: Box::new(decoder),
             seek_ts: 0,
-            reader,
-            decoder,
             track_info,
         };
 
@@ -340,96 +351,88 @@ mod tests {
         assert!(matches!(to_ui, Some(ToUi::Stopped)));
     }
 
-    // A reader that always hits UnexpectedEof
-    struct EOFReader {}
+    mock! {
+        Reader {}
 
-    impl FormatReader for EOFReader {
-        fn next_packet(
-            &mut self,
-        ) -> symphonia::core::errors::Result<symphonia::core::formats::Packet> {
-            let kind = std::io::ErrorKind::UnexpectedEof;
-            let io_error = std::io::Error::new(kind, anyhow::anyhow!("EOF"));
+        impl FormatReader for Reader {
+            fn next_packet(
+                &mut self,
+            ) -> symphonia::core::errors::Result<symphonia::core::formats::Packet>;
 
-            return Err(SymphoniaError::IoError(io_error));
-        }
 
-        fn try_new(
-            _source: MediaSourceStream,
-            _options: &FormatOptions,
-        ) -> symphonia::core::errors::Result<Self>
-        where
-            Self: Sized,
-        {
-            unimplemented!()
-        }
+            fn try_new(
+                source: MediaSourceStream,
+                options: &FormatOptions,
+            ) -> symphonia::core::errors::Result<Self>;
 
-        fn cues(&self) -> &[symphonia::core::formats::Cue] {
-            unimplemented!()
-        }
+            fn cues(&self) -> &[symphonia::core::formats::Cue];
 
-        fn metadata(&mut self) -> symphonia::core::meta::Metadata<'_> {
-            todo!()
-        }
+            fn metadata(&mut self) -> symphonia::core::meta::Metadata<'_>;
 
-        fn seek(
-            &mut self,
-            _mode: symphonia::core::formats::SeekMode,
-            _to: symphonia::core::formats::SeekTo,
-        ) -> symphonia::core::errors::Result<symphonia::core::formats::SeekedTo> {
-            todo!()
-        }
+            fn seek(
+                &mut self,
+                mode: symphonia::core::formats::SeekMode,
+                to: symphonia::core::formats::SeekTo,
+            ) -> symphonia::core::errors::Result<symphonia::core::formats::SeekedTo>;
 
-        fn tracks(&self) -> &[Track] {
-            todo!()
-        }
+            fn tracks(&self) -> &[Track];
 
-        fn into_inner(self: Box<Self>) -> MediaSourceStream {
-            todo!()
+            fn into_inner(self: Box<Self>) -> MediaSourceStream;
         }
     }
 
-    // A Decoder that does nothing
-    struct FakeDecoder {}
+    mock! {
+        Decoder {}
 
-    impl Decoder for FakeDecoder {
-        fn try_new(
-            _params: &symphonia::core::codecs::CodecParameters,
-            _options: &symphonia::core::codecs::DecoderOptions,
-        ) -> symphonia::core::errors::Result<Self>
-        where
-            Self: Sized,
-        {
-            unimplemented!()
+        impl Decoder for Decoder {
+            fn try_new(
+                params: &symphonia::core::codecs::CodecParameters,
+                options: &symphonia::core::codecs::DecoderOptions,
+            ) -> symphonia::core::errors::Result<Self>;
+
+            fn supported_codecs() -> &'static [symphonia::core::codecs::CodecDescriptor];
+
+            fn reset(&mut self) ;
+
+            fn codec_params(&self) -> &symphonia::core::codecs::CodecParameters;
+
+            fn decode(
+                &mut self,
+                packet: &symphonia::core::formats::Packet,
+            ) -> symphonia::core::errors::Result<symphonia::core::audio::AudioBufferRef<'static>>;
+
+            fn finalize(&mut self) -> symphonia::core::codecs::FinalizeResult;
+
+            fn last_decoded(&self) -> symphonia::core::audio::AudioBufferRef<'_>;
+        }
+    }
+
+    /// A mock AudioOutput that asserts it was flushed on drop.
+    ///
+    /// NOTE
+    /// mockall can't mock functions with non-static generic arguments,
+    /// like the write method's 'decoded' argument
+    #[derive(Default)]
+    struct MockOutput {
+        flushed: bool,
+    }
+
+    impl AudioOutput for MockOutput {
+        fn flush(&mut self) {
+            self.flushed = true;
         }
 
-        fn supported_codecs() -> &'static [symphonia::core::codecs::CodecDescriptor]
-        where
-            Self: Sized,
-        {
-            unimplemented!()
-        }
-
-        fn reset(&mut self) {
-            unimplemented!()
-        }
-
-        fn codec_params(&self) -> &symphonia::core::codecs::CodecParameters {
-            unimplemented!()
-        }
-
-        fn decode(
+        fn write(
             &mut self,
-            _packet: &symphonia::core::formats::Packet,
-        ) -> symphonia::core::errors::Result<symphonia::core::audio::AudioBufferRef<'_>> {
+            _decoded: symphonia::core::audio::AudioBufferRef<'_>,
+        ) -> output::Result<()> {
             unimplemented!()
         }
+    }
 
-        fn finalize(&mut self) -> symphonia::core::codecs::FinalizeResult {
-            unimplemented!()
-        }
-
-        fn last_decoded(&self) -> symphonia::core::audio::AudioBufferRef<'_> {
-            unimplemented!()
+    impl Drop for MockOutput {
+        fn drop(&mut self) {
+            assert!(self.flushed);
         }
     }
 }

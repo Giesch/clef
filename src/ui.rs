@@ -1,18 +1,17 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use camino::{Utf8Path, Utf8PathBuf};
 use flume::{Receiver, Sender};
 use iced::executor;
 use iced::widget::{button, column, slider, vertical_space};
 use iced::{Alignment, Application, Command, Length, Subscription, Theme};
-use log::{error, info};
+use log::error;
 use parking_lot::Mutex;
-use walkdir::WalkDir;
 
 use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
 
 mod icons;
+mod startup;
+use startup::*;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -21,6 +20,7 @@ pub struct Ui {
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
     should_exit: bool,
     progress: Option<ProgressTimes>,
+    music_dir: Option<MusicDir>,
 }
 
 #[derive(Debug)]
@@ -54,8 +54,6 @@ impl Ui {
     }
 }
 
-const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
-
 impl Application for Ui {
     type Flags = Flags;
     type Message = Message;
@@ -69,6 +67,7 @@ impl Application for Ui {
             to_audio: flags.to_audio,
             should_exit: false,
             progress: None,
+            music_dir: None,
         };
 
         let initial_command = Command::perform(crawl_music_dir(), Message::GotMusicDir);
@@ -90,7 +89,12 @@ impl Application for Ui {
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
-            Message::GotMusicDir(music_dir) => Command::none(),
+            Message::GotMusicDir(Ok(music_dir)) => {
+                self.music_dir = Some(music_dir);
+                Command::none()
+            }
+            // this is logged in the task; could show an error toast or something
+            Message::GotMusicDir(Err(_)) => Command::none(),
 
             Message::PlayClicked => {
                 match self.player_state {
@@ -102,8 +106,9 @@ impl Application for Ui {
                     }
 
                     PlayerStateView::Stopped => {
+                        let example_file = String::from(THE_WIND_THAT_SHAKES_THE_LAND);
                         self.player_state = PlayerStateView::Playing;
-                        self.send_to_audio(ToAudio::PlayFilename(String::from(BENNY_HILL)));
+                        self.send_to_audio(ToAudio::PlayFilename(example_file));
                     }
                 }
 
@@ -173,101 +178,8 @@ impl Application for Ui {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct MusicDir(Vec<AlbumFolder>);
-
-#[derive(thiserror::Error, Debug, Clone)]
-pub enum MusicDirError {
-    #[error("error walking directory")]
-    WalkError,
-}
-
-async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
-    let mut file_names_by_dir: HashMap<Utf8PathBuf, Vec<String>> = HashMap::new();
-    for dir_entry in WalkDir::new("/home/giesch/Music").into_iter() {
-        let dir_entry = match dir_entry {
-            Ok(dir_entry) => dir_entry,
-            Err(e) => {
-                error!("error walking music directory: {e}");
-                return Err(MusicDirError::WalkError);
-            }
-        };
-
-        let path: &Utf8Path = match dir_entry.path().try_into() {
-            Ok(utf8) => utf8,
-            Err(e) => {
-                info!("skipping file with invalid utf8: {e}");
-                continue;
-            }
-        };
-
-        if let Some(file_name) = path.file_name() {
-            let dir_name = path.with_file_name("");
-            let file_names = file_names_by_dir.entry(dir_name).or_insert_with(Vec::new);
-            file_names.push(file_name.to_string());
-        }
-    }
-
-    let albums = parse_albums(file_names_by_dir);
-
-    Ok(MusicDir(albums))
-}
-
-#[derive(Debug, Clone)]
-struct AlbumFolder {
-    directory: Utf8PathBuf,
-    cover_paths: Vec<Utf8PathBuf>,
-    tracks: Vec<AlbumFolderTrack>,
-}
-
-impl AlbumFolder {
-    fn new(directory: Utf8PathBuf) -> Self {
-        Self {
-            directory,
-            cover_paths: Vec::new(),
-            tracks: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct AlbumFolderTrack {
-    // TODO include decoded mp3 stuff
-    path: Utf8PathBuf,
-}
-
-impl AlbumFolderTrack {
-    fn new(path: Utf8PathBuf) -> Self {
-        Self { path }
-    }
-}
-
-fn parse_albums(file_names_by_dir: HashMap<Utf8PathBuf, Vec<String>>) -> Vec<AlbumFolder> {
-    let mut albums: Vec<AlbumFolder> = Vec::new();
-
-    for (directory, files) in file_names_by_dir {
-        let mut album = AlbumFolder::new(directory.clone());
-        for file in files {
-            if is_music(&file) {
-                let music_path = directory.with_file_name(&file);
-                let track = AlbumFolderTrack::new(music_path);
-                album.tracks.push(track);
-            } else if is_cover_art(&file) {
-                let cover_path = directory.with_file_name(&file);
-                album.cover_paths.push(cover_path);
-            }
-        }
-
-        albums.push(album);
-    }
-
-    albums
-}
-
-fn is_cover_art(file_name: &str) -> bool {
-    file_name.ends_with(".jpeg")
-}
-
-fn is_music(file_name: &str) -> bool {
-    file_name.ends_with(".mp3")
-}
+// TODO remove these
+// #[allow(unused)]
+// const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
+#[allow(unused)]
+const THE_WIND_THAT_SHAKES_THE_LAND: &str = "/home/giesch/Music/Unleash The Archers - Abyss/Unleash The Archers - Abyss - 08 The Wind that Shapes the Land.mp3";
