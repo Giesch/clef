@@ -10,6 +10,8 @@ use crate::audio::player::Player;
 #[derive(Debug, Clone)]
 pub enum ToAudio {
     PlayFilename(String),
+    Pause,
+    PlayPaused,
 }
 
 // A message to the main/ui thread
@@ -21,10 +23,12 @@ pub enum ToUi {
 
 pub fn spawn_player(inbox: Receiver<ToAudio>, to_ui: Sender<ToUi>) {
     std::thread::spawn(move || {
-        let mut player = Player::new(inbox, to_ui.clone());
+        let player = Player::new(inbox, to_ui.clone());
         // TODO need better traces for this
         if let Err(err) = player.run() {
-            player.flush();
+            // FIXME if this doesn't happen here,
+            // then it should happen in a more graceful end-of-file
+            // player.flush();
 
             // TODO try to restart the player instead of dying
 

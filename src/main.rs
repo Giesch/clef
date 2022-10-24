@@ -1,6 +1,3 @@
-#![warn(rust_2018_idioms)]
-#![forbid(unsafe_code)]
-
 use std::sync::Arc;
 
 use iced::{Application, Settings};

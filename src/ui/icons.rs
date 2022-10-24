@@ -7,7 +7,6 @@ pub fn play() -> iced::widget::Svg {
     )))
 }
 
-#[allow(unused)]
 pub fn pause() -> iced::widget::Svg {
     svg(svg::Handle::from_path(format!(
         "{}/resources/pause.svg",
