@@ -11,8 +11,8 @@ use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 pub struct MusicDir {
-    pub songs: Vec<TaggedSong>,
-    pub covers: Vec<Utf8PathBuf>,
+    pub songs_by_directory: HashMap<Utf8PathBuf, Vec<TaggedSong>>,
+    pub covers_by_directory: HashMap<Utf8PathBuf, Vec<Utf8PathBuf>>,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -58,7 +58,22 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
         }
     }
 
-    Ok(MusicDir { songs, covers })
+    use itertools::Itertools;
+
+    let songs_by_directory: HashMap<Utf8PathBuf, Vec<TaggedSong>> = songs
+        .into_iter()
+        .map(|song| (song.path.with_file_name(""), song))
+        .into_group_map();
+
+    let covers_by_directory: HashMap<Utf8PathBuf, Vec<Utf8PathBuf>> = covers
+        .into_iter()
+        .map(|path| (path.with_file_name(""), path))
+        .into_group_map();
+
+    Ok(MusicDir {
+        songs_by_directory,
+        covers_by_directory,
+    })
 }
 
 #[derive(Debug, Clone)]

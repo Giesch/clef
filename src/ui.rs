@@ -91,6 +91,7 @@ impl Application for Ui {
         match message {
             Message::GotMusicDir(Ok(music_dir)) => {
                 self.music_dir = Some(music_dir);
+
                 Command::none()
             }
             // this is logged in the task; could show an error toast or something
@@ -165,8 +166,16 @@ impl Application for Ui {
             None => slider(0.0..=100.0, 0.0, Message::Seek).step(0.01),
         };
 
+        let content = match &self.music_dir {
+            Some(_music_dir) => {
+                // TODO
+                vertical_space(Length::Fill)
+            }
+            None => vertical_space(Length::Fill),
+        };
+
         column![
-            vertical_space(Length::Fill),
+            content,
             play_pause_button,
             vertical_space(Length::Units(10)),
             progress_slider

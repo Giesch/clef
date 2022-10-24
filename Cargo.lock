@@ -473,6 +473,7 @@ dependencies = [
  "cpal",
  "flume",
  "iced",
+ "itertools",
  "libpulse-binding",
  "libpulse-simple-binding",
  "log",

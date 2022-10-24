@@ -1,7 +1,5 @@
 * Now
-- [-] album ui
-  - [X] crawl music directory on startup
-  - [X] decode mp3 tags for display data
+- [ ] album ui
   - [ ] show list of albums
   - [ ] make tracks playable
   - [ ] show album covers
