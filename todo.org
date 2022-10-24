@@ -1,12 +1,18 @@
 * Now
-- [ ] album ui
-  - [ ] crawl music directory on startup
+- [-] album ui
+  - [X] crawl music directory on startup
+  - [ ] decode mp3s for display data
+    use symphonia
   - [ ] show list of albums
+  - [ ] make tracks playable
   - [ ] show album covers
 
 * Next
 - [ ] seekable progress bar
   how to do this fast?
+- [ ] unit tests with nicer mocks
+  https://docs.rs/mockall/latest/mockall/#external-traits
+  - [ ] test that eof flushes audio
 
 * Someday
 - [ ] sqlite setup
@@ -20,14 +26,18 @@
 - [ ] other views
 
 - [ ] integration tests
-- [ ] unit tests with nicer mocks
-  - [ ] test that eof flushes audio
 - [ ] restart audio thread after a crash
 
 - [ ] make the slider smoother
   replace audio thread progress updates with a finer-grained timer
   use a duration that's decoded/persisted instead of from audio thread
 
-- [ ] keyboard navigation
+- [ ] keyboard support
+  - [ ] space for play/pause
+  - [ ] support media keys
+  - [ ] tab navigation
 
 - [ ] drag and drop import
+
+- [ ] switch to tracing from env-logger
+  look into whether it plays nice with async-std

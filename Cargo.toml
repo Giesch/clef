@@ -5,17 +5,20 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }
+async-std = "1.12.0"
+camino = "1.1.1"
 flume = { version = "0.10.14" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 parking_lot = "0.12.1"
 pretty_env_logger = "0.4"
 symphonia = { version = "0.5.1", features = ["mp3"] }
 thiserror = "1.0.37"
+walkdir = "2.3.2"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
 rev = "82217947aa80287282ed6deb02d238a31303e0d6"
-features = ["svg"]
+features = ["async-std", "svg"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.5.0"
