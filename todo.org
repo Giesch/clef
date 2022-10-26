@@ -1,23 +1,33 @@
 * Now
-- [ ] make the tracks playable
-  - [ ] add a play button next to each track
-  - [ ] remove the hardcoded music paths
-  - [ ] add a play button on each album cover
-  - [ ] play the next song in the album when one ends
+- [X] make the tracks playable
+  - [X] add a play button next to each track
+  - [X] remove the hardcoded music paths
+  - [X] add a play button on each album cover
 
 * Next
+- [ ] add currently playing song info to the bottom row
+  this will require adding song ids
+  need to look up the current track in the ui state from the event
+
+- [ ] play the next song in the album when one ends
+  this requires the ability to remember a queue on the player side
+
 - [ ] seekable progress bar
+
+- [ ] make the play track buttons nicer
+  - [ ] subtler style
+  - [ ] display on hover
+  - [ ] keep the playing track in sync with main play button
 
 - [ ] handle metadata correctly in the audio thread
   https://github.com/pdeljanov/Symphonia/blob/master/GETTING_STARTED.md#consuming-metadata
   was symphonia-play doing that in the print helpers?
 
 - [ ] switch to tracing from env-logger
-  look into whether it plays nice with async-std
+  look into whether it plays nice with iced exector
 
 - [ ] read symphonia docs thoroughly
 - [ ] read iced examples thoroughly
-  - [ ] todos app
 
 - [ ] handle graceful shutdown on the audio thread
   need a typed return from the run method?
@@ -29,6 +39,8 @@
   - [ ] last played song
   - [ ] music directory index
   - [ ] tags
+
+- [ ] cache the converted bgra images in a config dir
 
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)

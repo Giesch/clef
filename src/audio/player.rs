@@ -1,7 +1,7 @@
 use std::fs::File;
-use std::path::Path;
 
 use anyhow::{bail, Context};
+use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::warn;
 use symphonia::core::codecs::{Decoder, CODEC_TYPE_NULL};
@@ -35,6 +35,7 @@ struct PlayingState {
     decoder: Box<dyn Decoder>,
     seek_ts: u64, // 0 = not seeking, play from beginning
     track_info: TrackInfo,
+    path: Utf8PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +69,7 @@ impl std::fmt::Debug for PlayingState {
             .field("audio_output", audio_output)
             .field("seek_ts", &self.seek_ts)
             .field("track_info", &self.track_info)
+            .field("path", &self.path)
             .finish()
     }
 }
@@ -112,13 +114,8 @@ impl Player {
         msg: Option<ToAudio>,
     ) -> anyhow::Result<(PlayerState, Option<ToUi>)> {
         match (msg, state) {
-            (Some(ToAudio::PlayFilename(_)), state @ PlayerState::Playing(_)) => Ok((state, None)),
-            (
-                Some(ToAudio::PlayFilename(file_name)),
-                PlayerState::Stopped | PlayerState::Paused(_),
-            ) => {
-                let playing_state =
-                    PlayingState::from_file(&file_name).context("playing new file")?;
+            (Some(ToAudio::PlayFilename(file_name)), _any_state) => {
+                let playing_state = PlayingState::from_file(file_name).context("playing file")?;
                 Ok((PlayerState::Playing(playing_state), None))
             }
 
@@ -149,23 +146,17 @@ impl Player {
 
 impl PlayingState {
     // This is based on the main loop in the symphonia-play example
-    fn from_file(file_name: &str) -> anyhow::Result<PlayingState> {
+    fn from_file(path: Utf8PathBuf) -> anyhow::Result<PlayingState> {
         let mut hint = Hint::new();
 
-        let source = {
-            let path = Path::new(file_name);
+        // Provide the file extension as a hint.
+        if let Some(extension) = path.extension() {
+            hint.with_extension(extension);
+        }
 
-            // Provide the file extension as a hint.
-            if let Some(extension) = path.extension() {
-                if let Some(extension_str) = extension.to_str() {
-                    hint.with_extension(extension_str);
-                }
-            }
+        let file = File::open(&path).with_context(|| format!("file not found: {path}"))?;
 
-            let file = File::open(path).with_context(|| format!("file not found: {file_name}"))?;
-
-            Box::new(file)
-        };
+        let source = Box::new(file);
 
         let mss = MediaSourceStream::new(source, Default::default());
 
@@ -194,6 +185,7 @@ impl PlayingState {
             audio_output: None,
             decoder,
             track_info,
+            path,
         })
     }
 

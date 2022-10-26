@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }
-async-std = "1.12.0"
 camino = "1.1.1"
 flume = { version = "0.10.14" }
 log = { version = "0.4", features = ["release_max_level_info"] }
@@ -19,7 +18,7 @@ itertools = "0.10.5"
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
 rev = "82217947aa80287282ed6deb02d238a31303e0d6"
-features = ["async-std", "svg", "image", "debug"]
+features = ["svg", "image", "debug"]
 
 [dependencies.image_rs]
 package = "image"

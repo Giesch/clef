@@ -1,6 +1,7 @@
 use std::thread;
 use std::{sync::Arc, thread::JoinHandle};
 
+use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use parking_lot::Mutex;
 use symphonia::core::units::Time;
@@ -10,7 +11,7 @@ use crate::audio::player::Player;
 // A message to the audio thread
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToAudio {
-    PlayFilename(String),
+    PlayFilename(Utf8PathBuf),
     Pause,
     PlayPaused,
 }

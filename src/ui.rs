@@ -5,8 +5,8 @@ use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
 use iced::executor;
 use iced::widget::{
-    button, column, container, row, scrollable, slider, text, vertical_space, Column, Container,
-    Image, Space,
+    button, column, container, horizontal_space, row, scrollable, slider, text, vertical_space,
+    Column, Container, Image, Space,
 };
 use iced::{Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme};
 use log::error;
@@ -19,6 +19,8 @@ mod startup;
 use startup::*;
 mod bgra;
 use bgra::*;
+mod data;
+use data::*;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -47,6 +49,7 @@ pub struct Flags {
 pub enum Message {
     GotMusicDir(Result<MusicDirView, MusicDirError>),
     PlayClicked,
+    PlaySongClicked(Utf8PathBuf),
     PauseClicked,
     FromAudio(ToUi),
     Seek(f32),
@@ -143,20 +146,21 @@ impl Application for Ui {
 
             Message::PlayClicked => {
                 match self.player_state {
+                    PlayerStateView::Stopped => {}
                     PlayerStateView::Playing => {}
 
                     PlayerStateView::Paused => {
                         self.player_state = PlayerStateView::Playing;
                         self.send_to_audio(ToAudio::PlayPaused);
                     }
-
-                    PlayerStateView::Stopped => {
-                        let example_file = String::from(THE_WIND_THAT_SHAKES_THE_LAND);
-                        self.player_state = PlayerStateView::Playing;
-                        self.send_to_audio(ToAudio::PlayFilename(example_file));
-                    }
                 }
 
+                Command::none()
+            }
+
+            Message::PlaySongClicked(path) => {
+                self.player_state = PlayerStateView::Playing;
+                self.send_to_audio(ToAudio::PlayFilename(path));
                 Command::none()
             }
 
@@ -197,8 +201,16 @@ impl Application for Ui {
         let play_pause_button = match self.player_state {
             PlayerStateView::Playing => button(icons::pause()).on_press(Message::PauseClicked),
             PlayerStateView::Paused => button(icons::play()).on_press(Message::PlayClicked),
-            PlayerStateView::Stopped => button(icons::play()).on_press(Message::PlayClicked),
+            PlayerStateView::Stopped => button(icons::play()),
         };
+
+        let bottom_row = row![
+            horizontal_space(Length::Fill),
+            play_pause_button,
+            horizontal_space(Length::Fill)
+        ]
+        .width(Length::Fill)
+        .spacing(10);
 
         let progress_slider = match &self.progress {
             Some(times) => {
@@ -217,7 +229,7 @@ impl Application for Ui {
 
         let content = fill_container(scrollable(content));
 
-        let main_column = column![content, play_pause_button, progress_slider]
+        let main_column = column![content, bottom_row, progress_slider]
             .spacing(10)
             .padding(20)
             .width(Length::Fill)
@@ -274,34 +286,21 @@ fn view_album<'a>(album_dir: &'a AlbumDirView) -> Element<'a, Message> {
     ]
     .width(Length::FillPortion(1));
 
-    let song_rows: Vec<_> = album_dir
-        .songs
-        .iter()
-        .map(|song| Element::from(text(song.display_title())))
-        .collect();
-
-    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
+    let song_rows: Vec<_> = album_dir.songs.iter().map(view_song_row).collect();
+    let songs_list = Column::with_children(song_rows)
+        .spacing(2)
+        .width(Length::FillPortion(1));
 
     row![album_image, album_info, songs_list].spacing(10).into()
 }
 
-pub async fn load_images(paths: Vec<Utf8PathBuf>) -> Option<HashMap<Utf8PathBuf, BgraBytes>> {
-    use iced::futures::future::join_all;
-
-    let results = join_all(paths.into_iter().map(load_image)).await;
-    let pairs: Option<Vec<(Utf8PathBuf, BgraBytes)>> = results.into_iter().collect();
-    let bytes_by_path: HashMap<_, _> = pairs?.into_iter().collect();
-
-    Some(bytes_by_path)
+fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
+    row![
+        // TODO cloning the path here is bad; should use a song id or something
+        button(icons::play()).on_press(Message::PlaySongClicked(song.path.clone())),
+        text(song.display_title())
+    ]
+    .align_items(Alignment::Center)
+    .spacing(4)
+    .into()
 }
-
-async fn load_image(utf8_path: Utf8PathBuf) -> Option<(Utf8PathBuf, BgraBytes)> {
-    let bytes = load_bgra(&utf8_path)?;
-    Some((utf8_path, bytes))
-}
-
-// TODO remove these
-#[allow(unused)]
-const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
-#[allow(unused)]
-const THE_WIND_THAT_SHAKES_THE_LAND: &str = "/home/giesch/Music/Unleash The Archers - Abyss/Unleash The Archers - Abyss - 08 The Wind that Shapes the Land.mp3";
