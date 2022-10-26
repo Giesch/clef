@@ -2,17 +2,39 @@ use std::collections::HashMap;
 use std::fs::File;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use log::{debug, error, info};
+use log::{error, info};
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::{MetadataOptions, MetadataRevision, StandardTagKey};
 use symphonia::core::probe::Hint;
 use walkdir::WalkDir;
 
+use super::BgraBytes;
+
+pub type MusicDirView = Vec<AlbumDirView>;
+
 #[derive(Debug, Clone)]
-pub struct MusicDir {
-    pub songs_by_directory: HashMap<Utf8PathBuf, Vec<TaggedSong>>,
-    pub covers_by_directory: HashMap<Utf8PathBuf, Vec<Utf8PathBuf>>,
+pub struct AlbumDirView {
+    pub directory: Utf8PathBuf,
+    // sorted by track number
+    pub songs: Vec<TaggedSong>,
+    // unsorted, should have only 1
+    pub covers: Vec<Utf8PathBuf>,
+
+    pub loaded_cover: Option<BgraBytes>,
+}
+
+impl AlbumDirView {
+    pub fn display_title(&self) -> &str {
+        self.songs
+            .first()
+            .and_then(TaggedSong::album_title)
+            .unwrap_or_else(|| self.directory.as_str())
+    }
+
+    pub fn display_artist(&self) -> Option<&str> {
+        self.songs.first().and_then(TaggedSong::artist)
+    }
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -23,7 +45,7 @@ pub enum MusicDirError {
     UnsupportedFormat,
 }
 
-pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
+pub async fn crawl_music_dir() -> Result<MusicDirView, MusicDirError> {
     let mut songs: Vec<TaggedSong> = Vec::new();
     let mut covers: Vec<Utf8PathBuf> = Vec::new();
 
@@ -65,15 +87,28 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
         .map(|song| (song.path.with_file_name(""), song))
         .into_group_map();
 
-    let covers_by_directory: HashMap<Utf8PathBuf, Vec<Utf8PathBuf>> = covers
+    let mut covers_by_directory: HashMap<Utf8PathBuf, Vec<Utf8PathBuf>> = covers
         .into_iter()
         .map(|path| (path.with_file_name(""), path))
         .into_group_map();
 
-    Ok(MusicDir {
-        songs_by_directory,
-        covers_by_directory,
-    })
+    let sorted_directories: Vec<_> = songs_by_directory
+        .into_iter()
+        .map(|(directory, mut songs)| {
+            songs.sort_by_cached_key(|song| song.track_number());
+            let covers = covers_by_directory.remove(&directory).unwrap_or_default();
+
+            AlbumDirView {
+                directory,
+                songs,
+                covers,
+                loaded_cover: None,
+            }
+        })
+        .sorted_by_key(|album_dir| album_dir.directory.to_string())
+        .collect();
+
+    Ok(sorted_directories)
 }
 
 #[derive(Debug, Clone)]
@@ -82,8 +117,33 @@ pub struct TaggedSong {
     pub tags: HashMap<TagKey, String>,
 }
 
+impl TaggedSong {
+    pub fn display_title(&self) -> &str {
+        self.get_tag(TagKey::TrackTitle)
+            .unwrap_or_else(|| self.path.as_str())
+    }
+
+    pub fn track_number(&self) -> Option<usize> {
+        self.tags
+            .get(&TagKey::TrackNumber)
+            .and_then(|s| s.parse().ok())
+    }
+
+    pub fn album_title(&self) -> Option<&str> {
+        self.get_tag(TagKey::Album)
+    }
+
+    pub fn artist(&self) -> Option<&str> {
+        self.get_tag(TagKey::Artist)
+    }
+
+    fn get_tag(&self, key: TagKey) -> Option<&str> {
+        self.tags.get(&key).map(|s| &**s)
+    }
+}
+
 /// A limited set of standard tag keys used by the application
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TagKey {
     Album,
     AlbumArtist,
@@ -197,7 +257,7 @@ impl TaggedSong {
             Ok(p) => p,
             Err(e) => {
                 let path_str = path.as_str();
-                debug!("file in unsupported format: {path_str} {e}");
+                error!("file in unsupported format: {path_str} {e}");
                 return Some(HashMap::new());
             }
         };
@@ -229,7 +289,7 @@ fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {
 }
 
 fn is_cover_art(path: &Utf8Path) -> bool {
-    path.extension() == Some("jpeg")
+    path.extension() == Some("jpg")
 }
 
 fn is_music(path: &Utf8Path) -> bool {

@@ -1,20 +1,16 @@
 * Now
-- [ ] album ui
-  - [ ] show list of albums
-  - [ ] make tracks playable
-  - [ ] show album covers
+- [ ] make the tracks playable
+  - [ ] add a play button next to each track
+  - [ ] remove the hardcoded music paths
+  - [ ] add a play button on each album cover
+  - [ ] play the next song in the album when one ends
 
 * Next
 - [ ] seekable progress bar
-  how to do this fast?
 
 - [ ] handle metadata correctly in the audio thread
   https://github.com/pdeljanov/Symphonia/blob/master/GETTING_STARTED.md#consuming-metadata
   was symphonia-play doing that in the print helpers?
-
-- [X] unit tests with nicer mocks
-  https://docs.rs/mockall/latest/mockall/#external-traits
-  - [X] test that eof flushes audio
 
 - [ ] switch to tracing from env-logger
   look into whether it plays nice with async-std
@@ -22,6 +18,10 @@
 - [ ] read symphonia docs thoroughly
 - [ ] read iced examples thoroughly
   - [ ] todos app
+
+- [ ] handle graceful shutdown on the audio thread
+  need a typed return from the run method?
+  or a way for the ui to join audio instead of disconnecting
 
 * Someday
 - [ ] sqlite setup
@@ -48,3 +48,5 @@
 
 - [ ] drag and drop import
 
+- [ ] non-latin text
+  https://github.com/iced-rs/iced/issues/1454

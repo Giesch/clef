@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::thread;
+use std::{sync::Arc, thread::JoinHandle};
 
 use flume::{Receiver, Sender, TryRecvError};
-use log::error;
 use parking_lot::Mutex;
 use symphonia::core::units::Time;
 
@@ -30,17 +30,20 @@ pub struct ProgressTimes {
     pub total: Time,
 }
 
-pub fn spawn_player(inbox: Receiver<ToAudio>, to_ui: Sender<ToUi>) {
-    std::thread::spawn(move || {
-        let player = Player::new(inbox, to_ui.clone());
-        if let Err(err) = player.run_loop() {
-            error!("unrecovered error from audio thread: {:?}", err);
+pub fn spawn_player(
+    inbox: Receiver<ToAudio>,
+    to_ui: Sender<ToUi>,
+) -> std::result::Result<JoinHandle<()>, std::io::Error> {
+    thread::Builder::new()
+        .name("AudioPlayer".to_string())
+        .spawn(move || {
+            let player = Player::new(inbox, to_ui.clone());
+            if let Err(err) = player.run_loop() {
+                to_ui.send(ToUi::AudioDied).ok();
 
-            to_ui.send(ToUi::AudioDied).ok();
-
-            panic!("unrecovered error from audio thread: {:?}", err);
-        }
-    });
+                panic!("unrecovered error: {:?}", err);
+            }
+        })
 }
 
 // Iced Integration

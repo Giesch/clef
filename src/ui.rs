@@ -1,9 +1,14 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
 use iced::executor;
-use iced::widget::{button, column, slider, vertical_space};
-use iced::{Alignment, Application, Command, Length, Subscription, Theme};
+use iced::widget::{
+    button, column, container, row, scrollable, slider, text, vertical_space, Column, Container,
+    Image, Space,
+};
+use iced::{Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme};
 use log::error;
 use parking_lot::Mutex;
 
@@ -12,6 +17,8 @@ use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
 mod icons;
 mod startup;
 use startup::*;
+mod bgra;
+use bgra::*;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -20,7 +27,7 @@ pub struct Ui {
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
     should_exit: bool,
     progress: Option<ProgressTimes>,
-    music_dir: Option<MusicDir>,
+    music_dir: Option<MusicDirView>,
 }
 
 #[derive(Debug)]
@@ -38,11 +45,12 @@ pub struct Flags {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GotMusicDir(Result<MusicDir, MusicDirError>),
+    GotMusicDir(Result<MusicDirView, MusicDirError>),
     PlayClicked,
     PauseClicked,
     FromAudio(ToUi),
     Seek(f32),
+    LoadedImages(Option<HashMap<Utf8PathBuf, BgraBytes>>),
 }
 
 impl Ui {
@@ -90,12 +98,48 @@ impl Application for Ui {
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
             Message::GotMusicDir(Ok(music_dir)) => {
+                let image_paths: Vec<_> = music_dir
+                    .iter()
+                    .flat_map(|album| album.covers.first())
+                    .cloned()
+                    .collect();
+
                 self.music_dir = Some(music_dir);
+
+                Command::perform(load_images(image_paths), Message::LoadedImages)
+            }
+            Message::GotMusicDir(Err(_)) => Command::none(),
+
+            Message::LoadedImages(Some(mut loaded_images_by_path)) => {
+                match &mut self.music_dir {
+                    Some(music_dir) => {
+                        for mut album in music_dir {
+                            // TODO this needs a better way of matching loaded images up to albums
+                            match album.covers.first() {
+                                Some(cover_path) => {
+                                    if let Some(bytes) = loaded_images_by_path.remove(cover_path) {
+                                        album.loaded_cover = Some(bytes);
+                                    }
+                                }
+                                None => {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    None => {
+                        error!("loaded images before music directory")
+                    }
+                }
 
                 Command::none()
             }
-            // this is logged in the task; could show an error toast or something
-            Message::GotMusicDir(Err(_)) => Command::none(),
+
+            Message::LoadedImages(None) => {
+                error!("failed to load images");
+                Command::none()
+            }
 
             Message::PlayClicked => {
                 match self.player_state {
@@ -166,29 +210,98 @@ impl Application for Ui {
             None => slider(0.0..=100.0, 0.0, Message::Seek).step(0.01),
         };
 
-        let content = match &self.music_dir {
-            Some(_music_dir) => {
-                // TODO
-                vertical_space(Length::Fill)
-            }
-            None => vertical_space(Length::Fill),
+        let content: Element<'_, Message> = match &self.music_dir {
+            Some(music_dir) => view_album_list(music_dir).into(),
+            None => vertical_space(Length::Fill).into(),
         };
 
-        column![
-            content,
-            play_pause_button,
-            vertical_space(Length::Units(10)),
-            progress_slider
-        ]
-        .padding(20)
-        .width(Length::Fill)
-        .align_items(Alignment::Center)
-        .into()
+        let content = fill_container(scrollable(content));
+
+        let main_column = column![content, play_pause_button, progress_slider]
+            .spacing(10)
+            .padding(20)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_items(Alignment::Center);
+
+        main_column.into()
     }
 }
 
+fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x()
+        .center_y()
+}
+
+fn view_album_list(music_dir: &MusicDirView) -> Column<'_, Message> {
+    let rows: Vec<_> = music_dir
+        .iter()
+        .map(view_album)
+        .map(Element::from)
+        .collect();
+
+    Column::with_children(rows)
+        .spacing(10)
+        .width(Length::Fill)
+        .align_items(Alignment::Center)
+}
+
+fn view_album_image(image_bytes: Option<&BgraBytes>) -> Element<'_, Message> {
+    let length = 256;
+
+    match image_bytes {
+        // NOTE this isn't cached, so the clone happens every time;
+        // currently it's not a problem, it might be with more images
+        Some(image_bytes) => Image::new(image_bytes.clone())
+            .width(Length::Units(length))
+            .height(Length::Units(length))
+            .content_fit(ContentFit::ScaleDown)
+            .into(),
+
+        None => Space::new(Length::Units(length), Length::Units(length)).into(),
+    }
+}
+
+fn view_album<'a>(album_dir: &'a AlbumDirView) -> Element<'a, Message> {
+    let album_image = view_album_image((&album_dir.loaded_cover).as_ref());
+
+    let album_info = column![
+        text(album_dir.display_title()),
+        text(album_dir.display_artist().unwrap_or(""))
+    ]
+    .width(Length::FillPortion(1));
+
+    let song_rows: Vec<_> = album_dir
+        .songs
+        .iter()
+        .map(|song| Element::from(text(song.display_title())))
+        .collect();
+
+    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
+
+    row![album_image, album_info, songs_list].spacing(10).into()
+}
+
+pub async fn load_images(paths: Vec<Utf8PathBuf>) -> Option<HashMap<Utf8PathBuf, BgraBytes>> {
+    use iced::futures::future::join_all;
+
+    let results = join_all(paths.into_iter().map(load_image)).await;
+    let pairs: Option<Vec<(Utf8PathBuf, BgraBytes)>> = results.into_iter().collect();
+    let bytes_by_path: HashMap<_, _> = pairs?.into_iter().collect();
+
+    Some(bytes_by_path)
+}
+
+async fn load_image(utf8_path: Utf8PathBuf) -> Option<(Utf8PathBuf, BgraBytes)> {
+    let bytes = load_bgra(&utf8_path)?;
+    Some((utf8_path, bytes))
+}
+
 // TODO remove these
-// #[allow(unused)]
-// const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
+#[allow(unused)]
+const BENNY_HILL: &str = "/home/giesch/Music/Benny Hill/Benny Hill - Theme Song.mp3";
 #[allow(unused)]
 const THE_WIND_THAT_SHAKES_THE_LAND: &str = "/home/giesch/Music/Unleash The Archers - Abyss/Unleash The Archers - Abyss - 08 The Wind that Shapes the Land.mp3";

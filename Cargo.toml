@@ -19,7 +19,11 @@ itertools = "0.10.5"
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
 rev = "82217947aa80287282ed6deb02d238a31303e0d6"
-features = ["async-std", "svg"]
+features = ["async-std", "svg", "image", "debug"]
+
+[dependencies.image_rs]
+package = "image"
+version = "0.23"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.5.0"
@@ -32,3 +36,6 @@ rb = "0.3.2"
 [dev-dependencies]
 mockall = "0.11.3"
 
+# compile all dependencies in release mode
+[profile.dev.package."*"]
+opt-level = 3

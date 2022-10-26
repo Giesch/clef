@@ -12,7 +12,7 @@ fn main() -> iced::Result {
     let (to_audio_tx, to_audio_rx) = flume::bounded::<ToAudio>(10);
     let (to_ui_tx, to_ui_rx) = flume::bounded::<ToUi>(10);
 
-    spawn_player(to_audio_rx, to_ui_tx);
+    spawn_player(to_audio_rx, to_ui_tx).expect("failed to start audio thread");
 
     let flags = Flags {
         inbox: Arc::new(Mutex::new(to_ui_rx)),
