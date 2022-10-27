@@ -187,19 +187,7 @@ impl Application for Ui {
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
-        let play_pause_button = match self.player_state {
-            PlayerStateView::Playing => button(icons::pause()).on_press(Message::PauseClicked),
-            PlayerStateView::Paused => button(icons::play()).on_press(Message::PlayClicked),
-            PlayerStateView::Stopped => button(icons::play()),
-        };
-
-        let bottom_row = row![
-            horizontal_space(Length::Fill),
-            play_pause_button,
-            horizontal_space(Length::Fill)
-        ]
-        .width(Length::Fill)
-        .spacing(10);
+        let bottom_row = view_bottom_row(&self.player_state);
 
         let progress_slider = match &self.progress {
             Some(times) => {
@@ -290,12 +278,33 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
 }
 
 fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
+    // NOTE this clone is necessary unless we want to have some kind of
+    // shared in-memory storage with the audio thread,
+    // or we let the audio thread have access to sqlite in the future
+    let path = song.path.clone();
+
     row![
-        // TODO cloning the path here is bad; should use a song id or something
-        button(icons::play()).on_press(Message::PlaySongClicked(song.path.clone())),
+        button(icons::play()).on_press(Message::PlaySongClicked(path)),
         text(song.display_title())
     ]
     .align_items(Alignment::Center)
     .spacing(4)
+    .into()
+}
+
+fn view_bottom_row(player_state: &PlayerStateView) -> Element<'static, Message> {
+    let play_pause_button = match player_state {
+        PlayerStateView::Playing => button(icons::pause()).on_press(Message::PauseClicked),
+        PlayerStateView::Paused => button(icons::play()).on_press(Message::PlayClicked),
+        PlayerStateView::Stopped => button(icons::play()),
+    };
+
+    row![
+        horizontal_space(Length::Fill),
+        play_pause_button,
+        horizontal_space(Length::Fill)
+    ]
+    .width(Length::Fill)
+    .spacing(10)
     .into()
 }

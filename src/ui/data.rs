@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use iced::Element;
-use log::error;
 use symphonia::core::meta::StandardTagKey;
 
 use super::bgra::BgraBytes;
