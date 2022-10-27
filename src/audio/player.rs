@@ -330,6 +330,7 @@ mod tests {
         let output = MockOutput::default();
 
         let playing_state = PlayingState {
+            path: Utf8PathBuf::new(),
             audio_output: Some(Box::new(output)),
             reader: Box::new(reader),
             decoder: Box::new(decoder),
