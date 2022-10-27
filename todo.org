@@ -48,8 +48,10 @@
 - [ ] restart audio thread after a crash
 
 - [ ] make the slider animate more smoothly
-  replace audio thread progress updates with a finer-grained timer
-  use a duration that's decoded/persisted instead of from audio thread
+  use a timer instead of audio thread updates
+  have the play/pause audio thread messages include the most recent time
+  could also do tweening instead
+  look into what animation stuff others have done with iced
 
 - [ ] keyboard support
   - [ ] space for play/pause

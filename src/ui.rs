@@ -167,7 +167,6 @@ impl Application for Ui {
             Message::PlaySongClicked(song_id) => {
                 match &self.music_dir {
                     Some(music_dir) => {
-                        // FIXME
                         let song = music_dir.get_song(&song_id);
                         let current = CurrentSongView::from_song(song);
                         self.player_state = PlayerStateView::Playing(current);
@@ -264,13 +263,7 @@ fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a,
 }
 
 fn view_album_list(music_dir: &MusicDir) -> Column<'_, Message> {
-    let rows: Vec<_> = music_dir
-        // FIXME should this just return the iterator?
-        .with_album_views(view_album)
-        .into_iter()
-        // .map(view_album)
-        // .map(Element::from)
-        .collect();
+    let rows: Vec<_> = music_dir.with_album_views(view_album).into_iter().collect();
 
     Column::with_children(rows)
         .spacing(10)
