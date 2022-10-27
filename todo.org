@@ -1,7 +1,7 @@
 * Now
 - [X] add runtime ids for songs and albums
   use these for places that are cloning paths/strings
-- [ ] add currently playing song info to the bottom row
+- [X] add currently playing song info to the bottom row
   need to look up the current track in the ui state from the event
 
 * Next

@@ -3,11 +3,11 @@ use std::sync::Arc;
 
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
-use iced::executor;
 use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text, vertical_space,
     Column, Container, Image, Space,
 };
+use iced::{alignment, executor};
 use iced::{Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme};
 use log::error;
 use parking_lot::Mutex;
@@ -34,9 +34,26 @@ pub struct Ui {
 
 #[derive(Debug)]
 enum PlayerStateView {
-    Playing,
-    Paused,
+    Playing(CurrentSongView),
+    Paused(CurrentSongView),
     Stopped,
+}
+
+#[derive(Debug, Clone)]
+struct CurrentSongView {
+    title: String,
+    album: Option<String>,
+    artist: Option<String>,
+}
+
+impl CurrentSongView {
+    pub fn from_song(song: &TaggedSong) -> Self {
+        Self {
+            title: song.display_title().to_owned(),
+            album: song.album_title().map(str::to_owned),
+            artist: song.artist().map(str::to_owned),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -49,7 +66,7 @@ pub struct Flags {
 pub enum Message {
     GotMusicDir(Result<MusicDir, MusicDirError>),
     PlayClicked,
-    PlaySongClicked(Utf8PathBuf),
+    PlaySongClicked(SongId),
     PauseClicked,
     FromAudio(ToUi),
     Seek(f32),
@@ -134,12 +151,12 @@ impl Application for Ui {
             }
 
             Message::PlayClicked => {
-                match self.player_state {
+                match &self.player_state {
                     PlayerStateView::Stopped => {}
-                    PlayerStateView::Playing => {}
+                    PlayerStateView::Playing(_) => {}
 
-                    PlayerStateView::Paused => {
-                        self.player_state = PlayerStateView::Playing;
+                    PlayerStateView::Paused(current) => {
+                        self.player_state = PlayerStateView::Playing(current.clone());
                         self.send_to_audio(ToAudio::PlayPaused);
                     }
                 }
@@ -147,14 +164,35 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::PlaySongClicked(path) => {
-                self.player_state = PlayerStateView::Playing;
-                self.send_to_audio(ToAudio::PlayFilename(path));
+            Message::PlaySongClicked(song_id) => {
+                match &self.music_dir {
+                    Some(music_dir) => {
+                        // FIXME
+                        let song = music_dir.get_song(&song_id);
+                        let current = CurrentSongView::from_song(song);
+                        self.player_state = PlayerStateView::Playing(current);
+
+                        // NOTE this clone is necessary unless we want to have some kind of
+                        // shared in-memory storage with the audio thread,
+                        // or we let the audio thread have access to sqlite in the future
+                        self.send_to_audio(ToAudio::PlayFilename(song.path.clone()));
+                    }
+                    None => {
+                        error!("play clicked before music loaded");
+                    }
+                }
                 Command::none()
             }
 
             Message::PauseClicked => {
-                self.player_state = PlayerStateView::Paused;
+                match &self.player_state {
+                    PlayerStateView::Paused(_) => {}
+                    PlayerStateView::Stopped => {}
+                    PlayerStateView::Playing(current) => {
+                        self.player_state = PlayerStateView::Paused(current.clone());
+                    }
+                };
+
                 self.send_to_audio(ToAudio::Pause);
                 Command::none()
             }
@@ -278,13 +316,8 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
 }
 
 fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
-    // NOTE this clone is necessary unless we want to have some kind of
-    // shared in-memory storage with the audio thread,
-    // or we let the audio thread have access to sqlite in the future
-    let path = song.path.clone();
-
     row![
-        button(icons::play()).on_press(Message::PlaySongClicked(path)),
+        button(icons::play()).on_press(Message::PlaySongClicked(song.id())),
         text(song.display_title())
     ]
     .align_items(Alignment::Center)
@@ -292,19 +325,53 @@ fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
     .into()
 }
 
-fn view_bottom_row(player_state: &PlayerStateView) -> Element<'static, Message> {
-    let play_pause_button = match player_state {
-        PlayerStateView::Playing => button(icons::pause()).on_press(Message::PauseClicked),
-        PlayerStateView::Paused => button(icons::play()).on_press(Message::PlayClicked),
-        PlayerStateView::Stopped => button(icons::play()),
+fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message> {
+    let row_content = match player_state {
+        PlayerStateView::Playing(current) => {
+            row![
+                view_current_album_artist(current)
+                    .width(Length::Fill)
+                    .align_items(Alignment::Center),
+                button(icons::pause()).on_press(Message::PauseClicked),
+                text(&current.title)
+                    .width(Length::Fill)
+                    .horizontal_alignment(alignment::Horizontal::Center)
+            ]
+        }
+
+        PlayerStateView::Paused(current) => {
+            row![
+                view_current_album_artist(current)
+                    .width(Length::Fill)
+                    .align_items(Alignment::Center),
+                button(icons::play()).on_press(Message::PlayClicked),
+                text(&current.title)
+                    .width(Length::Fill)
+                    .horizontal_alignment(alignment::Horizontal::Center)
+            ]
+        }
+
+        PlayerStateView::Stopped => {
+            row![
+                horizontal_space(Length::Fill),
+                button(icons::play()),
+                horizontal_space(Length::Fill)
+            ]
+        }
     };
 
-    row![
-        horizontal_space(Length::Fill),
-        play_pause_button,
-        horizontal_space(Length::Fill)
-    ]
-    .width(Length::Fill)
-    .spacing(10)
-    .into()
+    row_content.width(Length::Fill).spacing(10).into()
+}
+
+fn view_current_album_artist<'a>(current: &'a CurrentSongView) -> Column<'a, Message> {
+    let mut children: Vec<Element<'a, Message>> = Vec::new();
+
+    if let Some(album) = &current.album {
+        children.push(text(album).into());
+    }
+    if let Some(artist) = &current.artist {
+        children.push(text(artist).into());
+    }
+
+    Column::with_children(children)
 }
