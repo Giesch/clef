@@ -17,7 +17,7 @@ itertools = "0.10.5"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
-rev = "82217947aa80287282ed6deb02d238a31303e0d6"
+rev = "10c464784893e89994f285791890a8fd4c7a9777"
 features = ["svg", "image", "debug"]
 
 [dependencies.image_rs]

@@ -4,7 +4,7 @@ use camino::Utf8PathBuf;
 use log::error;
 use symphonia::core::meta::StandardTagKey;
 
-use super::bgra::BgraBytes;
+use super::rgb::RgbBytes;
 
 pub type MusicDirView = Vec<AlbumDirView>;
 
@@ -16,7 +16,7 @@ pub struct AlbumDirView {
     // unsorted, should have only 1
     pub covers: Vec<Utf8PathBuf>,
     // added later when conversion finishes
-    pub loaded_cover: Option<BgraBytes>,
+    pub loaded_cover: Option<RgbBytes>,
 }
 
 impl AlbumDirView {

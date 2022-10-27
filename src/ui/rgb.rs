@@ -7,19 +7,19 @@ use iced::widget::image;
 ///
 /// https://github.com/iced-rs/iced/issues/549
 #[derive(Clone)]
-pub struct BgraBytes {
+pub struct RgbBytes {
     height: u32,
     width: u32,
     bytes: Vec<u8>,
 }
 
-impl From<BgraBytes> for image::Handle {
-    fn from(bgra_bytes: BgraBytes) -> Self {
-        image::Handle::from_pixels(bgra_bytes.width, bgra_bytes.height, bgra_bytes.bytes)
+impl From<RgbBytes> for image::Handle {
+    fn from(bgra_bytes: RgbBytes) -> Self {
+        image::Handle::from_rgba(bgra_bytes.width, bgra_bytes.height, bgra_bytes.bytes)
     }
 }
 
-impl std::fmt::Debug for BgraBytes {
+impl std::fmt::Debug for RgbBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BgraBytes")
             .field("height", &self.height)
@@ -29,18 +29,15 @@ impl std::fmt::Debug for BgraBytes {
 }
 
 /// NOTE this is slow
-/// https://github.com/iced-rs/iced/issues/549
-pub fn load_bgra(path: &Utf8PathBuf) -> Option<BgraBytes> {
+pub fn load_bgra(path: &Utf8PathBuf) -> Option<RgbBytes> {
     let img = image_rs::open(path).ok()?;
+    let rgb = img.to_rgb8();
 
-    #[allow(deprecated)]
-    let bgra = img.to_bgra();
-
-    let bgra_bytes = BgraBytes {
-        height: bgra.height(),
-        width: bgra.width(),
-        bytes: bgra.into_raw(),
+    let rgb_bytes = RgbBytes {
+        height: rgb.height(),
+        width: rgb.width(),
+        bytes: rgb.into_raw(),
     };
 
-    Some(bgra_bytes)
+    Some(rgb_bytes)
 }

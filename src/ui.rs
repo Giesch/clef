@@ -17,8 +17,8 @@ use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
 mod icons;
 mod startup;
 use startup::*;
-mod bgra;
-use bgra::*;
+mod rgb;
+use rgb::*;
 mod data;
 use data::*;
 
@@ -53,7 +53,7 @@ pub enum Message {
     PauseClicked,
     FromAudio(ToUi),
     Seek(f32),
-    LoadedImages(Option<HashMap<Utf8PathBuf, BgraBytes>>),
+    LoadedImages(Option<HashMap<Utf8PathBuf, RgbBytes>>),
 }
 
 impl Ui {
@@ -261,7 +261,7 @@ fn view_album_list(music_dir: &MusicDirView) -> Column<'_, Message> {
         .align_items(Alignment::Center)
 }
 
-fn view_album_image(image_bytes: Option<&BgraBytes>) -> Element<'_, Message> {
+fn view_album_image(image_bytes: Option<&RgbBytes>) -> Element<'_, Message> {
     let length = 256;
 
     match image_bytes {
