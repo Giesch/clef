@@ -34,12 +34,17 @@ pub struct Ui {
 
 #[derive(Debug)]
 enum PlayerStateView {
-    Playing(CurrentSongView),
-    Paused(CurrentSongView),
     Stopped,
+    Started(CurrentSongState),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+struct CurrentSongState {
+    playing: bool, // false means paused
+    current: CurrentSongView,
+}
+
+#[derive(Debug)]
 struct CurrentSongView {
     title: String,
     album: Option<String>,
@@ -151,12 +156,11 @@ impl Application for Ui {
             }
 
             Message::PlayClicked => {
-                match &self.player_state {
+                match &mut self.player_state {
                     PlayerStateView::Stopped => {}
-                    PlayerStateView::Playing(_) => {}
-
-                    PlayerStateView::Paused(current) => {
-                        self.player_state = PlayerStateView::Playing(current.clone());
+                    PlayerStateView::Started(CurrentSongState { playing, .. }) if *playing => {}
+                    PlayerStateView::Started(current_song_state) => {
+                        current_song_state.playing = true;
                         self.send_to_audio(ToAudio::PlayPaused);
                     }
                 }
@@ -169,7 +173,11 @@ impl Application for Ui {
                     Some(music_dir) => {
                         let song = music_dir.get_song(&song_id);
                         let current = CurrentSongView::from_song(song);
-                        self.player_state = PlayerStateView::Playing(current);
+                        let current_song_state = CurrentSongState {
+                            playing: true,
+                            current,
+                        };
+                        self.player_state = PlayerStateView::Started(current_song_state);
 
                         // NOTE this clone is necessary unless we want to have some kind of
                         // shared in-memory storage with the audio thread,
@@ -184,11 +192,10 @@ impl Application for Ui {
             }
 
             Message::PauseClicked => {
-                match &self.player_state {
-                    PlayerStateView::Paused(_) => {}
+                match &mut self.player_state {
                     PlayerStateView::Stopped => {}
-                    PlayerStateView::Playing(current) => {
-                        self.player_state = PlayerStateView::Paused(current.clone());
+                    PlayerStateView::Started(current_song_state) => {
+                        current_song_state.playing = false;
                     }
                 };
 
@@ -320,7 +327,9 @@ fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
 
 fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message> {
     let row_content = match player_state {
-        PlayerStateView::Playing(current) => {
+        PlayerStateView::Started(current_song_state) if current_song_state.playing => {
+            let current = &current_song_state.current;
+
             row![
                 view_current_album_artist(current)
                     .width(Length::Fill)
@@ -332,7 +341,9 @@ fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message
             ]
         }
 
-        PlayerStateView::Paused(current) => {
+        PlayerStateView::Started(current_song_state) => {
+            let current = &current_song_state.current;
+
             row![
                 view_current_album_artist(current)
                     .width(Length::Fill)

@@ -3,6 +3,7 @@
   use these for places that are cloning paths/strings
 - [X] add currently playing song info to the bottom row
   need to look up the current track in the ui state from the event
+- [X] change the structure of the play/pause enum to avoid clones
 
 * Next
 - [ ] play the next song in the album when one ends
