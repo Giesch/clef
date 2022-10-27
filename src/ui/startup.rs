@@ -57,9 +57,6 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
 
     use itertools::Itertools;
 
-    // FIXME add keyed song info
-    // and change the sorted info to reference by id; add a convenience method
-
     let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
         .iter()
         .map(|song| (song.path.with_file_name(""), song.id()))
