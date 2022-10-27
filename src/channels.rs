@@ -36,7 +36,7 @@ pub fn spawn_player(
     to_ui: Sender<ToUi>,
 ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
     thread::Builder::new()
-        .name("AudioPlayer".to_string())
+        .name("ClefAudioPlayer".to_string())
         .spawn(move || {
             let player = Player::new(inbox, to_ui.clone());
             if let Err(err) = player.run_loop() {

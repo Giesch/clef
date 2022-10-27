@@ -1,12 +1,9 @@
 * Now
-- [X] make the tracks playable
-  - [X] add a play button next to each track
-  - [X] remove the hardcoded music paths
-  - [X] add a play button on each album cover
 
 * Next
+- [ ] add runtime ids for songs and albums
+  use these for places that are cloning paths/strings
 - [ ] add currently playing song info to the bottom row
-  this will require adding song ids
   need to look up the current track in the ui state from the event
 
 - [ ] play the next song in the album when one ends
@@ -41,6 +38,7 @@
   - [ ] tags
 
 - [ ] cache the converted bgra images in a config dir
+  or just work on making iced's images better
 
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)
