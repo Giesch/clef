@@ -270,7 +270,10 @@ fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a,
 }
 
 fn view_album_list(music_dir: &MusicDir) -> Column<'_, Message> {
-    let rows: Vec<_> = music_dir.with_album_views(view_album).into_iter().collect();
+    let rows: Vec<_> = music_dir
+        .with_joined_song_data(view_album)
+        .into_iter()
+        .collect();
 
     Column::with_children(rows)
         .spacing(10)

@@ -7,6 +7,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::{MetadataOptions, MetadataRevision};
 use symphonia::core::probe::Hint;
+use symphonia::default::get_probe;
 use walkdir::WalkDir;
 
 use super::bgra::{load_bgra, BgraBytes};
@@ -107,6 +108,7 @@ fn is_music(path: &Utf8Path) -> bool {
 fn decode_file(path: &Utf8Path) -> Option<TaggedSong> {
     let tags = decode_tags(path)?;
     let path = path.to_owned();
+
     Some(TaggedSong { path, tags })
 }
 
@@ -136,15 +138,14 @@ fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
     };
     let metadata_opts: MetadataOptions = Default::default();
 
-    let mut probed =
-        match symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts) {
-            Ok(p) => p,
-            Err(e) => {
-                let path_str = path.as_str();
-                error!("file in unsupported format: {path_str} {e}");
-                return Some(HashMap::new());
-            }
-        };
+    let mut probed = match get_probe().format(&hint, mss, &format_opts, &metadata_opts) {
+        Ok(p) => p,
+        Err(e) => {
+            let path_str = path.as_str();
+            error!("file in unsupported format: {path_str} {e}");
+            return Some(HashMap::new());
+        }
+    };
 
     let tags = if let Some(metadata_rev) = probed.format.metadata().current() {
         Some(gather_tags(&metadata_rev))

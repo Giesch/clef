@@ -44,11 +44,11 @@ impl MusicDir {
         &self.songs_by_id.get(song_id).expect("unexpected song id")
     }
 
-    pub fn with_album_views<'a, F, M>(&'a self, f: F) -> Vec<Element<'a, M>>
+    pub fn with_joined_song_data<'a, F, M>(&'a self, view_fn: F) -> Vec<Element<'a, M>>
     where
         F: Fn(&AlbumDirView<'a>) -> Element<'a, M>,
     {
-        let mut album_views = Vec::new();
+        let mut results: Vec<Element<'a, M>> = Vec::new();
 
         for album in &self.albums {
             let mut songs: Vec<&'a TaggedSong> = Vec::new();
@@ -58,18 +58,13 @@ impl MusicDir {
                 songs.push(song);
             }
 
-            let view = AlbumDirView {
+            let album_view = AlbumDirView {
                 directory: &album.directory,
-                songs,
-                covers: &album.covers,
                 loaded_cover: &album.loaded_cover,
+                songs,
             };
-            album_views.push(view);
-        }
 
-        let mut results: Vec<Element<'a, M>> = Vec::new();
-        for album_view in album_views {
-            let element = f(&album_view);
+            let element = view_fn(&album_view);
             results.push(element)
         }
 
@@ -84,7 +79,7 @@ pub struct AlbumDir {
     pub song_ids: Vec<SongId>,
     // unsorted, should have only 1
     pub covers: Vec<Utf8PathBuf>,
-    // added later when conversion finishes
+    // added after metadata when conversion finishes
     pub loaded_cover: Option<BgraBytes>,
 }
 
@@ -93,9 +88,7 @@ pub struct AlbumDirView<'a> {
     pub directory: &'a Utf8Path,
     // sorted by track number
     pub songs: Vec<&'a TaggedSong>,
-    // unsorted, should have only 1
-    pub covers: &'a [Utf8PathBuf],
-    // added later when conversion finishes
+    // added after metadata when conversion finishes
     pub loaded_cover: &'a Option<BgraBytes>,
 }
 
