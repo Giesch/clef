@@ -327,28 +327,19 @@ fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
 
 fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message> {
     let row_content = match player_state {
-        PlayerStateView::Started(current_song_state) if current_song_state.playing => {
-            let current = &current_song_state.current;
-
-            row![
-                view_current_album_artist(current)
-                    .width(Length::Fill)
-                    .align_items(Alignment::Center),
-                button(icons::pause()).on_press(Message::PauseClicked),
-                text(&current.title)
-                    .width(Length::Fill)
-                    .horizontal_alignment(alignment::Horizontal::Center)
-            ]
-        }
-
         PlayerStateView::Started(current_song_state) => {
             let current = &current_song_state.current;
+            let play_pause_button = if current_song_state.playing {
+                button(icons::pause()).on_press(Message::PauseClicked)
+            } else {
+                button(icons::play()).on_press(Message::PlayClicked)
+            };
 
             row![
                 view_current_album_artist(current)
                     .width(Length::Fill)
                     .align_items(Alignment::Center),
-                button(icons::play()).on_press(Message::PlayClicked),
+                play_pause_button,
                 text(&current.title)
                     .width(Length::Fill)
                     .horizontal_alignment(alignment::Horizontal::Center)
