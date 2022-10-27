@@ -47,7 +47,7 @@
 - [ ] integration tests
 - [ ] restart audio thread after a crash
 
-- [ ] make the slider smoother
+- [ ] make the slider animate more smoothly
   replace audio thread progress updates with a finer-grained timer
   use a duration that's decoded/persisted instead of from audio thread
 
@@ -58,5 +58,8 @@
 
 - [ ] drag and drop import
 
-- [ ] non-latin text
+- [ ] non-latin text (use cosmic's stuff early?)
   https://github.com/iced-rs/iced/issues/1454
+
+- [ ] select the music directory with a menu/modal, and cache it
+- [ ] select the config directory based on platform

@@ -29,7 +29,7 @@ pub struct Ui {
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
     should_exit: bool,
     progress: Option<ProgressTimes>,
-    music_dir: Option<MusicDirView>,
+    music_dir: Option<MusicDir>,
 }
 
 #[derive(Debug)]
@@ -47,7 +47,7 @@ pub struct Flags {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GotMusicDir(Result<MusicDirView, MusicDirError>),
+    GotMusicDir(Result<MusicDir, MusicDirError>),
     PlayClicked,
     PlaySongClicked(Utf8PathBuf),
     PauseClicked,
@@ -102,6 +102,7 @@ impl Application for Ui {
         match message {
             Message::GotMusicDir(Ok(music_dir)) => {
                 let image_paths: Vec<_> = music_dir
+                    .albums()
                     .iter()
                     .flat_map(|album| album.covers.first())
                     .cloned()
@@ -113,22 +114,10 @@ impl Application for Ui {
             }
             Message::GotMusicDir(Err(_)) => Command::none(),
 
-            Message::LoadedImages(Some(mut loaded_images_by_path)) => {
+            Message::LoadedImages(Some(loaded_images_by_path)) => {
                 match &mut self.music_dir {
                     Some(music_dir) => {
-                        for mut album in music_dir {
-                            // TODO this needs a better way of matching loaded images up to albums
-                            match album.covers.first() {
-                                Some(cover_path) => {
-                                    if let Some(bytes) = loaded_images_by_path.remove(cover_path) {
-                                        album.loaded_cover = Some(bytes);
-                                    }
-                                }
-                                None => {
-                                    continue;
-                                }
-                            }
-                        }
+                        music_dir.add_album_covers(loaded_images_by_path);
                     }
 
                     None => {
@@ -248,11 +237,13 @@ fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a,
         .center_y()
 }
 
-fn view_album_list(music_dir: &MusicDirView) -> Column<'_, Message> {
+fn view_album_list(music_dir: &MusicDir) -> Column<'_, Message> {
     let rows: Vec<_> = music_dir
-        .iter()
-        .map(view_album)
-        .map(Element::from)
+        // FIXME should this just return the iterator?
+        .with_album_views(view_album)
+        .into_iter()
+        // .map(view_album)
+        // .map(Element::from)
         .collect();
 
     Column::with_children(rows)
@@ -277,7 +268,7 @@ fn view_album_image(image_bytes: Option<&BgraBytes>) -> Element<'_, Message> {
     }
 }
 
-fn view_album<'a>(album_dir: &'a AlbumDirView) -> Element<'a, Message> {
+fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
     let album_image = view_album_image((&album_dir.loaded_cover).as_ref());
 
     let album_info = column![
@@ -286,7 +277,11 @@ fn view_album<'a>(album_dir: &'a AlbumDirView) -> Element<'a, Message> {
     ]
     .width(Length::FillPortion(1));
 
-    let song_rows: Vec<_> = album_dir.songs.iter().map(view_song_row).collect();
+    let song_rows: Vec<_> = album_dir
+        .songs
+        .iter()
+        .map(|&song| view_song_row(song))
+        .collect();
     let songs_list = Column::with_children(song_rows)
         .spacing(2)
         .width(Length::FillPortion(1));
