@@ -8,7 +8,7 @@ use symphonia::core::units::Time;
 
 use crate::audio::player::Player;
 
-// A message to the audio thread
+/// An mpsc message to the audio thread
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToAudio {
     PlayFilename(Utf8PathBuf),
@@ -16,7 +16,7 @@ pub enum ToAudio {
     PlayPaused,
 }
 
-// A message to the main/ui thread
+/// An mpsc message to the main/ui thread
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToUi {
     Progress(ProgressTimes),

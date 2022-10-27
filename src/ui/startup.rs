@@ -20,7 +20,7 @@ pub enum MusicDirError {
     UnsupportedFormat,
 }
 
-pub async fn crawl_music_dir() -> Result<MusicDirView, MusicDirError> {
+pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
     let mut songs: Vec<TaggedSong> = Vec::new();
     let mut covers: Vec<Utf8PathBuf> = Vec::new();
 
@@ -57,25 +57,37 @@ pub async fn crawl_music_dir() -> Result<MusicDirView, MusicDirError> {
 
     use itertools::Itertools;
 
-    let songs_by_directory: HashMap<Utf8PathBuf, Vec<TaggedSong>> = songs
-        .into_iter()
-        .map(|song| (song.path.with_file_name(""), song))
+    // FIXME add keyed song info
+    // and change the sorted info to reference by id; add a convenience method
+
+    let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
+        .iter()
+        .map(|song| (song.path.with_file_name(""), song.id()))
         .into_group_map();
+
+    let songs_by_id: HashMap<SongId, TaggedSong> = songs
+        .into_iter()
+        .map(|song| (song.id(), song))
+        .into_grouping_map()
+        .fold_first(|acc, _key, _val| acc);
 
     let mut covers_by_directory: HashMap<Utf8PathBuf, Vec<Utf8PathBuf>> = covers
         .into_iter()
         .map(|path| (path.with_file_name(""), path))
         .into_group_map();
 
-    let sorted_directories: Vec<_> = songs_by_directory
+    let sorted_album_dirs: Vec<_> = song_ids_by_directory
         .into_iter()
-        .map(|(directory, mut songs)| {
-            songs.sort_by_cached_key(|song| song.track_number());
+        .map(|(directory, mut song_ids)| {
+            song_ids.sort_by_cached_key(|song_id| {
+                let song = songs_by_id.get(song_id).expect("unexpected song id");
+                song.track_number()
+            });
             let covers = covers_by_directory.remove(&directory).unwrap_or_default();
 
-            AlbumDirView {
+            AlbumDir {
                 directory,
-                songs,
+                song_ids,
                 covers,
                 loaded_cover: None,
             }
@@ -83,7 +95,7 @@ pub async fn crawl_music_dir() -> Result<MusicDirView, MusicDirError> {
         .sorted_by_key(|album_dir| album_dir.directory.to_string())
         .collect();
 
-    Ok(sorted_directories)
+    Ok(MusicDir::new(sorted_album_dirs, songs_by_id))
 }
 
 fn is_cover_art(path: &Utf8Path) -> bool {
