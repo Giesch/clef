@@ -1,10 +1,10 @@
 * Now
-
-* Next
-- [ ] add runtime ids for songs and albums
+- [X] add runtime ids for songs and albums
   use these for places that are cloning paths/strings
 - [ ] add currently playing song info to the bottom row
   need to look up the current track in the ui state from the event
+
+* Next
 
 - [ ] play the next song in the album when one ends
   this requires the ability to remember a queue on the player side
@@ -36,6 +36,7 @@
   - [ ] last played song
   - [ ] music directory index
   - [ ] tags
+  - [ ] re-evaluate the expect/unwraps taking song ids
 
 - [ ] cache the converted bgra images in a config dir
   or just work on making iced's images better
