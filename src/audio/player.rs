@@ -4,8 +4,8 @@ use std::fs::File;
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
-use log::warn;
-use symphonia::core::codecs::{Decoder, CODEC_TYPE_NULL};
+use log::{debug, warn};
+use symphonia::core::codecs::{CodecParameters, Decoder, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, Track};
 use symphonia::core::io::MediaSourceStream;
@@ -46,31 +46,51 @@ struct TrackInfo {
     duration: Option<u64>,
 }
 
+impl TrackInfo {
+    /// Given a packet timestamp, returns the progress times to display for the track
+    /// None = either time base or duration is missing from the track info
+    fn progress_times(&self, timestamp: u64) -> Option<ProgressTimes> {
+        match (self.time_base, self.duration) {
+            (Some(time_base), Some(duration)) => Some(ProgressTimes {
+                elapsed: time_base.calc_time(timestamp),
+                remaining: time_base.calc_time(duration.saturating_sub(timestamp)),
+                total: time_base.calc_time(duration),
+            }),
+
+            _ => None,
+        }
+    }
+}
+
 impl From<&Track> for TrackInfo {
     fn from(track: &Track) -> Self {
+        let CodecParameters {
+            time_base,
+            n_frames,
+            start_ts,
+            ..
+        } = track.codec_params;
+
         Self {
             id: track.id,
-            time_base: track.codec_params.time_base,
-            duration: track
-                .codec_params
-                .n_frames
-                .map(|frames| track.codec_params.start_ts + frames),
+            time_base,
+            duration: n_frames.map(|frames| start_ts + frames),
         }
     }
 }
 
 impl std::fmt::Debug for PlayingState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let audio_output = &match self.audio_output {
+        let audio_output = match self.audio_output {
             Some(_) => "Some",
             None => "None",
         };
 
         f.debug_struct("PlayingState")
-            .field("audio_output", audio_output)
+            .field("audio_output", &audio_output)
             .field("seek_ts", &self.seek_ts)
             .field("track_info", &self.track_info)
-            .field("queue", &self.up_next)
+            .field("up_next", &self.up_next)
             .finish()
     }
 }
@@ -122,8 +142,8 @@ impl Player {
 
             (Some(ToAudio::PlayQueue((to_play, up_next))), _any_state) => {
                 // NOTE keep this in sync with the EOF section of continue_playing below
-                let mut playing_state = PlayingState::from_file(to_play).context("playing file")?;
-                playing_state.up_next = up_next;
+                let playing_state = PlayingState::from_file_with_up_next(to_play, up_next)
+                    .context("playing queue")?;
                 Ok((PlayerState::Playing(playing_state), None))
             }
 
@@ -243,73 +263,11 @@ impl PlayingState {
         };
 
         if packet.track_id() != playing_state.track_info.id {
-            let next_state = PlayerState::Playing(playing_state);
-            return Ok((next_state, None));
+            return Ok((PlayerState::Playing(playing_state), None));
         }
 
-        match playing_state.decoder.decode(&packet) {
-            Ok(decoded) => {
-                // If the audio output is not open, try to open it.
-                if playing_state.audio_output.is_none() {
-                    // Get the audio buffer specification. This is a description of the decoded
-                    // audio buffer's sample format and sample rate.
-                    let spec = *decoded.spec();
-
-                    // Get the capacity of the decoded buffer. Note that this is capacity, not
-                    // length! The capacity of the decoded buffer is constant for the life of the
-                    // decoder, but the length is not.
-                    let duration = decoded.capacity() as u64;
-
-                    // Try to open the audio output.
-                    let new_audio_output =
-                        output::try_open(spec, duration).context("opening audio device")?;
-                    playing_state.audio_output.replace(new_audio_output);
-                } else {
-                    // TODO: Check the audio spec. and duration hasn't changed.
-                }
-
-                // Write the decoded audio samples to the audio output if the presentation timestamp
-                // for the packet is >= the seeked position (0 if not seeking).
-                let timestamp = packet.ts();
-                if timestamp >= playing_state.seek_ts {
-                    if let Some(audio_output) = &mut playing_state.audio_output {
-                        audio_output.write(decoded).context("writing audio")?;
-
-                        let msg = match (
-                            &playing_state.track_info.time_base,
-                            &playing_state.track_info.duration,
-                        ) {
-                            (Some(time_base), Some(duration)) => {
-                                let elapsed = time_base.calc_time(timestamp);
-                                let remaining =
-                                    time_base.calc_time(duration.saturating_sub(timestamp));
-                                let total = time_base.calc_time(*duration);
-
-                                let times = ProgressTimes {
-                                    elapsed,
-                                    remaining,
-                                    total,
-                                };
-                                Some(ToUi::Progress(times))
-                            }
-
-                            _ => {
-                                log::debug!("missing time info in track");
-                                None
-                            }
-                        };
-
-                        let next_state = PlayerState::Playing(playing_state);
-                        Ok((next_state, msg))
-                    } else {
-                        bail!("no audio device");
-                    }
-                } else {
-                    // seeking
-                    let next_state = PlayerState::Playing(playing_state);
-                    Ok((next_state, None))
-                }
-            }
+        let decoded = match playing_state.decoder.decode(&packet) {
+            Ok(decoded) => decoded,
 
             Err(SymphoniaError::DecodeError(err)) => {
                 // Decode errors are not fatal.
@@ -317,11 +275,58 @@ impl PlayingState {
                 warn!("decode error: {}", err);
 
                 let next_state = PlayerState::Playing(playing_state);
-                Ok((next_state, None))
+                return Ok((next_state, None));
             }
 
             Err(err) => bail!("failed to read packet: {err}"),
+        };
+
+        // If the audio output is not open, try to open it.
+        if playing_state.audio_output.is_none() {
+            // Get the audio buffer specification. This is a description of the decoded
+            // audio buffer's sample format and sample rate.
+            let spec = *decoded.spec();
+
+            // Get the capacity of the decoded buffer. Note that this is capacity, not
+            // length! The capacity of the decoded buffer is constant for the life of the
+            // decoder, but the length is not.
+            let duration = decoded.capacity() as u64;
+
+            // Try to open the audio output.
+            let new_audio_output =
+                output::try_open(spec, duration).context("opening audio device")?;
+            playing_state.audio_output.replace(new_audio_output);
+        } else {
+            // TODO: Check the audio spec. and duration hasn't changed.
         }
+
+        // Write the decoded audio samples to the audio output if the presentation timestamp
+        // for the packet is >= the seeked position (0 if not seeking).
+        let timestamp = packet.ts();
+
+        if timestamp < playing_state.seek_ts {
+            // seeking forward
+            return Ok((PlayerState::Playing(playing_state), None));
+        }
+
+        let audio_output = match &mut playing_state.audio_output {
+            Some(output) => output,
+            None => {
+                bail!("no audio device");
+            }
+        };
+
+        audio_output.write(decoded).context("writing audio")?;
+
+        let progress_msg = match playing_state.track_info.progress_times(timestamp) {
+            Some(times) => Some(ToUi::Progress(times)),
+            None => {
+                debug!("missing time info in track");
+                None
+            }
+        };
+
+        Ok((PlayerState::Playing(playing_state), progress_msg))
     }
 }
 
@@ -345,17 +350,15 @@ mod tests {
             duration: None,
         };
 
+        let decoder = MockDecoder::new();
+        let output = MockOutput::default();
+
         let mut reader = MockReader::new();
         reader.expect_next_packet().times(1).returning(|| {
             let kind = std::io::ErrorKind::UnexpectedEof;
             let io_error = std::io::Error::new(kind, anyhow::anyhow!("EOF"));
-
-            return Err(SymphoniaError::IoError(io_error));
+            Err(SymphoniaError::IoError(io_error))
         });
-
-        let decoder = MockDecoder::new();
-
-        let output = MockOutput::default();
 
         let playing_state = PlayingState {
             up_next: VecDeque::new(),
@@ -379,7 +382,6 @@ mod tests {
             fn next_packet(
                 &mut self,
             ) -> symphonia::core::errors::Result<symphonia::core::formats::Packet>;
-
 
             fn try_new(
                 source: MediaSourceStream,

@@ -5,7 +5,7 @@ use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
 use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text, vertical_space,
-    Column, Container, Image, Space,
+    Column, Container, Image, Row, Space,
 };
 use iced::{alignment, executor};
 use iced::{Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme};
@@ -41,7 +41,7 @@ enum PlayerStateView {
 #[derive(Debug)]
 struct CurrentSongState {
     playing: bool, // false means paused
-    current: CurrentSongView,
+    song: CurrentSongView,
 }
 
 #[derive(Debug)]
@@ -174,7 +174,7 @@ impl Application for Ui {
                         let song = music_dir.get_song(&song_id);
                         self.player_state = PlayerStateView::Started(CurrentSongState {
                             playing: true,
-                            current: CurrentSongView::from_song(song),
+                            song: CurrentSongView::from_song(song),
                         });
 
                         let up_next: VecDeque<_> = {
@@ -231,12 +231,10 @@ impl Application for Ui {
                 };
 
                 let song = music_dir.get_song_by_path(song_path);
-                let current = CurrentSongView::from_song(song);
-                let current_song_state = CurrentSongState {
+                self.player_state = PlayerStateView::Started(CurrentSongState {
                     playing: true,
-                    current,
-                };
-                self.player_state = PlayerStateView::Started(current_song_state);
+                    song: CurrentSongView::from_song(song),
+                });
 
                 Command::none()
             }
@@ -346,6 +344,7 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
     row![album_image, album_info, songs_list].spacing(10).into()
 }
 
+/// A song in the album table
 fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
     row![
         button(icons::play()).on_press(Message::PlaySongClicked(song.id())),
@@ -356,11 +355,13 @@ fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
     .into()
 }
 
+/// The bottom row with the play/pause button and current song info
 fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
+    // 24 (svg) + 10 (spacing?)
+    let magic_svg_height = Length::Units(34);
+
     let row_content = match player_state {
         PlayerStateView::Started(current_song_state) => {
-            let current = &current_song_state.current;
-
             let play_pause_button = if current_song_state.playing {
                 button(icons::pause()).on_press(Message::PauseClicked)
             } else {
@@ -368,12 +369,14 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
             };
 
             row![
-                view_current_album_artist(current)
+                view_current_album_artist(&current_song_state.song)
                     .width(Length::Fill)
+                    .height(magic_svg_height)
                     .align_items(Alignment::Center),
                 play_pause_button,
-                text(&current.title)
+                text(&current_song_state.song.title)
                     .width(Length::Fill)
+                    .height(magic_svg_height)
                     .horizontal_alignment(alignment::Horizontal::Center)
                     .vertical_alignment(alignment::Vertical::Center)
             ]
@@ -381,9 +384,9 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
 
         PlayerStateView::Stopped => {
             row![
-                horizontal_space(Length::Fill),
+                Space::new(Length::Fill, magic_svg_height),
                 button(icons::play()),
-                horizontal_space(Length::Fill)
+                Space::new(Length::Fill, magic_svg_height),
             ]
         }
     };
@@ -391,15 +394,24 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
     row_content.width(Length::Fill).spacing(10).into()
 }
 
-fn view_current_album_artist<'a>(current: &'a CurrentSongView) -> Column<'a, Message> {
-    let mut children: Vec<Element<'a, Message>> = Vec::new();
+fn view_current_album_artist(current: &CurrentSongView) -> Row<'_, Message> {
+    let mut children: Vec<Element<'_, Message>> = Vec::new();
+
+    children.push(horizontal_space(Length::Fill).into());
 
     if let Some(album) = &current.album {
         children.push(text(album).into());
     }
+
+    if current.album.is_some() && current.artist.is_some() {
+        children.push(text(" - ").into());
+    }
+
     if let Some(artist) = &current.artist {
         children.push(text(artist).into());
     }
 
-    Column::with_children(children)
+    children.push(horizontal_space(Length::Fill).into());
+
+    Row::with_children(children).spacing(10)
 }

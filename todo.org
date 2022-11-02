@@ -1,6 +1,4 @@
 * Now
-- [X] play the next song in the album when one ends
-  this requires the ability to remember a queue on the player side
 
 * Next
 - [ ] make the play track buttons nicer
@@ -10,6 +8,8 @@
 
 - [ ] add indicator on a song in the list that it's playing?
 - [ ] add song durations to view
+  - [ ] for currently playing song
+  - [ ] in the album song list
 
 - [ ] thumbnail album art for currently playing song
 - [ ] seekable progress bar
