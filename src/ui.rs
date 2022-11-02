@@ -326,7 +326,7 @@ fn view_album_image(image_bytes: Option<&BgraBytes>) -> Element<'_, Message> {
 }
 
 fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
-    let album_image = view_album_image((&album_dir.loaded_cover).as_ref());
+    let album_image = view_album_image(album_dir.loaded_cover.as_ref());
 
     let album_info = column![
         text(album_dir.display_title()),
@@ -356,7 +356,7 @@ fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
     .into()
 }
 
-fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message> {
+fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
     let row_content = match player_state {
         PlayerStateView::Started(current_song_state) => {
             let current = &current_song_state.current;

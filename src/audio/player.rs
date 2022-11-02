@@ -184,9 +184,9 @@ impl PlayingState {
 
         let probed = symphonia::default::get_probe()
             .format(&hint, mss, &format_opts, &metadata_opts)
-            .with_context(|| format!("The input was not supported by any format reader"))?;
+            .context("The input was not supported by any format reader")?;
 
-        let track = first_supported_track(&probed.format.tracks()).context("no playable track")?;
+        let track = first_supported_track(probed.format.tracks()).context("no playable track")?;
         let track_info: TrackInfo = track.into();
 
         // default decode opts (no verify)

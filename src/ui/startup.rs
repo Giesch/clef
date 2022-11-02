@@ -42,7 +42,7 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
             }
         };
 
-        if is_music(&path) {
+        if is_music(path) {
             let song = match decode_file(path) {
                 Some(decoded) => decoded,
                 None => {
@@ -51,7 +51,7 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
             };
 
             songs.push(song);
-        } else if is_cover_art(&path) {
+        } else if is_cover_art(path) {
             covers.push(path.to_owned());
         }
     }
@@ -155,11 +155,14 @@ fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
     };
 
     let tags = if let Some(metadata_rev) = probed.format.metadata().current() {
-        Some(gather_tags(&metadata_rev))
-    } else if let Some(metadata_rev) = probed.metadata.get().as_ref().and_then(|m| m.current()) {
-        Some(gather_tags(&metadata_rev))
+        Some(gather_tags(metadata_rev))
     } else {
-        None
+        probed
+            .metadata
+            .get()
+            .as_ref()
+            .and_then(|m| m.current())
+            .map(gather_tags)
     };
 
     Some(tags.unwrap_or_default())

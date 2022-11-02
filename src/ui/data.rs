@@ -53,16 +53,16 @@ impl MusicDir {
     }
 
     pub fn get_song<'a>(&'a self, song_id: &SongId) -> &'a TaggedSong {
-        &self.songs_by_id.get(song_id).expect("unexpected song id")
+        self.songs_by_id.get(song_id).expect("unexpected song id")
     }
 
     // TODO
     // once this is using sqlite, this should go away
     // and the audio thread should just use ids
     // change the caller/ui to use (SongId, Utf8PathBuf) pairs
-    pub fn get_song_by_path<'a>(&'a self, song_path: Utf8PathBuf) -> &'a TaggedSong {
+    pub fn get_song_by_path(&self, song_path: Utf8PathBuf) -> &TaggedSong {
         let song_id = SongId(song_path);
-        &self.songs_by_id.get(&song_id).expect("unexpected song id")
+        self.songs_by_id.get(&song_id).expect("unexpected song id")
     }
 
     pub fn with_joined_song_data<'a, F, M>(&'a self, view_fn: F) -> Vec<Element<'a, M>>
