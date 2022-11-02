@@ -6,27 +6,39 @@ use symphonia::core::meta::StandardTagKey;
 
 use super::bgra::BgraBytes;
 
+// TODO remove the unwraps here when moving to sqlite
+
 #[derive(Debug, Clone)]
 pub struct MusicDir {
-    albums: Vec<AlbumDir>,
+    sorted_albums: Vec<AlbumId>,
     songs_by_id: HashMap<SongId, TaggedSong>,
+    albums_by_id: HashMap<AlbumId, AlbumDir>,
 }
 
 impl MusicDir {
-    pub fn new(albums: Vec<AlbumDir>, songs_by_id: HashMap<SongId, TaggedSong>) -> Self {
+    pub fn new(
+        sorted_albums: Vec<AlbumId>,
+        songs_by_id: HashMap<SongId, TaggedSong>,
+        albums_by_id: HashMap<AlbumId, AlbumDir>,
+    ) -> Self {
         MusicDir {
-            albums,
+            sorted_albums,
             songs_by_id,
+            albums_by_id,
         }
     }
 
-    pub fn albums(&self) -> &[AlbumDir] {
-        &self.albums
+    pub fn albums(&self) -> Vec<&AlbumDir> {
+        self.sorted_albums
+            .iter()
+            .map(|id| self.albums_by_id.get(id).unwrap())
+            .collect()
     }
 
     pub fn add_album_covers(&mut self, mut loaded_images_by_path: HashMap<Utf8PathBuf, BgraBytes>) {
-        for mut album in &mut self.albums {
+        for (_id, album) in self.albums_by_id.iter_mut() {
             // TODO this needs a better way of matching loaded images up to albums
+            // ie, by sql id
             match album.covers.first() {
                 Some(cover_path) => {
                     if let Some(bytes) = loaded_images_by_path.remove(cover_path) {
@@ -44,13 +56,24 @@ impl MusicDir {
         &self.songs_by_id.get(song_id).expect("unexpected song id")
     }
 
+    // TODO
+    // once this is using sqlite, this should go away
+    // and the audio thread should just use ids
+    // change the caller/ui to use (SongId, Utf8PathBuf) pairs
+    pub fn get_song_by_path<'a>(&'a self, song_path: Utf8PathBuf) -> &'a TaggedSong {
+        let song_id = SongId(song_path);
+        &self.songs_by_id.get(&song_id).expect("unexpected song id")
+    }
+
     pub fn with_joined_song_data<'a, F, M>(&'a self, view_fn: F) -> Vec<Element<'a, M>>
     where
         F: Fn(&AlbumDirView<'a>) -> Element<'a, M>,
     {
-        let mut results: Vec<Element<'a, M>> = Vec::new();
+        let mut elements: Vec<Element<'a, M>> = Vec::new();
 
-        for album in &self.albums {
+        for album_id in &self.sorted_albums {
+            let album = self.albums_by_id.get(album_id).unwrap();
+
             let mut songs: Vec<&'a TaggedSong> = Vec::new();
 
             for song_id in &album.song_ids {
@@ -65,15 +88,20 @@ impl MusicDir {
             };
 
             let element = view_fn(&album_view);
-            results.push(element)
+            elements.push(element)
         }
 
-        return results;
+        elements
+    }
+
+    pub fn get_album(&self, album_id: &AlbumId) -> &AlbumDir {
+        self.albums_by_id.get(album_id).unwrap()
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct AlbumDir {
+    pub id: AlbumId,
     pub directory: Utf8PathBuf,
     // sorted by track number
     pub song_ids: Vec<SongId>,
@@ -82,6 +110,23 @@ pub struct AlbumDir {
     // added after metadata when conversion finishes
     pub loaded_cover: Option<BgraBytes>,
 }
+
+impl AlbumDir {
+    pub fn new(directory: Utf8PathBuf, song_ids: Vec<SongId>, covers: Vec<Utf8PathBuf>) -> Self {
+        let id = AlbumId(directory.clone());
+
+        Self {
+            id,
+            directory,
+            song_ids,
+            covers,
+            loaded_cover: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct AlbumId(Utf8PathBuf);
 
 #[derive(Debug, Clone)]
 pub struct AlbumDirView<'a> {
@@ -94,12 +139,7 @@ pub struct AlbumDirView<'a> {
 
 impl<'a> AlbumDirView<'a> {
     pub fn display_title(&self) -> &str {
-        if let Some(first_tag) = self
-            .songs
-            .as_slice()
-            .first()
-            .and_then(|&song| song.album_title())
-        {
+        if let Some(first_tag) = self.songs.first().and_then(|&song| song.album_title()) {
             return first_tag;
         }
 
@@ -107,16 +147,14 @@ impl<'a> AlbumDirView<'a> {
     }
 
     pub fn display_artist(&self) -> Option<&str> {
-        self.songs
-            .as_slice()
-            .first()
-            .and_then(|&song| song.artist())
+        self.songs.first().and_then(|&song| song.artist())
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct TaggedSong {
     pub path: Utf8PathBuf,
+    pub album_id: Option<AlbumId>,
     pub tags: HashMap<TagKey, String>,
 }
 
@@ -126,8 +164,14 @@ pub struct SongId(Utf8PathBuf);
 impl TaggedSong {
     pub fn id(&self) -> SongId {
         // NOTE for now, this does a clone
-        // in the future it should use a uuid or usize from sqlite
+        // in the future it should use an int from sqlite
         SongId(self.path.clone())
+    }
+
+    pub fn album_id(&self) -> AlbumId {
+        // NOTE this has to stay in sync
+        // with how album ids are generated
+        AlbumId(self.path.with_file_name(""))
     }
 
     pub fn display_title(&self) -> &str {

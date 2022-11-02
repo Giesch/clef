@@ -1,20 +1,18 @@
 * Now
-- [X] add runtime ids for songs and albums
-  use these for places that are cloning paths/strings
-- [X] add currently playing song info to the bottom row
-  need to look up the current track in the ui state from the event
-- [X] change the structure of the play/pause enum to avoid clones
-
-* Next
-- [ ] play the next song in the album when one ends
+- [X] play the next song in the album when one ends
   this requires the ability to remember a queue on the player side
 
-- [ ] seekable progress bar
-
+* Next
 - [ ] make the play track buttons nicer
-  - [ ] subtler style
+  - [ ] subtler style - ask re: subtheming pure components
   - [ ] display on hover
   - [ ] keep the playing track in sync with main play button
+
+- [ ] add indicator on a song in the list that it's playing?
+- [ ] add song durations to view
+
+- [ ] thumbnail album art for currently playing song
+- [ ] seekable progress bar
 
 - [ ] handle metadata correctly in the audio thread
   https://github.com/pdeljanov/Symphonia/blob/master/GETTING_STARTED.md#consuming-metadata
@@ -37,6 +35,8 @@
   - [ ] music directory index
   - [ ] tags
   - [ ] re-evaluate the expect/unwraps taking song ids
+  - [ ] figure out how the ui and audio threads should share songs
+    id/path/somthing else
 
 - [ ] cache the converted bgra images in a config dir
   or just work on making iced's images better

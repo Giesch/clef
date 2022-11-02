@@ -74,26 +74,30 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
         .map(|path| (path.with_file_name(""), path))
         .into_group_map();
 
-    let sorted_album_dirs: Vec<_> = song_ids_by_directory
+    let mut albums_by_id = HashMap::new();
+
+    let sorted_albums: Vec<_> = song_ids_by_directory
         .into_iter()
         .map(|(directory, mut song_ids)| {
-            song_ids.sort_by_cached_key(|song_id| {
+            song_ids.sort_by_key(|song_id| {
                 let song = songs_by_id.get(song_id).expect("unexpected song id");
                 song.track_number()
             });
+
             let covers = covers_by_directory.remove(&directory).unwrap_or_default();
 
-            AlbumDir {
-                directory,
-                song_ids,
-                covers,
-                loaded_cover: None,
-            }
+            let album = AlbumDir::new(directory, song_ids, covers);
+            let dir_name = album.directory.to_string();
+            let album_id = album.id.clone();
+            albums_by_id.insert(album.id.clone(), album);
+
+            (album_id, dir_name)
         })
-        .sorted_by_key(|album_dir| album_dir.directory.to_string())
+        .sorted_by_key(|(_album_id, dir_name)| dir_name.clone())
+        .map(|(id, _)| id)
         .collect();
 
-    Ok(MusicDir::new(sorted_album_dirs, songs_by_id))
+    Ok(MusicDir::new(sorted_albums, songs_by_id, albums_by_id))
 }
 
 fn is_cover_art(path: &Utf8Path) -> bool {
@@ -107,9 +111,12 @@ fn is_music(path: &Utf8Path) -> bool {
 // NOTE This returns an empty tag map if they're missing, and None for file not found
 fn decode_file(path: &Utf8Path) -> Option<TaggedSong> {
     let tags = decode_tags(path)?;
-    let path = path.to_owned();
 
-    Some(TaggedSong { path, tags })
+    Some(TaggedSong {
+        tags,
+        path: path.to_owned(),
+        album_id: None,
+    })
 }
 
 // NOTE This returns an empty tag map if they're missing, and None for file not found

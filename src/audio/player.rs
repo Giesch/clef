@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::File;
 
 use anyhow::{bail, Context};
@@ -35,7 +36,7 @@ struct PlayingState {
     decoder: Box<dyn Decoder>,
     seek_ts: u64, // 0 = not seeking, play from beginning
     track_info: TrackInfo,
-    path: Utf8PathBuf,
+    up_next: VecDeque<Utf8PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,7 +70,7 @@ impl std::fmt::Debug for PlayingState {
             .field("audio_output", audio_output)
             .field("seek_ts", &self.seek_ts)
             .field("track_info", &self.track_info)
-            .field("path", &self.path)
+            .field("queue", &self.up_next)
             .finish()
     }
 }
@@ -119,6 +120,13 @@ impl Player {
                 Ok((PlayerState::Playing(playing_state), None))
             }
 
+            (Some(ToAudio::PlayQueue((to_play, up_next))), _any_state) => {
+                // NOTE keep this in sync with the EOF section of continue_playing below
+                let mut playing_state = PlayingState::from_file(to_play).context("playing file")?;
+                playing_state.up_next = up_next;
+                Ok((PlayerState::Playing(playing_state), None))
+            }
+
             (Some(ToAudio::Pause), state @ PlayerState::Stopped) => Ok((state, None)),
             (Some(ToAudio::Pause), state @ PlayerState::Paused(_)) => Ok((state, None)),
             (Some(ToAudio::Pause), PlayerState::Playing(playing_state)) => {
@@ -145,8 +153,15 @@ impl Player {
 }
 
 impl PlayingState {
+    fn from_file(path: Utf8PathBuf) -> anyhow::Result<Self> {
+        Self::from_file_with_up_next(path, Default::default())
+    }
+
     // This is based on the main loop in the symphonia-play example
-    fn from_file(path: Utf8PathBuf) -> anyhow::Result<PlayingState> {
+    fn from_file_with_up_next(
+        path: Utf8PathBuf,
+        up_next: VecDeque<Utf8PathBuf>,
+    ) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
 
         // Provide the file extension as a hint.
@@ -185,7 +200,7 @@ impl PlayingState {
             audio_output: None,
             decoder,
             track_info,
-            path,
+            up_next,
         })
     }
 
@@ -197,13 +212,26 @@ impl PlayingState {
         let packet = match playing_state.reader.next_packet() {
             Ok(packet) => packet,
 
-            // this is an expected error
+            // this is the normal way to reach the end of the file, not really an error
             // https://github.com/pdeljanov/Symphonia/issues/134
             Err(SymphoniaError::IoError(io_error))
                 if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
             {
                 if let Some(output) = &mut playing_state.audio_output {
                     output.flush();
+                }
+
+                if let Some(next_song) = playing_state.up_next.pop_front() {
+                    let playing_state = PlayingState::from_file_with_up_next(
+                        next_song.clone(),
+                        playing_state.up_next,
+                    )
+                    .context("playing file")?;
+
+                    return Ok((
+                        PlayerState::Playing(playing_state),
+                        Some(ToUi::NextSong(next_song)),
+                    ));
                 }
 
                 return Ok((PlayerState::Stopped, Some(ToUi::Stopped)));
@@ -330,7 +358,7 @@ mod tests {
         let output = MockOutput::default();
 
         let playing_state = PlayingState {
-            path: Utf8PathBuf::new(),
+            up_next: VecDeque::new(),
             audio_output: Some(Box::new(output)),
             reader: Box::new(reader),
             decoder: Box::new(decoder),

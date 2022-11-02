@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::thread;
 use std::{sync::Arc, thread::JoinHandle};
 
@@ -12,6 +13,7 @@ use crate::audio::player::Player;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToAudio {
     PlayFilename(Utf8PathBuf),
+    PlayQueue((Utf8PathBuf, VecDeque<Utf8PathBuf>)),
     Pause,
     PlayPaused,
 }
@@ -19,9 +21,14 @@ pub enum ToAudio {
 /// An mpsc message to the main/ui thread
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToUi {
+    /// The player has made progress on the current song
     Progress(ProgressTimes),
+    /// The player has continued to the next song in the queue
+    NextSong(Utf8PathBuf),
+    /// The player reached the end of the queue
+    Stopped,
+    /// The player thread died
     AudioDied,
-    Stopped, // end of track
 }
 
 #[derive(Debug, Clone, PartialEq)]

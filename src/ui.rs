@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use camino::Utf8PathBuf;
@@ -172,17 +172,25 @@ impl Application for Ui {
                 match &self.music_dir {
                     Some(music_dir) => {
                         let song = music_dir.get_song(&song_id);
-                        let current = CurrentSongView::from_song(song);
-                        let current_song_state = CurrentSongState {
+                        self.player_state = PlayerStateView::Started(CurrentSongState {
                             playing: true,
-                            current,
-                        };
-                        self.player_state = PlayerStateView::Started(current_song_state);
+                            current: CurrentSongView::from_song(song),
+                        });
 
-                        // NOTE this clone is necessary unless we want to have some kind of
-                        // shared in-memory storage with the audio thread,
-                        // or we let the audio thread have access to sqlite in the future
-                        self.send_to_audio(ToAudio::PlayFilename(song.path.clone()));
+                        let up_next: VecDeque<_> = {
+                            let album = music_dir.get_album(&song.album_id());
+                            let mut remaining_songs =
+                                album.song_ids.iter().skip_while(|&s| s != &song.id());
+
+                            // remove new current track
+                            remaining_songs.next();
+
+                            remaining_songs
+                                .map(|song_id| music_dir.get_song(song_id).path.clone())
+                                .collect()
+                        };
+
+                        self.send_to_audio(ToAudio::PlayQueue((song.path.clone(), up_next)));
                     }
                     None => {
                         error!("play clicked before music loaded");
@@ -210,6 +218,26 @@ impl Application for Ui {
 
             Message::FromAudio(ToUi::Progress(times)) => {
                 self.progress = Some(times);
+                Command::none()
+            }
+
+            Message::FromAudio(ToUi::NextSong(song_path)) => {
+                let music_dir = match &self.music_dir {
+                    Some(m) => m,
+                    None => {
+                        error!("recieved NextSong before loading music");
+                        return Command::none();
+                    }
+                };
+
+                let song = music_dir.get_song_by_path(song_path);
+                let current = CurrentSongView::from_song(song);
+                let current_song_state = CurrentSongState {
+                    playing: true,
+                    current,
+                };
+                self.player_state = PlayerStateView::Started(current_song_state);
+
                 Command::none()
             }
 
@@ -332,6 +360,7 @@ fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message
     let row_content = match player_state {
         PlayerStateView::Started(current_song_state) => {
             let current = &current_song_state.current;
+
             let play_pause_button = if current_song_state.playing {
                 button(icons::pause()).on_press(Message::PauseClicked)
             } else {
@@ -346,6 +375,7 @@ fn view_bottom_row<'a>(player_state: &'a PlayerStateView) -> Element<'a, Message
                 text(&current.title)
                     .width(Length::Fill)
                     .horizontal_alignment(alignment::Horizontal::Center)
+                    .vertical_alignment(alignment::Vertical::Center)
             ]
         }
 
