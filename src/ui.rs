@@ -17,8 +17,8 @@ use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
 mod icons;
 mod startup;
 use startup::*;
-mod bgra;
-use bgra::*;
+mod rgba;
+use rgba::*;
 mod data;
 use data::*;
 
@@ -75,7 +75,7 @@ pub enum Message {
     PauseClicked,
     FromAudio(ToUi),
     Seek(f32),
-    LoadedImages(Option<HashMap<Utf8PathBuf, BgraBytes>>),
+    LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
 }
 
 impl Ui {
@@ -307,7 +307,7 @@ fn view_album_list(music_dir: &MusicDir) -> Column<'_, Message> {
         .align_items(Alignment::Center)
 }
 
-fn view_album_image(image_bytes: Option<&BgraBytes>) -> Element<'_, Message> {
+fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     let length = 256;
 
     match image_bytes {
@@ -357,7 +357,7 @@ fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
 
 /// The bottom row with the play/pause button and current song info
 fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
-    // 24 (svg) + 10 (spacing?)
+    // 24 (svg) + 5 + 5 (default button padding)
     let magic_svg_height = Length::Units(34);
 
     let row_content = match player_state {

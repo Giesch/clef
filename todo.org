@@ -38,7 +38,7 @@
   - [ ] figure out how the ui and audio threads should share songs
     id/path/somthing else
 
-- [ ] cache the converted bgra images in a config dir
+- [ ] cache the converted rgba images in a config dir
   or just work on making iced's images better
 
 - [ ] playlists

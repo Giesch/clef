@@ -4,7 +4,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use iced::Element;
 use symphonia::core::meta::StandardTagKey;
 
-use super::bgra::BgraBytes;
+use super::rgba::RgbaBytes;
 
 // TODO remove the unwraps here when moving to sqlite
 
@@ -35,7 +35,7 @@ impl MusicDir {
             .collect()
     }
 
-    pub fn add_album_covers(&mut self, mut loaded_images_by_path: HashMap<Utf8PathBuf, BgraBytes>) {
+    pub fn add_album_covers(&mut self, mut loaded_images_by_path: HashMap<Utf8PathBuf, RgbaBytes>) {
         for (_id, album) in self.albums_by_id.iter_mut() {
             // TODO this needs a better way of matching loaded images up to albums
             // ie, by sql id
@@ -108,7 +108,7 @@ pub struct AlbumDir {
     // unsorted, should have only 1
     pub covers: Vec<Utf8PathBuf>,
     // added after metadata when conversion finishes
-    pub loaded_cover: Option<BgraBytes>,
+    pub loaded_cover: Option<RgbaBytes>,
 }
 
 impl AlbumDir {
@@ -134,7 +134,7 @@ pub struct AlbumDirView<'a> {
     // sorted by track number
     pub songs: Vec<&'a TaggedSong>,
     // added after metadata when conversion finishes
-    pub loaded_cover: &'a Option<BgraBytes>,
+    pub loaded_cover: &'a Option<RgbaBytes>,
 }
 
 impl<'a> AlbumDirView<'a> {

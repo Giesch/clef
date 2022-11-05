@@ -10,8 +10,8 @@ use symphonia::core::probe::Hint;
 use symphonia::default::get_probe;
 use walkdir::WalkDir;
 
-use super::bgra::{load_bgra, BgraBytes};
 use super::data::*;
+use super::rgba::{load_rgba, RgbaBytes};
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum MusicDirError {
@@ -181,17 +181,17 @@ fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {
     result
 }
 
-pub async fn load_images(paths: Vec<Utf8PathBuf>) -> Option<HashMap<Utf8PathBuf, BgraBytes>> {
+pub async fn load_images(paths: Vec<Utf8PathBuf>) -> Option<HashMap<Utf8PathBuf, RgbaBytes>> {
     use iced::futures::future::join_all;
 
     let results = join_all(paths.into_iter().map(load_image)).await;
-    let pairs: Option<Vec<(Utf8PathBuf, BgraBytes)>> = results.into_iter().collect();
+    let pairs: Option<Vec<(Utf8PathBuf, RgbaBytes)>> = results.into_iter().collect();
     let bytes_by_path: HashMap<_, _> = pairs?.into_iter().collect();
 
     Some(bytes_by_path)
 }
 
-async fn load_image(utf8_path: Utf8PathBuf) -> Option<(Utf8PathBuf, BgraBytes)> {
-    let bytes = load_bgra(&utf8_path)?;
+async fn load_image(utf8_path: Utf8PathBuf) -> Option<(Utf8PathBuf, RgbaBytes)> {
+    let bytes = load_rgba(&utf8_path)?;
     Some((utf8_path, bytes))
 }
