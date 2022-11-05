@@ -12,7 +12,6 @@ use crate::audio::player::Player;
 /// An mpsc message to the audio thread
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToAudio {
-    PlayFilename(Utf8PathBuf),
     PlayQueue((Utf8PathBuf, VecDeque<Utf8PathBuf>)),
     Pause,
     PlayPaused,

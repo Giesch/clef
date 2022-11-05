@@ -4,7 +4,7 @@ use std::fs::File;
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
-use log::{debug, warn};
+use log::warn;
 use symphonia::core::codecs::{CodecParameters, Decoder, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, Track};
@@ -13,7 +13,7 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use symphonia::core::units::TimeBase;
 
-use super::output;
+use super::output::{self, AudioOutput};
 use crate::channels::{ProgressTimes, ToAudio, ToUi};
 
 #[derive(Debug)]
@@ -122,6 +122,7 @@ impl Player {
 
             let (new_state, to_send) =
                 Self::step(state, msg).context("error during player step")?;
+
             state = new_state;
 
             if let Some(msg) = to_send {
@@ -130,58 +131,35 @@ impl Player {
         }
     }
 
-    fn step(
-        state: PlayerState,
-        msg: Option<ToAudio>,
-    ) -> anyhow::Result<(PlayerState, Option<ToUi>)> {
+    fn step(state: PlayerState, msg: Option<ToAudio>) -> StepResult {
         match (msg, state) {
-            (Some(ToAudio::PlayFilename(file_name)), _any_state) => {
-                let playing_state = PlayingState::from_file(file_name).context("playing file")?;
-                Ok((PlayerState::Playing(playing_state), None))
-            }
-
             (Some(ToAudio::PlayQueue((to_play, up_next))), _any_state) => {
                 // NOTE keep this in sync with the EOF section of continue_playing below
-                let playing_state = PlayingState::from_file_with_up_next(to_play, up_next)
-                    .context("playing queue")?;
+                let playing_state = PlayingState::play_queue(to_play, up_next)?;
                 Ok((PlayerState::Playing(playing_state), None))
             }
 
-            (Some(ToAudio::Pause), state @ PlayerState::Stopped) => Ok((state, None)),
-            (Some(ToAudio::Pause), state @ PlayerState::Paused(_)) => Ok((state, None)),
             (Some(ToAudio::Pause), PlayerState::Playing(playing_state)) => {
                 Ok((PlayerState::Paused(playing_state), None))
             }
+            (Some(ToAudio::Pause), state) => Ok((state, None)),
 
-            (Some(ToAudio::PlayPaused), state @ PlayerState::Playing(_)) => Ok((state, None)),
-            (Some(ToAudio::PlayPaused), state @ PlayerState::Stopped) => Ok((state, None)),
             (Some(ToAudio::PlayPaused), PlayerState::Paused(playing_state)) => {
                 Ok((PlayerState::Playing(playing_state), None))
             }
+            (Some(ToAudio::PlayPaused), state) => Ok((state, None)),
 
-            (None, state @ PlayerState::Stopped) => Ok((state, None)),
-            (None, state @ PlayerState::Paused(_)) => Ok((state, None)),
-            (None, PlayerState::Playing(playing_state)) => {
-                let pair = playing_state
-                    .continue_playing()
-                    .context("continue playing")?;
-
-                Ok(pair)
-            }
+            (None, PlayerState::Playing(playing_state)) => playing_state.continue_playing(),
+            (None, state) => Ok((state, None)),
         }
     }
 }
 
-impl PlayingState {
-    fn from_file(path: Utf8PathBuf) -> anyhow::Result<Self> {
-        Self::from_file_with_up_next(path, Default::default())
-    }
+type StepResult = anyhow::Result<(PlayerState, Option<ToUi>)>;
 
+impl PlayingState {
     // This is based on the main loop in the symphonia-play example
-    fn from_file_with_up_next(
-        path: Utf8PathBuf,
-        up_next: VecDeque<Utf8PathBuf>,
-    ) -> anyhow::Result<Self> {
+    fn play_queue(path: Utf8PathBuf, up_next: VecDeque<Utf8PathBuf>) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
 
         // Provide the file extension as a hint.
@@ -214,7 +192,7 @@ impl PlayingState {
             .make(&track.codec_params, &Default::default())
             .context("making decoder")?;
 
-        Ok(PlayingState {
+        Ok(Self {
             reader: probed.format,
             seek_ts: 0,
             audio_output: None,
@@ -225,36 +203,20 @@ impl PlayingState {
     }
 
     // This is based on the main loop in the symphonia-play example
-    fn continue_playing(self) -> anyhow::Result<(PlayerState, Option<ToUi>)> {
+    fn continue_playing(self) -> StepResult {
         let mut playing_state = self;
 
         // Get the next packet from the format reader.
         let packet = match playing_state.reader.next_packet() {
             Ok(packet) => packet,
 
-            // this is the normal way to reach the end of the file, not really an error
+            // NOTE this is the normal way to reach the end of the file,
+            // not really an error
             // https://github.com/pdeljanov/Symphonia/issues/134
             Err(SymphoniaError::IoError(io_error))
                 if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
             {
-                if let Some(output) = &mut playing_state.audio_output {
-                    output.flush();
-                }
-
-                if let Some(next_song) = playing_state.up_next.pop_front() {
-                    let playing_state = PlayingState::from_file_with_up_next(
-                        next_song.clone(),
-                        playing_state.up_next,
-                    )
-                    .context("playing file")?;
-
-                    return Ok((
-                        PlayerState::Playing(playing_state),
-                        Some(ToUi::NextSong(next_song)),
-                    ));
-                }
-
-                return Ok((PlayerState::Stopped, Some(ToUi::Stopped)));
+                return playing_state.flush_and_play_next();
             }
 
             Err(error) => {
@@ -273,9 +235,7 @@ impl PlayingState {
                 // Decode errors are not fatal.
                 // Print the error message and try to decode the next packet as usual.
                 warn!("decode error: {}", err);
-
-                let next_state = PlayerState::Playing(playing_state);
-                return Ok((next_state, None));
+                return Ok((PlayerState::Playing(playing_state), None));
             }
 
             Err(err) => bail!("failed to read packet: {err}"),
@@ -309,24 +269,37 @@ impl PlayingState {
             return Ok((PlayerState::Playing(playing_state), None));
         }
 
-        let audio_output = match &mut playing_state.audio_output {
-            Some(output) => output,
-            None => {
-                bail!("no audio device");
-            }
-        };
+        let audio_output: &mut dyn AudioOutput = playing_state
+            .audio_output
+            .as_deref_mut()
+            .ok_or_else(|| anyhow::anyhow!("no audio device"))?;
 
         audio_output.write(decoded).context("writing audio")?;
 
-        let progress_msg = match playing_state.track_info.progress_times(timestamp) {
-            Some(times) => Some(ToUi::Progress(times)),
-            None => {
-                debug!("missing time info in track");
-                None
-            }
-        };
+        let progress_msg = playing_state
+            .track_info
+            .progress_times(timestamp)
+            .map(ToUi::Progress);
 
         Ok((PlayerState::Playing(playing_state), progress_msg))
+    }
+
+    fn flush_and_play_next(mut self) -> StepResult {
+        if let Some(output) = &mut self.audio_output {
+            output.flush();
+        }
+
+        if let Some(next) = self.up_next.pop_front() {
+            let playing_state =
+                Self::play_queue(next.clone(), self.up_next).context("playing file")?;
+
+            return Ok((
+                PlayerState::Playing(playing_state),
+                Some(ToUi::NextSong(next)),
+            ));
+        }
+
+        Ok((PlayerState::Stopped, Some(ToUi::Stopped)))
     }
 }
 
