@@ -21,6 +21,7 @@ mod rgba;
 use rgba::*;
 mod data;
 use data::*;
+mod hover_zone;
 
 #[derive(Debug)]
 pub struct Ui {
