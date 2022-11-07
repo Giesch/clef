@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::atomic::{self, AtomicUsize};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use iced::Element;
@@ -7,7 +6,10 @@ use symphonia::core::meta::StandardTagKey;
 
 use super::rgba::RgbaBytes;
 
-// TODO remove the unwraps here when moving to sqlite
+pub mod song_id;
+pub use song_id::*;
+
+// TODO remove the unwraps/expects here when moving to sqlite
 
 #[derive(Debug, Clone)]
 pub struct MusicDir {
@@ -159,19 +161,6 @@ pub struct TaggedSong {
     pub path: Utf8PathBuf,
     pub album_id: Option<AlbumId>,
     pub tags: HashMap<TagKey, String>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct SongId(usize);
-
-// Id counter impl taken from iced_native::widget
-static NEXT_SONG_ID: AtomicUsize = AtomicUsize::new(0);
-
-impl SongId {
-    pub fn unique() -> Self {
-        let id = NEXT_SONG_ID.fetch_add(1, atomic::Ordering::Relaxed);
-        Self(id)
-    }
 }
 
 impl TaggedSong {
