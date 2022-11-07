@@ -60,12 +60,12 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
 
     let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
         .iter()
-        .map(|song| (song.path.with_file_name(""), song.id()))
+        .map(|song| (song.path.with_file_name(""), song.id.clone()))
         .into_group_map();
 
     let songs_by_id: HashMap<SongId, TaggedSong> = songs
         .into_iter()
-        .map(|song| (song.id(), song))
+        .map(|song| (song.id.clone(), song))
         .into_grouping_map()
         .fold_first(|acc, _key, _val| acc);
 
@@ -111,12 +111,7 @@ fn is_music(path: &Utf8Path) -> bool {
 // NOTE This returns an empty tag map if they're missing, and None for file not found
 fn decode_file(path: &Utf8Path) -> Option<TaggedSong> {
     let tags = decode_tags(path)?;
-
-    Some(TaggedSong {
-        tags,
-        path: path.to_owned(),
-        album_id: None,
-    })
+    Some(TaggedSong::new(path.to_owned(), None, tags))
 }
 
 // NOTE This returns an empty tag map if they're missing, and None for file not found

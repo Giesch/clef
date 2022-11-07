@@ -180,7 +180,7 @@ impl Application for Ui {
                         let up_next: VecDeque<_> = {
                             let album = music_dir.get_album(&song.album_id());
                             let mut remaining_songs =
-                                album.song_ids.iter().skip_while(|&s| s != &song.id());
+                                album.song_ids.iter().skip_while(|&s| s != &song.id);
 
                             // remove new current track
                             remaining_songs.next();
@@ -347,7 +347,7 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
 /// A song in the album table
 fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
     row![
-        button(icons::play()).on_press(Message::PlaySongClicked(song.id())),
+        button(icons::play()).on_press(Message::PlaySongClicked(song.id.clone())),
         text(song.display_title())
     ]
     .align_items(Alignment::Center)
