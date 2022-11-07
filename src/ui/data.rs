@@ -153,6 +153,7 @@ impl<'a> AlbumDirView<'a> {
 
 #[derive(Debug, Clone)]
 pub struct TaggedSong {
+    pub id: SongId,
     pub path: Utf8PathBuf,
     pub album_id: Option<AlbumId>,
     pub tags: HashMap<TagKey, String>,
@@ -162,10 +163,17 @@ pub struct TaggedSong {
 pub struct SongId(Utf8PathBuf);
 
 impl TaggedSong {
-    pub fn id(&self) -> SongId {
-        // NOTE for now, this does a clone
-        // in the future it should use an int from sqlite
-        SongId(self.path.clone())
+    pub fn new(
+        path: Utf8PathBuf,
+        album_id: Option<AlbumId>,
+        tags: HashMap<TagKey, String>,
+    ) -> Self {
+        Self {
+            id: SongId(path.clone()),
+            path,
+            album_id,
+            tags,
+        }
     }
 
     pub fn album_id(&self) -> AlbumId {
