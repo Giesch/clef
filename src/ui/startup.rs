@@ -15,17 +15,19 @@ use super::rgba::{load_rgba, RgbaBytes};
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum MusicDirError {
-    #[error("error walking directory")]
+    #[error("no audio directory found")]
+    NoAudioDirectory,
+    #[error("error walking audio directory")]
     WalkError,
-    #[error("unsupported format")]
-    UnsupportedFormat,
 }
 
 pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
+    let music_path = dirs::audio_dir().ok_or(MusicDirError::NoAudioDirectory)?;
+
     let mut songs: Vec<TaggedSong> = Vec::new();
     let mut covers: Vec<Utf8PathBuf> = Vec::new();
 
-    for dir_entry in WalkDir::new("/home/giesch/Music").into_iter() {
+    for dir_entry in WalkDir::new(music_path).into_iter() {
         let dir_entry = match dir_entry {
             Ok(dir_entry) => dir_entry,
             Err(e) => {
@@ -145,7 +147,7 @@ fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
         Err(e) => {
             let path_str = path.as_str();
             error!("file in unsupported format: {path_str} {e}");
-            return Some(HashMap::new());
+            return None;
         }
     };
 
