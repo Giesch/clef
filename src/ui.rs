@@ -14,14 +14,19 @@ use parking_lot::Mutex;
 
 use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
 
-mod icons;
-mod startup;
-use startup::*;
-mod rgba;
-use rgba::*;
 mod data;
 use data::*;
-mod hover_zone;
+
+mod hoverable;
+use hoverable::*;
+
+mod rgba;
+use rgba::*;
+
+mod startup;
+use startup::*;
+
+mod icons;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -347,20 +352,28 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
 
 /// A song in the album table
 fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
-    row![
-        button(icons::play()).on_press(Message::PlaySongClicked(song.id.clone())),
-        text(song.display_title())
-    ]
-    .align_items(Alignment::Center)
-    .spacing(4)
+    hoverable(|hovered| {
+        let maybe_button: Element<'_, Message> = if hovered {
+            button(icons::play())
+                .on_press(Message::PlaySongClicked(song.id.clone()))
+                .into()
+        } else {
+            Space::new(MAGIC_SVG_SIZE, MAGIC_SVG_SIZE).into()
+        };
+
+        row![maybe_button, text(song.display_title())]
+            .align_items(Alignment::Center)
+            .spacing(4)
+            .into()
+    })
     .into()
 }
 
+// 24 (svg) + 5 + 5 (default button padding)
+const MAGIC_SVG_SIZE: Length = Length::Units(34);
+
 /// The bottom row with the play/pause button and current song info
 fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
-    // 24 (svg) + 5 + 5 (default button padding)
-    let magic_svg_height = Length::Units(34);
-
     let row_content = match player_state {
         PlayerStateView::Started(current_song_state) => {
             let play_pause_button = if current_song_state.playing {
@@ -372,12 +385,12 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
             row![
                 view_current_album_artist(&current_song_state.song)
                     .width(Length::Fill)
-                    .height(magic_svg_height)
+                    .height(MAGIC_SVG_SIZE)
                     .align_items(Alignment::Center),
                 play_pause_button,
                 text(&current_song_state.song.title)
                     .width(Length::Fill)
-                    .height(magic_svg_height)
+                    .height(MAGIC_SVG_SIZE)
                     .horizontal_alignment(alignment::Horizontal::Center)
                     .vertical_alignment(alignment::Vertical::Center)
             ]
@@ -385,9 +398,9 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
 
         PlayerStateView::Stopped => {
             row![
-                Space::new(Length::Fill, magic_svg_height),
+                Space::new(Length::Fill, MAGIC_SVG_SIZE),
                 button(icons::play()),
-                Space::new(Length::Fill, magic_svg_height),
+                Space::new(Length::Fill, MAGIC_SVG_SIZE),
             ]
         }
     };
