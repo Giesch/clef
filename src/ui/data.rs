@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{self, AtomicUsize};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use iced::Element;
@@ -56,13 +57,14 @@ impl MusicDir {
         self.songs_by_id.get(song_id).expect("unexpected song id")
     }
 
-    // TODO
-    // once this is using sqlite, this should go away
-    // and the audio thread should just use ids
-    // change the caller/ui to use (SongId, Utf8PathBuf) pairs
     pub fn get_song_by_path(&self, song_path: Utf8PathBuf) -> &TaggedSong {
-        let song_id = SongId(song_path);
-        self.songs_by_id.get(&song_id).expect("unexpected song id")
+        let (_id, song) = self
+            .songs_by_id
+            .iter()
+            .find(|(_id, song)| song.path == song_path)
+            .expect("no matching song path found");
+
+        song
     }
 
     pub fn with_joined_song_data<'a, F, M>(&'a self, view_fn: F) -> Vec<Element<'a, M>>
@@ -160,7 +162,17 @@ pub struct TaggedSong {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct SongId(Utf8PathBuf);
+pub struct SongId(usize);
+
+// Id counter impl taken from iced_native::widget
+static NEXT_SONG_ID: AtomicUsize = AtomicUsize::new(0);
+
+impl SongId {
+    pub fn unique() -> Self {
+        let id = NEXT_SONG_ID.fetch_add(1, atomic::Ordering::Relaxed);
+        Self(id)
+    }
+}
 
 impl TaggedSong {
     pub fn new(
@@ -168,8 +180,10 @@ impl TaggedSong {
         album_id: Option<AlbumId>,
         tags: HashMap<TagKey, String>,
     ) -> Self {
+        let id = SongId::unique();
+
         Self {
-            id: SongId(path.clone()),
+            id,
             path,
             album_id,
             tags,
