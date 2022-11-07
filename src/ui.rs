@@ -103,7 +103,7 @@ impl Application for Ui {
             music_dir: None,
         };
 
-        let initial_command = Command::perform(crawl_music_dir(), Message::GotMusicDir);
+        let initial_command = Command::perform(load_music(), Message::GotMusicDir);
 
         (initial_state, initial_command)
     }
@@ -178,16 +178,20 @@ impl Application for Ui {
                         });
 
                         let up_next: VecDeque<_> = {
-                            let album = music_dir.get_album(&song.album_id());
-                            let mut remaining_songs =
-                                album.song_ids.iter().skip_while(|&s| s != &song.id);
+                            if let Some(album_id) = &song.album_id {
+                                let album = music_dir.get_album(album_id);
+                                let mut remaining_songs =
+                                    album.song_ids.iter().skip_while(|&s| s != &song.id);
 
-                            // remove new current track
-                            remaining_songs.next();
+                                // remove new current track
+                                remaining_songs.next();
 
-                            remaining_songs
-                                .map(|song_id| music_dir.get_song(song_id).path.clone())
-                                .collect()
+                                remaining_songs
+                                    .map(|song_id| music_dir.get_song(song_id).path.clone())
+                                    .collect()
+                            } else {
+                                Default::default()
+                            }
                         };
 
                         self.send_to_audio(ToAudio::PlayQueue((song.path.clone(), up_next)));
@@ -310,6 +314,7 @@ fn view_album_list(music_dir: &MusicDir) -> Column<'_, Message> {
 fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     let length = 256;
 
+    // NOTE this doesn't distinguish between loading and no art to load
     match image_bytes {
         // NOTE this isn't cached, so the clone happens every time;
         // currently it's not a problem, it might be with more images
@@ -347,7 +352,7 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
 /// A song in the album table
 fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
     row![
-        button(icons::play()).on_press(Message::PlaySongClicked(song.id.clone())),
+        button(icons::play()).on_press(Message::PlaySongClicked(song.id)),
         text(song.display_title())
     ]
     .align_items(Alignment::Center)

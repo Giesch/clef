@@ -1,11 +1,21 @@
 * Now
-
-* Next
 - [ ] make the play track buttons nicer
-  - [ ] subtler style - ask re: subtheming pure components
   - [ ] display on hover
+  - [ ] subtler style - ask re: subtheming pure components
+    or just make an application theme
   - [ ] keep the playing track in sync with main play button
 
+- [ ] unit test prepare_crawled_music?
+
+- [ ] add a config dir
+  consider switching to 'directories' crate from 'dirs'
+
+- [ ] start using sqlite for decoded data
+
+- [ ] cache the converted rgba images in config dir
+  also resize to thumbnails? for currently playing
+
+* Next
 - [ ] add indicator on a song in the list that it's playing?
 - [ ] add song durations to view
   - [ ] for currently playing song
@@ -38,9 +48,6 @@
   - [ ] figure out how the ui and audio threads should share songs
     id/path/somthing else
 
-- [ ] cache the converted rgba images in a config dir
-  or just work on making iced's images better
-
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)
 - [ ] other views
@@ -48,11 +55,8 @@
 - [ ] integration tests
 - [ ] restart audio thread after a crash
 
-- [ ] make the slider animate more smoothly
-  use a timer instead of audio thread updates
-  have the play/pause audio thread messages include the most recent time
-  could also do tweening instead
-  look into what animation stuff others have done with iced
+- [ ] help improve iced's image handling
+- [ ] Address scrolling lag when necessary
 
 - [ ] keyboard support
   - [ ] space for play/pause

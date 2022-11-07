@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs::File;
 
@@ -21,13 +22,20 @@ pub enum MusicDirError {
     WalkError,
 }
 
-pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
-    let music_path = dirs::audio_dir().ok_or(MusicDirError::NoAudioDirectory)?;
+pub async fn load_music() -> Result<MusicDir, MusicDirError> {
+    let (songs, covers) = walk_audio_directory()?;
+    let music_dir = prepare_for_display(songs, covers);
+
+    Ok(music_dir)
+}
+
+// Gather decoded songs and recognized art paths
+fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), MusicDirError> {
+    let audio_dir = dirs::audio_dir().ok_or(MusicDirError::NoAudioDirectory)?;
 
     let mut songs: Vec<TaggedSong> = Vec::new();
     let mut covers: Vec<Utf8PathBuf> = Vec::new();
-
-    for dir_entry in WalkDir::new(music_path).into_iter() {
+    for dir_entry in WalkDir::new(audio_dir).into_iter() {
         let dir_entry = match dir_entry {
             Ok(dir_entry) => dir_entry,
             Err(e) => {
@@ -45,8 +53,8 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
         };
 
         if is_music(path) {
-            let song = match decode_file(path) {
-                Some(decoded) => decoded,
+            let song = match decode_tags(path) {
+                Some(tags) => TaggedSong::new(path.to_owned(), None, tags),
                 None => {
                     continue;
                 }
@@ -58,16 +66,20 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
         }
     }
 
+    Ok((songs, covers))
+}
+
+fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> MusicDir {
     use itertools::Itertools;
 
     let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
         .iter()
-        .map(|song| (song.path.with_file_name(""), song.id.clone()))
+        .map(|song| (song.path.with_file_name(""), song.id))
         .into_group_map();
 
-    let songs_by_id: HashMap<SongId, TaggedSong> = songs
+    let mut songs_by_id: HashMap<SongId, TaggedSong> = songs
         .into_iter()
-        .map(|song| (song.id.clone(), song))
+        .map(|song| (song.id, song))
         .into_grouping_map()
         .fold_first(|acc, _key, _val| acc);
 
@@ -76,8 +88,10 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
         .map(|path| (path.with_file_name(""), path))
         .into_group_map();
 
+    // sort AlbumIds by album title, if available, or source directory name otherwise
+    // sort SongIds within albums by track number
+    // associate art with albums by directory
     let mut albums_by_id = HashMap::new();
-
     let sorted_albums: Vec<_> = song_ids_by_directory
         .into_iter()
         .map(|(directory, mut song_ids)| {
@@ -88,35 +102,80 @@ pub async fn crawl_music_dir() -> Result<MusicDir, MusicDirError> {
 
             let covers = covers_by_directory.remove(&directory).unwrap_or_default();
 
-            let album = AlbumDir::new(directory, song_ids, covers);
-            let dir_name = album.directory.to_string();
-            let album_id = album.id.clone();
-            albums_by_id.insert(album.id.clone(), album);
+            let (album_artist, album_title) = song_ids
+                .iter()
+                .next()
+                .and_then(|id| songs_by_id.get(&id))
+                .map(|song| (song.artist(), song.album_title()))
+                .unwrap_or((None, None));
 
-            (album_id, dir_name)
+            let album = AlbumDir::new(directory, song_ids, covers);
+            let album_id = album.id;
+
+            // let dir_name = album.directory.to_string();
+            let album_sort_title = album_title
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| album.directory.components().last().unwrap().to_string());
+
+            let album_sort_key = (album_artist, album_sort_title);
+
+            albums_by_id.insert(album_id, album);
+
+            (album_id, album_sort_key)
         })
-        .sorted_by_key(|(_album_id, dir_name)| dir_name.clone())
+        .sorted_by(|(_a_id, a_sort_key), (_b_id, b_sort_key)| {
+            compare_tuples_with_nones_last(a_sort_key, b_sort_key)
+        })
         .map(|(id, _)| id)
         .collect();
 
-    Ok(MusicDir::new(sorted_albums, songs_by_id, albums_by_id))
+    // Add AlbumIds to songs that are in albums
+    for (album_id, album_dir) in &albums_by_id {
+        for song_id in &album_dir.song_ids {
+            if let Some(song) = songs_by_id.get_mut(&song_id) {
+                song.album_id = Some(*album_id);
+            }
+        }
+    }
+
+    MusicDir::new(sorted_albums, songs_by_id, albums_by_id)
+}
+
+// itertools' sorted_by_key puts None first
+fn compare_tuples_with_nones_last(
+    (a_artist, a_title): &(Option<&str>, String),
+    (b_artist, b_title): &(Option<&str>, String),
+) -> Ordering {
+    match (a_artist, b_artist) {
+        (None, Some(_)) => {
+            return Ordering::Greater;
+        }
+        (Some(_), None) => {
+            return Ordering::Less;
+        }
+        (Some(a_artist), Some(b_artist)) => match a_artist.cmp(b_artist) {
+            Ordering::Less => {
+                return Ordering::Less;
+            }
+            Ordering::Greater => return Ordering::Greater,
+            Ordering::Equal => {}
+        },
+        (None, None) => {}
+    }
+
+    a_title.cmp(b_title)
 }
 
 fn is_cover_art(path: &Utf8Path) -> bool {
-    path.extension() == Some("jpg")
+    path.extension() == Some("jpg") || path.extension() == Some("png")
 }
 
 fn is_music(path: &Utf8Path) -> bool {
     path.extension() == Some("mp3")
 }
 
-// NOTE This returns an empty tag map if they're missing, and None for file not found
-fn decode_file(path: &Utf8Path) -> Option<TaggedSong> {
-    let tags = decode_tags(path)?;
-    Some(TaggedSong::new(path.to_owned(), None, tags))
-}
-
-// NOTE This returns an empty tag map if they're missing, and None for file not found
+/// NOTE This returns an empty tag map if they're missing,
+/// and None for file not found or unsupported format
 fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
     let mut hint = Hint::new();
     let source = {
