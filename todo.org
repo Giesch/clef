@@ -1,16 +1,14 @@
 * Now
 - [-] make the play track buttons nicer
   - [X] display on hover
-  - [ ] address lag on hover
-    stateful widget?
-    track bounding boxes in app state?
+  - [X] address lag on hover
+  - [ ] custom app theme with a transparent background secondary button
+    - [ ] copy dark theme into app (delegate to it somehow?)
+    - [ ] change secondary button to have transparent background & white/gray stroke
+    - [ ] use secondary for hovered song play button
+  - [ ] add an indicator on the playing song row (pause button?)
 
-  - [ ] subtler style - ask re: subtheming pure components
-    or just make an application theme
-    - [ ] need a custom app theme?
-  - [ ] keep the playing track in sync with main play button
-
-- [ ] unit test prepare_crawled_music?
+- [ ] add forward/back track buttons to bottom row
 
 - [ ] add a config dir
   consider switching to 'directories' crate from 'dirs'
@@ -74,4 +72,9 @@
   https://github.com/iced-rs/iced/issues/1454
 
 - [ ] select the music directory with a menu/modal, and cache it
-- [ ] select the config directory based on platform
+- [X] select the config directory based on platform
+
+- [ ] make hover state update immediately
+  could have both elements ready always, and draw based on mouse position
+    but this requires a way to keep laying out the invisible element
+  maybe use an overlay?
