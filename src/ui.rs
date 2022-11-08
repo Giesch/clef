@@ -21,6 +21,8 @@ mod rgba;
 use rgba::*;
 mod data;
 use data::*;
+mod hoverable;
+use hoverable::*;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -30,6 +32,7 @@ pub struct Ui {
     should_exit: bool,
     progress: Option<ProgressTimes>,
     music_dir: Option<MusicDir>,
+    hovered_song_id: Option<SongId>,
 }
 
 #[derive(Debug)]
@@ -76,6 +79,8 @@ pub enum Message {
     FromAudio(ToUi),
     Seek(f32),
     LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
+    HoveredSong(SongId),
+    NotHoveredSong(SongId),
 }
 
 impl Ui {
@@ -101,6 +106,7 @@ impl Application for Ui {
             should_exit: false,
             progress: None,
             music_dir: None,
+            hovered_song_id: None,
         };
 
         let initial_command = Command::perform(load_music(), Message::GotMusicDir);
@@ -220,6 +226,18 @@ impl Application for Ui {
                 Command::none()
             }
 
+            Message::HoveredSong(song_id) => {
+                self.hovered_song_id = Some(song_id);
+                Command::none()
+            }
+
+            Message::NotHoveredSong(song_id) => {
+                if self.hovered_song_id == Some(song_id) {
+                    self.hovered_song_id = None;
+                }
+                Command::none()
+            }
+
             Message::FromAudio(ToUi::Progress(times)) => {
                 self.progress = Some(times);
                 Command::none()
@@ -274,7 +292,7 @@ impl Application for Ui {
         };
 
         let content: Element<'_, Message> = match &self.music_dir {
-            Some(music_dir) => view_album_list(music_dir).into(),
+            Some(music_dir) => view_album_list(music_dir, &self.hovered_song_id).into(),
             None => vertical_space(Length::Fill).into(),
         };
 
@@ -299,9 +317,12 @@ fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a,
         .center_y()
 }
 
-fn view_album_list(music_dir: &MusicDir) -> Column<'_, Message> {
+fn view_album_list<'a>(
+    music_dir: &'a MusicDir,
+    hovered_song_id: &'a Option<SongId>,
+) -> Column<'a, Message> {
     let rows: Vec<_> = music_dir
-        .with_joined_song_data(view_album)
+        .with_joined_song_data(|album_dir| view_album(album_dir, hovered_song_id))
         .into_iter()
         .collect();
 
@@ -328,7 +349,10 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     }
 }
 
-fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
+fn view_album<'a>(
+    album_dir: &AlbumDirView<'a>,
+    hovered_song_id: &'a Option<SongId>,
+) -> Element<'a, Message> {
     let album_image = view_album_image(album_dir.loaded_cover.as_ref());
 
     let album_info = column![
@@ -340,31 +364,50 @@ fn view_album<'a>(album_dir: &AlbumDirView<'a>) -> Element<'a, Message> {
     let song_rows: Vec<_> = album_dir
         .songs
         .iter()
-        .map(|&song| view_song_row(song))
+        .map(|&song| view_song_row(song, hovered_song_id))
         .collect();
     let songs_list = Column::with_children(song_rows)
         .spacing(2)
         .width(Length::FillPortion(1));
 
-    row![album_image, album_info, songs_list].spacing(10).into()
+    let row = row![album_image, album_info, songs_list].spacing(10);
+
+    Element::from(row)
 }
 
 /// A song in the album table
-fn view_song_row(song: &TaggedSong) -> Element<'_, Message> {
-    row![
-        button(icons::play()).on_press(Message::PlaySongClicked(song.id)),
-        text(song.display_title())
-    ]
-    .align_items(Alignment::Center)
-    .spacing(4)
-    .into()
+fn view_song_row<'a>(
+    song: &'a TaggedSong,
+    hovered_song_id: &'a Option<SongId>,
+) -> Element<'a, Message> {
+    let hovered = *hovered_song_id == Some(song.id);
+
+    let maybe_button: Element<'_, Message> = if hovered {
+        button(icons::play())
+            .on_press(Message::PlaySongClicked(song.id))
+            .into()
+    } else {
+        Space::new(MAGIC_SVG_SIZE, MAGIC_SVG_SIZE).into()
+    };
+
+    let hoverable = Hoverable::new(
+        row![maybe_button, text(song.display_title()).width(Length::Fill)]
+            .width(Length::Fill)
+            .align_items(Alignment::Center)
+            .spacing(10)
+            .into(),
+        Message::HoveredSong(song.id),
+        Message::NotHoveredSong(song.id),
+    );
+
+    Element::from(hoverable)
 }
+
+// 24 (svg) + 5 + 5 (default button padding)
+const MAGIC_SVG_SIZE: Length = Length::Units(34);
 
 /// The bottom row with the play/pause button and current song info
 fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
-    // 24 (svg) + 5 + 5 (default button padding)
-    let magic_svg_height = Length::Units(34);
-
     let row_content = match player_state {
         PlayerStateView::Started(current_song_state) => {
             let play_pause_button = if current_song_state.playing {
@@ -376,12 +419,12 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
             row![
                 view_current_album_artist(&current_song_state.song)
                     .width(Length::Fill)
-                    .height(magic_svg_height)
+                    .height(MAGIC_SVG_SIZE)
                     .align_items(Alignment::Center),
                 play_pause_button,
                 text(&current_song_state.song.title)
                     .width(Length::Fill)
-                    .height(magic_svg_height)
+                    .height(MAGIC_SVG_SIZE)
                     .horizontal_alignment(alignment::Horizontal::Center)
                     .vertical_alignment(alignment::Vertical::Center)
             ]
@@ -389,9 +432,9 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
 
         PlayerStateView::Stopped => {
             row![
-                Space::new(Length::Fill, magic_svg_height),
+                Space::new(Length::Fill, MAGIC_SVG_SIZE),
                 button(icons::play()),
-                Space::new(Length::Fill, magic_svg_height),
+                Space::new(Length::Fill, MAGIC_SVG_SIZE),
             ]
         }
     };

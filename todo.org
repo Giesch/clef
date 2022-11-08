@@ -1,8 +1,13 @@
 * Now
-- [ ] make the play track buttons nicer
-  - [ ] display on hover
+- [-] make the play track buttons nicer
+  - [X] display on hover
+  - [ ] address lag on hover
+    stateful widget?
+    track bounding boxes in app state?
+
   - [ ] subtler style - ask re: subtheming pure components
     or just make an application theme
+    - [ ] need a custom app theme?
   - [ ] keep the playing track in sync with main play button
 
 - [ ] unit test prepare_crawled_music?

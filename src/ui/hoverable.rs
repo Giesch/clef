@@ -1,0 +1,132 @@
+use iced_native::event::{self, Event};
+use iced_native::layout;
+use iced_native::renderer;
+use iced_native::widget::tree::Tree;
+use iced_native::{Clipboard, Element, Layout, Length, Point, Rectangle, Shell, Widget};
+
+#[allow(missing_debug_implementations)]
+pub struct Hoverable<'a, Message, Renderer> {
+    content: Element<'a, Message, Renderer>,
+    on_hover: Message,
+    on_no_hover: Message,
+}
+
+impl<'a, Message, Renderer> Hoverable<'a, Message, Renderer>
+where
+    Renderer: iced_native::Renderer,
+{
+    pub fn new(
+        content: Element<'a, Message, Renderer>,
+        on_hover: Message,
+        on_no_hover: Message,
+    ) -> Self {
+        Self {
+            content,
+            on_hover,
+            on_no_hover,
+        }
+    }
+}
+
+const WIDTH: Length = Length::Shrink;
+const HEIGHT: Length = Length::Shrink;
+
+impl<'a, Message, Renderer> Widget<Message, Renderer> for Hoverable<'a, Message, Renderer>
+where
+    Message: 'a + Clone,
+    Renderer: iced_native::Renderer,
+{
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content))
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor_position: Point,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+    ) -> event::Status {
+        if let event::Status::Captured = self.content.as_widget_mut().on_event(
+            &mut tree.children[0],
+            event.clone(),
+            layout.children().next().unwrap(),
+            cursor_position,
+            renderer,
+            clipboard,
+            shell,
+        ) {
+            return event::Status::Captured;
+        }
+
+        let hover_message = if layout.bounds().contains(cursor_position) {
+            self.on_hover.clone()
+        } else {
+            self.on_no_hover.clone()
+        };
+        shell.publish(hover_message);
+
+        event::Status::Ignored
+    }
+
+    fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
+        let limits = limits.width(WIDTH).height(HEIGHT);
+        let content_layout = self.content.as_widget().layout(renderer, &limits);
+        let size = limits.resolve(content_layout.size());
+
+        layout::Node::with_children(size, vec![content_layout])
+    }
+
+    fn width(&self) -> Length {
+        WIDTH
+    }
+
+    fn height(&self) -> Length {
+        HEIGHT
+    }
+
+    fn draw(
+        &self,
+        state: &Tree,
+        renderer: &mut Renderer,
+        theme: &<Renderer as iced_native::Renderer>::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor_position: Point,
+        _viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        let content_layout = layout.children().next().unwrap();
+
+        self.content.as_widget().draw(
+            &state.children[0],
+            renderer,
+            theme,
+            style,
+            // &renderer::Style {
+            //     text_color: styling.text_color,
+            // },
+            content_layout,
+            cursor_position,
+            &bounds,
+        );
+    }
+}
+
+impl<'a, Message, Renderer> From<Hoverable<'a, Message, Renderer>>
+    for Element<'a, Message, Renderer>
+where
+    Message: Clone + 'a,
+    Renderer: iced_native::Renderer + 'a,
+{
+    fn from(hoverable: Hoverable<'a, Message, Renderer>) -> Self {
+        Self::new(hoverable)
+    }
+}

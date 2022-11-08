@@ -333,6 +333,7 @@ dependencies = [
  "dirs",
  "flume",
  "iced",
+ "iced_native",
  "image",
  "itertools",
  "libpulse-binding",
