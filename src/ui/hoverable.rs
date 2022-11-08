@@ -1,4 +1,4 @@
-use iced::Padding;
+use iced::{overlay, Padding};
 use iced_native::event::{self, Event};
 use iced_native::layout;
 use iced_native::renderer;
@@ -151,6 +151,36 @@ where
             cursor_position,
             &bounds,
         );
+    }
+
+    fn mouse_interaction(
+        &self,
+        state: &Tree,
+        layout: Layout<'_>,
+        cursor_position: Point,
+        viewport: &Rectangle,
+        renderer: &Renderer,
+    ) -> iced_native::mouse::Interaction {
+        self.content.as_widget().mouse_interaction(
+            &state.children[0],
+            layout.children().next().unwrap(),
+            cursor_position,
+            viewport,
+            renderer,
+        )
+    }
+
+    fn overlay<'b>(
+        &'b self,
+        tree: &'b mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+    ) -> Option<overlay::Element<'b, Message, Renderer>> {
+        self.content.as_widget().overlay(
+            &mut tree.children[0],
+            layout.children().next().unwrap(),
+            renderer,
+        )
     }
 }
 

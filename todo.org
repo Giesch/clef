@@ -2,12 +2,16 @@
 - [-] make the play track buttons nicer
   - [X] display on hover
   - [X] address lag on hover
+  - [X] add mouse interaction indicator
+
   - [ ] custom app theme with a transparent background secondary button
     - [ ] copy dark theme into app (delegate to it somehow?)
     - [ ] change secondary button to have transparent background & white/gray stroke
     - [ ] use secondary for hovered song play button
+
   - [ ] add an indicator on the playing song row (pause button?)
 
+* Next
 - [ ] add forward/back track buttons to bottom row
 
 - [ ] add a config dir
@@ -18,7 +22,6 @@
 - [ ] cache the converted rgba images in config dir
   also resize to thumbnails? for currently playing
 
-* Next
 - [ ] add indicator on a song in the list that it's playing?
 - [ ] add song durations to view
   - [ ] for currently playing song
