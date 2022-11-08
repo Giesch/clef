@@ -15,6 +15,9 @@ impl<'a, Message, Renderer> Hoverable<'a, Message, Renderer>
 where
     Renderer: iced_native::Renderer,
 {
+    const WIDTH: Length = Length::Shrink;
+    const HEIGHT: Length = Length::Shrink;
+
     pub fn new(
         content: Element<'a, Message, Renderer>,
         on_hover: Message,
@@ -27,9 +30,6 @@ where
         }
     }
 }
-
-const WIDTH: Length = Length::Shrink;
-const HEIGHT: Length = Length::Shrink;
 
 impl<'a, Message, Renderer> Widget<Message, Renderer> for Hoverable<'a, Message, Renderer>
 where
@@ -77,7 +77,7 @@ where
     }
 
     fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
-        let limits = limits.width(WIDTH).height(HEIGHT);
+        let limits = limits.width(Self::WIDTH).height(Self::HEIGHT);
         let content_layout = self.content.as_widget().layout(renderer, &limits);
         let size = limits.resolve(content_layout.size());
 
@@ -85,11 +85,11 @@ where
     }
 
     fn width(&self) -> Length {
-        WIDTH
+        Self::WIDTH
     }
 
     fn height(&self) -> Length {
-        HEIGHT
+        Self::HEIGHT
     }
 
     fn draw(
@@ -110,9 +110,6 @@ where
             renderer,
             theme,
             style,
-            // &renderer::Style {
-            //     text_color: styling.text_color,
-            // },
             content_layout,
             cursor_position,
             &bounds,
