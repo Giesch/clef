@@ -80,7 +80,7 @@ pub enum Message {
     Seek(f32),
     LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
     HoveredSong(SongId),
-    NotHoveredSong(SongId),
+    UnhoveredSong(SongId),
 }
 
 impl Ui {
@@ -231,7 +231,7 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::NotHoveredSong(song_id) => {
+            Message::UnhoveredSong(song_id) => {
                 if self.hovered_song_id == Some(song_id) {
                     self.hovered_song_id = None;
                 }
@@ -366,9 +366,7 @@ fn view_album<'a>(
         .iter()
         .map(|&song| view_song_row(song, hovered_song_id))
         .collect();
-    let songs_list = Column::with_children(song_rows)
-        .spacing(2)
-        .width(Length::FillPortion(1));
+    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
 
     let row = row![album_image, album_info, songs_list].spacing(10);
 
@@ -382,7 +380,7 @@ fn view_song_row<'a>(
 ) -> Element<'a, Message> {
     let hovered = *hovered_song_id == Some(song.id);
 
-    let maybe_button: Element<'_, Message> = if hovered {
+    let button_or_space: Element<'_, Message> = if hovered {
         button(icons::play())
             .on_press(Message::PlaySongClicked(song.id))
             .into()
@@ -391,14 +389,18 @@ fn view_song_row<'a>(
     };
 
     let hoverable = Hoverable::new(
-        row![maybe_button, text(song.display_title()).width(Length::Fill)]
-            .width(Length::Fill)
-            .align_items(Alignment::Center)
-            .spacing(10)
-            .into(),
+        row![
+            button_or_space,
+            text(song.display_title()).width(Length::Fill)
+        ]
+        .width(Length::Fill)
+        .align_items(Alignment::Center)
+        .spacing(10)
+        .into(),
         Message::HoveredSong(song.id),
-        Message::NotHoveredSong(song.id),
-    );
+        Message::UnhoveredSong(song.id),
+    )
+    .padding(2);
 
     Element::from(hoverable)
 }

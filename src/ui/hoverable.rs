@@ -1,14 +1,16 @@
+use iced::Padding;
 use iced_native::event::{self, Event};
 use iced_native::layout;
 use iced_native::renderer;
-use iced_native::widget::tree::Tree;
+use iced_native::widget::tree::{self, Tree};
 use iced_native::{Clipboard, Element, Layout, Length, Point, Rectangle, Shell, Widget};
 
 #[allow(missing_debug_implementations)]
 pub struct Hoverable<'a, Message, Renderer> {
     content: Element<'a, Message, Renderer>,
     on_hover: Message,
-    on_no_hover: Message,
+    on_unhover: Message,
+    padding: Padding,
 }
 
 impl<'a, Message, Renderer> Hoverable<'a, Message, Renderer>
@@ -21,13 +23,19 @@ where
     pub fn new(
         content: Element<'a, Message, Renderer>,
         on_hover: Message,
-        on_no_hover: Message,
+        on_unhover: Message,
     ) -> Self {
         Self {
             content,
             on_hover,
-            on_no_hover,
+            on_unhover,
+            padding: Padding::ZERO,
         }
+    }
+
+    pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
+        self.padding = padding.into();
+        self
     }
 }
 
@@ -36,6 +44,14 @@ where
     Message: 'a + Clone,
     Renderer: iced_native::Renderer,
 {
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(State::default())
+    }
+
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
@@ -66,20 +82,41 @@ where
             return event::Status::Captured;
         }
 
-        let hover_message = if layout.bounds().contains(cursor_position) {
-            self.on_hover.clone()
-        } else {
-            self.on_no_hover.clone()
-        };
-        shell.publish(hover_message);
+        let mut state = tree.state.downcast_mut::<State>();
+        let was_hovered = state.is_hovered;
+        let now_hovered = layout.bounds().contains(cursor_position);
+
+        match (was_hovered, now_hovered) {
+            (true, true) => {}
+            (false, false) => {}
+            (true, false) => {
+                // exited hover
+                state.is_hovered = now_hovered;
+                shell.publish(self.on_unhover.clone());
+            }
+            (false, true) => {
+                // entered hover
+                state.is_hovered = now_hovered;
+                shell.publish(self.on_hover.clone());
+            }
+        }
 
         event::Status::Ignored
     }
 
     fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
-        let limits = limits.width(Self::WIDTH).height(Self::HEIGHT);
-        let content_layout = self.content.as_widget().layout(renderer, &limits);
-        let size = limits.resolve(content_layout.size());
+        let limits = limits
+            .width(Self::WIDTH)
+            .height(Self::HEIGHT)
+            .pad(self.padding);
+
+        let mut content_layout = self.content.as_widget().layout(renderer, &limits);
+        content_layout.move_to(Point::new(
+            self.padding.left.into(),
+            self.padding.top.into(),
+        ));
+
+        let size = limits.resolve(content_layout.size()).pad(self.padding);
 
         layout::Node::with_children(size, vec![content_layout])
     }
@@ -115,6 +152,11 @@ where
             &bounds,
         );
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct State {
+    is_hovered: bool,
 }
 
 impl<'a, Message, Renderer> From<Hoverable<'a, Message, Renderer>>
