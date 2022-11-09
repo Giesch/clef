@@ -1,18 +1,8 @@
 * Now
-- [X] make the play track buttons nicer
-  - [X] display on hover
-  - [X] address lag on hover
-  - [X] add mouse interaction indicator
-  - [X] add an indicator on the playing song row (pause button?)
-
-- [ ] make hover state update immediately
-  could have both elements ready always, and draw based on mouse position
-    but this requires a way to keep laying out the invisible element
-  maybe use an overlay?
-
-* Next
+- [ ] seekable progress bar
 - [ ] add forward/back track buttons to bottom row
 
+* Next
 - [ ] add a config dir
   consider switching to 'directories' crate from 'dirs'
 
@@ -26,7 +16,7 @@
   - [ ] in the album song list
 
 - [ ] thumbnail album art for currently playing song
-- [ ] seekable progress bar
+  or next to songs in a non-album view
 
 - [ ] handle metadata correctly in the audio thread
   https://github.com/pdeljanov/Symphonia/blob/master/GETTING_STARTED.md#consuming-metadata
@@ -47,6 +37,11 @@
   - [ ] change secondary button to have transparent background & white/gray stroke
   - [ ] use secondary for hovered song play button
 
+- [ ] make hover state update immediately
+  could have both elements ready always, and draw based on mouse position
+    but this requires a way to keep laying out the invisible element
+  maybe use an overlay?
+  see if getting to smaller scrollables helps
 
 * Someday
 - [ ] sqlite setup
@@ -81,3 +76,4 @@
 - [ ] select the music directory with a menu/modal, and cache it
 - [X] select the config directory based on platform
 
+- [ ] add a subtle play button to album art
