@@ -72,7 +72,7 @@ where
     ) -> event::Status {
         if let event::Status::Captured = self.content.as_widget_mut().on_event(
             &mut tree.children[0],
-            event.clone(),
+            event,
             layout.children().next().unwrap(),
             cursor_position,
             renderer,

@@ -103,9 +103,8 @@ fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Musi
             let covers = covers_by_directory.remove(&directory).unwrap_or_default();
 
             let (album_artist, album_title) = song_ids
-                .iter()
-                .next()
-                .and_then(|id| songs_by_id.get(&id))
+                .first()
+                .and_then(|id| songs_by_id.get(id))
                 .map(|song| (song.artist(), song.album_title()))
                 .unwrap_or((None, None));
 
@@ -133,7 +132,7 @@ fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Musi
     // Add AlbumIds to songs that are in albums
     for (album_id, album_dir) in &albums_by_id {
         for song_id in &album_dir.song_ids {
-            if let Some(song) = songs_by_id.get_mut(&song_id) {
+            if let Some(song) = songs_by_id.get_mut(song_id) {
                 song.album_id = Some(*album_id);
             }
         }

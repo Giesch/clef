@@ -35,6 +35,7 @@ pub struct Ui {
     progress: Option<ProgressTimes>,
     music_dir: Option<MusicDir>,
     hovered_song_id: Option<SongId>,
+    seek_drag: Option<f32>,
 }
 
 impl Ui {
@@ -47,6 +48,7 @@ impl Ui {
             progress: None,
             music_dir: None,
             hovered_song_id: None,
+            seek_drag: None,
         }
     }
 
@@ -92,7 +94,9 @@ pub enum Message {
     PlaySongClicked(SongId),
     PauseClicked,
     FromAudio(ToUi),
-    Seek(f32),
+    SeekDrag(f32),
+    SeekRelease,
+    SeekWithoutSong(f32),
     LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
@@ -224,10 +228,31 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::Seek(_) => {
-                // TODO emit seek to audio
+            Message::SeekDrag(proportion) => {
+                self.seek_drag = Some(proportion);
                 Command::none()
             }
+
+            Message::SeekRelease => {
+                match (self.seek_drag, &self.progress) {
+                    (Some(proportion), Some(progress)) => {
+                        let to_send = progress.total.seconds as f32 * proportion;
+                        self.send_to_audio(ToAudio::Seek(to_send));
+                    }
+                    (Some(_proportion), None) => {
+                        error!("seek release without existing progress");
+                    }
+                    (None, _) => {
+                        error!("seek release without previous drag event");
+                    }
+                }
+
+                self.seek_drag = None;
+
+                Command::none()
+            }
+
+            Message::SeekWithoutSong(_) => Command::none(),
 
             Message::HoveredSong(song_id) => {
                 self.hovered_song_id = Some(song_id);
@@ -284,15 +309,24 @@ impl Application for Ui {
         const MAX: f32 = 1.0;
         const STEP: f32 = 0.01;
 
-        let progress_slider = match &self.progress {
-            Some(times) => {
-                let elapsed: f32 =
-                    times.elapsed.seconds as f32 + times.elapsed.frac as f32;
-                let total: f32 = times.total.seconds as f32 + times.total.frac as f32;
-                let progress = elapsed / total;
-                slider(0.0..=MAX, progress, Message::Seek).step(STEP)
+        let progress_slider = match (&self.seek_drag, &self.progress) {
+            // currently dragging
+            (Some(seek_drag), Some(_)) => {
+                slider(0.0..=MAX, *seek_drag, Message::SeekDrag)
+                    .step(STEP)
+                    .on_release(Message::SeekRelease)
             }
-            None => slider(0.0..=MAX, 0.0, Message::Seek).step(STEP),
+            // currently playing
+            (None, Some(times)) => {
+                let elapsed = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
+                let total = times.total.seconds as f32 + times.total.frac as f32;
+                let progress = elapsed / total;
+                slider(0.0..=MAX, progress, Message::SeekDrag)
+                    .step(STEP)
+                    .on_release(Message::SeekRelease)
+            }
+            // disabled
+            _ => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
         };
 
         let content: Element<'_, Message> = match &self.music_dir {
@@ -434,9 +468,9 @@ enum SongRowStatus {
 }
 
 /// A song in the album table
-fn view_song_row<'a>(
-    SongRowProps { song, status, index }: SongRowProps<'a>,
-) -> Element<'a, Message> {
+fn view_song_row(
+    SongRowProps { song, status, index }: SongRowProps<'_>,
+) -> Element<'_, Message> {
     let button_slot: Element<'_, Message> = match status {
         SongRowStatus::Playing => button(icons::pause())
             .on_press(Message::PauseClicked)
@@ -483,7 +517,7 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
             };
 
             row![
-                view_current_album_artist(&current_song)
+                view_current_album_artist(current_song)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
                     .align_items(Alignment::Center),

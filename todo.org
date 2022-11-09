@@ -1,5 +1,5 @@
 * Now
-- [ ] seekable progress bar
+- [X] seekable progress bar
 - [ ] add forward/back track buttons to bottom row
 
 * Next
@@ -14,6 +14,11 @@
 - [ ] add song durations to view
   - [ ] for currently playing song
   - [ ] in the album song list
+
+- [ ] make a custom slider / player progress widget
+  style it differently
+  no mouse interaction when disabled
+  change mouse interaction consistently on release
 
 - [ ] thumbnail album art for currently playing song
   or next to songs in a non-album view

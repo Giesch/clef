@@ -4,14 +4,14 @@ use std::fs::File;
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
-use log::warn;
+use log::{error, warn};
 use symphonia::core::codecs::{CodecParameters, Decoder, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, FormatReader, Track};
+use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, Track};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
-use symphonia::core::units::TimeBase;
+use symphonia::core::units::{Time, TimeBase};
 
 use super::output::{self, AudioOutput};
 use crate::channels::{ProgressTimes, ToAudio, ToUi};
@@ -34,7 +34,7 @@ struct PlayingState {
     reader: Box<dyn FormatReader>,
     audio_output: Option<Box<dyn output::AudioOutput>>,
     decoder: Box<dyn Decoder>,
-    seek_ts: u64, // 0 = not seeking, play from beginning
+    seek_ts: Option<u64>,
     track_info: TrackInfo,
     up_next: VecDeque<Utf8PathBuf>,
 }
@@ -142,13 +142,15 @@ impl Player {
             }
             (Some(PlayPaused), state) => Ok((state, None)),
 
-            (Some(SeekPercentage(seek_percent)), PlayerState::Playing(playing_state)) => {
-                playing_state.seek_to(seek_percent)
+            (Some(Seek(target)), PlayerState::Playing(playing_state)) => {
+                let state = PlayerState::Playing(playing_state.seek_to(target));
+                Ok((state, None))
             }
-            (Some(SeekPercentage(seek_percent)), PlayerState::Paused(playing_state)) => {
-                playing_state.seek_to(seek_percent)
+            (Some(Seek(target)), PlayerState::Paused(playing_state)) => {
+                let state = PlayerState::Paused(playing_state.seek_to(target));
+                Ok((state, None))
             }
-            (Some(SeekPercentage(_)), state @ PlayerState::Stopped) => Ok((state, None)),
+            (Some(Seek(_)), state @ PlayerState::Stopped) => Ok((state, None)),
 
             (None, PlayerState::Playing(playing_state)) => {
                 playing_state.continue_playing()
@@ -202,7 +204,7 @@ impl PlayingState {
 
         Ok(Self {
             reader: probed.format,
-            seek_ts: 0,
+            seek_ts: None,
             audio_output: None,
             decoder,
             track_info,
@@ -210,8 +212,21 @@ impl PlayingState {
         })
     }
 
-    fn seek_to(self, seek_percent: f32) -> StepResult {
-        todo!()
+    fn seek_to(mut self, target: f32) -> Self {
+        let seek_to = SeekTo::Time {
+            time: Time::from(target),
+            track_id: Some(self.track_info.id),
+        };
+
+        self.seek_ts = match self.reader.seek(SeekMode::Accurate, seek_to) {
+            Ok(seeked_to) => Some(seeked_to.required_ts),
+            Err(e) => {
+                error!("seek error: {e}");
+                None
+            }
+        };
+
+        self
     }
 
     // This is based on the main loop in the symphonia-play example
@@ -272,12 +287,14 @@ impl PlayingState {
             // TODO: Check the audio spec. and duration hasn't changed.
         }
 
-        // Write the decoded audio samples to the audio output if the presentation timestamp
-        // for the packet is >= the seeked position (0 if not seeking).
+        // Write the decoded audio samples to the audio output if the presentation
+        // timestamp for the packet is >= the seeked position (if any).
         let timestamp = packet.ts();
-
-        if timestamp < playing_state.seek_ts {
-            // seeking forward
+        let seeking = playing_state
+            .seek_ts
+            .map(|seek_ts| timestamp < seek_ts)
+            .unwrap_or_default();
+        if seeking {
             return Ok((PlayerState::Playing(playing_state), None));
         }
 
@@ -350,7 +367,7 @@ mod tests {
             audio_output: Some(Box::new(output)),
             reader: Box::new(reader),
             decoder: Box::new(decoder),
-            seek_ts: 0,
+            seek_ts: None,
             track_info,
         };
 

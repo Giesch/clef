@@ -15,7 +15,7 @@ pub enum ToAudio {
     PlayQueue((Utf8PathBuf, VecDeque<Utf8PathBuf>)),
     Pause,
     PlayPaused,
-    SeekPercentage(f32),
+    Seek(f32),
 }
 
 /// An mpsc message to the main/ui thread
