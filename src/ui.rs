@@ -110,7 +110,10 @@ impl Application for Ui {
     }
 
     fn title(&self) -> String {
-        String::from("Clef")
+        match &self.current_song {
+            Some(CurrentSong { title, .. }) => format!("Clef - {title}"),
+            None => "Clef".to_string(),
+        }
     }
 
     fn theme(&self) -> Theme {
