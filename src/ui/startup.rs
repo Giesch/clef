@@ -113,9 +113,10 @@ fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Musi
             let album_id = album.id;
 
             // let dir_name = album.directory.to_string();
-            let album_sort_title = album_title
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| album.directory.components().last().unwrap().to_string());
+            let album_sort_title =
+                album_title.map(|s| s.to_string()).unwrap_or_else(|| {
+                    album.directory.components().last().unwrap().to_string()
+                });
 
             let album_sort_key = (album_artist, album_sort_title);
 
@@ -237,7 +238,9 @@ fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {
     result
 }
 
-pub async fn load_images(paths: Vec<Utf8PathBuf>) -> Option<HashMap<Utf8PathBuf, RgbaBytes>> {
+pub async fn load_images(
+    paths: Vec<Utf8PathBuf>,
+) -> Option<HashMap<Utf8PathBuf, RgbaBytes>> {
     use iced::futures::future::join_all;
 
     let results = join_all(paths.into_iter().map(load_image)).await;

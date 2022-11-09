@@ -43,7 +43,10 @@ impl MusicDir {
             .collect()
     }
 
-    pub fn add_album_covers(&mut self, mut loaded_images_by_path: HashMap<Utf8PathBuf, RgbaBytes>) {
+    pub fn add_album_covers(
+        &mut self,
+        mut loaded_images_by_path: HashMap<Utf8PathBuf, RgbaBytes>,
+    ) {
         for (_id, album) in self.albums_by_id.iter_mut() {
             // TODO this needs a better way of matching loaded images up to albums
             // ie, by sql id
@@ -121,7 +124,11 @@ pub struct AlbumDir {
 }
 
 impl AlbumDir {
-    pub fn new(directory: Utf8PathBuf, song_ids: Vec<SongId>, covers: Vec<Utf8PathBuf>) -> Self {
+    pub fn new(
+        directory: Utf8PathBuf,
+        song_ids: Vec<SongId>,
+        covers: Vec<Utf8PathBuf>,
+    ) -> Self {
         let id = AlbumId::unique();
 
         Self {
@@ -185,12 +192,7 @@ impl TaggedSong {
     ) -> Self {
         let id = SongId::unique();
 
-        Self {
-            id,
-            path,
-            album_id,
-            tags,
-        }
+        Self { id, path, album_id, tags }
     }
 
     pub fn display_title(&self) -> &str {
@@ -198,7 +200,7 @@ impl TaggedSong {
             return tag;
         }
 
-        self.path.components().last().unwrap().as_str()
+        self.path.file_stem().unwrap_or_default()
     }
 
     pub fn track_number(&self) -> Option<usize> {

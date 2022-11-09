@@ -64,12 +64,7 @@ impl TrackInfo {
 
 impl From<&Track> for TrackInfo {
     fn from(track: &Track) -> Self {
-        let CodecParameters {
-            time_base,
-            n_frames,
-            start_ts,
-            ..
-        } = track.codec_params;
+        let CodecParameters { time_base, n_frames, start_ts, .. } = track.codec_params;
 
         Self {
             id: track.id,
@@ -105,11 +100,7 @@ impl Player {
     }
 
     pub fn run_loop(self) -> anyhow::Result<()> {
-        let Player {
-            state,
-            inbox,
-            to_ui,
-        } = self;
+        let Player { state, inbox, to_ui } = self;
 
         let mut state = state;
 
@@ -132,24 +123,36 @@ impl Player {
     }
 
     fn step(state: PlayerState, msg: Option<ToAudio>) -> StepResult {
+        use ToAudio::*;
+
         match (msg, state) {
-            (Some(ToAudio::PlayQueue((to_play, up_next))), _any_state) => {
+            (Some(PlayQueue((to_play, up_next))), _any_state) => {
                 // NOTE keep this in sync with the EOF section of continue_playing below
                 let playing_state = PlayingState::play_queue(to_play, up_next)?;
                 Ok((PlayerState::Playing(playing_state), None))
             }
 
-            (Some(ToAudio::Pause), PlayerState::Playing(playing_state)) => {
+            (Some(Pause), PlayerState::Playing(playing_state)) => {
                 Ok((PlayerState::Paused(playing_state), None))
             }
-            (Some(ToAudio::Pause), state) => Ok((state, None)),
+            (Some(Pause), state) => Ok((state, None)),
 
-            (Some(ToAudio::PlayPaused), PlayerState::Paused(playing_state)) => {
+            (Some(PlayPaused), PlayerState::Paused(playing_state)) => {
                 Ok((PlayerState::Playing(playing_state), None))
             }
-            (Some(ToAudio::PlayPaused), state) => Ok((state, None)),
+            (Some(PlayPaused), state) => Ok((state, None)),
 
-            (None, PlayerState::Playing(playing_state)) => playing_state.continue_playing(),
+            (Some(SeekPercentage(seek_percent)), PlayerState::Playing(playing_state)) => {
+                playing_state.seek_to(seek_percent)
+            }
+            (Some(SeekPercentage(seek_percent)), PlayerState::Paused(playing_state)) => {
+                playing_state.seek_to(seek_percent)
+            }
+            (Some(SeekPercentage(_)), state @ PlayerState::Stopped) => Ok((state, None)),
+
+            (None, PlayerState::Playing(playing_state)) => {
+                playing_state.continue_playing()
+            }
             (None, state) => Ok((state, None)),
         }
     }
@@ -159,7 +162,10 @@ type StepResult = anyhow::Result<(PlayerState, Option<ToUi>)>;
 
 impl PlayingState {
     // This is based on the main loop in the symphonia-play example
-    fn play_queue(path: Utf8PathBuf, up_next: VecDeque<Utf8PathBuf>) -> anyhow::Result<Self> {
+    fn play_queue(
+        path: Utf8PathBuf,
+        up_next: VecDeque<Utf8PathBuf>,
+    ) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
 
         // Provide the file extension as a hint.
@@ -167,7 +173,8 @@ impl PlayingState {
             hint.with_extension(extension);
         }
 
-        let file = File::open(&path).with_context(|| format!("file not found: {path}"))?;
+        let file =
+            File::open(&path).with_context(|| format!("file not found: {path}"))?;
 
         let source = Box::new(file);
 
@@ -184,7 +191,8 @@ impl PlayingState {
             .format(&hint, mss, &format_opts, &metadata_opts)
             .context("The input was not supported by any format reader")?;
 
-        let track = first_supported_track(probed.format.tracks()).context("no playable track")?;
+        let track =
+            first_supported_track(probed.format.tracks()).context("no playable track")?;
         let track_info: TrackInfo = track.into();
 
         // default decode opts (no verify)
@@ -200,6 +208,10 @@ impl PlayingState {
             track_info,
             up_next,
         })
+    }
+
+    fn seek_to(self, seek_percent: f32) -> StepResult {
+        todo!()
     }
 
     // This is based on the main loop in the symphonia-play example

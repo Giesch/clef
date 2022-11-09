@@ -10,11 +10,12 @@ use symphonia::core::units::Time;
 use crate::audio::player::Player;
 
 /// An mpsc message to the audio thread
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ToAudio {
     PlayQueue((Utf8PathBuf, VecDeque<Utf8PathBuf>)),
     Pause,
     PlayPaused,
+    SeekPercentage(f32),
 }
 
 /// An mpsc message to the main/ui thread

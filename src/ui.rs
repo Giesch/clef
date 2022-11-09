@@ -4,11 +4,13 @@ use std::sync::Arc;
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
 use iced::widget::{
-    button, column, container, horizontal_space, row, scrollable, slider, text, vertical_space,
-    Column, Container, Image, Row, Space,
+    button, column, container, horizontal_space, row, scrollable, slider, text,
+    vertical_space, Column, Container, Image, Row, Space,
 };
 use iced::{alignment, executor};
-use iced::{Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme};
+use iced::{
+    Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme,
+};
 use log::error;
 use parking_lot::Mutex;
 
@@ -188,14 +190,19 @@ impl Application for Ui {
                                 remaining_songs.next();
 
                                 remaining_songs
-                                    .map(|song_id| music_dir.get_song(song_id).path.clone())
+                                    .map(|song_id| {
+                                        music_dir.get_song(song_id).path.clone()
+                                    })
                                     .collect()
                             } else {
                                 Default::default()
                             }
                         };
 
-                        self.send_to_audio(ToAudio::PlayQueue((song.path.clone(), up_next)));
+                        self.send_to_audio(ToAudio::PlayQueue((
+                            song.path.clone(),
+                            up_next,
+                        )));
                     }
                     None => {
                         error!("play clicked before music loaded");
@@ -274,18 +281,24 @@ impl Application for Ui {
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
         let bottom_row = view_bottom_row(&self.current_song);
 
+        const MAX: f32 = 1.0;
+        const STEP: f32 = 0.01;
+
         let progress_slider = match &self.progress {
             Some(times) => {
-                let elapsed: f32 = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
+                let elapsed: f32 =
+                    times.elapsed.seconds as f32 + times.elapsed.frac as f32;
                 let total: f32 = times.total.seconds as f32 + times.total.frac as f32;
-                let progress = 100.0 * (elapsed / total);
-                slider(0.0..=100.0, progress, Message::Seek).step(0.01)
+                let progress = elapsed / total;
+                slider(0.0..=MAX, progress, Message::Seek).step(STEP)
             }
-            None => slider(0.0..=100.0, 0.0, Message::Seek).step(0.01),
+            None => slider(0.0..=MAX, 0.0, Message::Seek).step(STEP),
         };
 
         let content: Element<'_, Message> = match &self.music_dir {
-            Some(music) => view_album_list(music, &self.hovered_song_id, &self.current_song).into(),
+            Some(music) => {
+                view_album_list(music, &self.hovered_song_id, &self.current_song).into()
+            }
             None => vertical_space(Length::Fill).into(),
         };
 
@@ -302,7 +315,9 @@ impl Application for Ui {
     }
 }
 
-fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a, Message> {
+fn fill_container<'a>(
+    content: impl Into<Element<'a, Message>>,
+) -> Container<'a, Message> {
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
@@ -316,7 +331,9 @@ fn view_album_list<'a>(
     current_song: &'a Option<CurrentSong>,
 ) -> Column<'a, Message> {
     let rows: Vec<_> = music_dir
-        .with_joined_song_data(|album_dir| view_album(album_dir, hovered_song_id, current_song))
+        .with_joined_song_data(|album_dir| {
+            view_album(album_dir, hovered_song_id, current_song)
+        })
         .into_iter()
         .collect();
 
@@ -424,7 +441,9 @@ fn view_song_row<'a>(
         SongRowStatus::Playing => button(icons::pause())
             .on_press(Message::PauseClicked)
             .into(),
-        SongRowStatus::Paused => button(icons::play()).on_press(Message::PlayClicked).into(),
+        SongRowStatus::Paused => {
+            button(icons::play()).on_press(Message::PlayClicked).into()
+        }
         SongRowStatus::Hovered => button(icons::play())
             .on_press(Message::PlaySongClicked(song.id))
             .into(),

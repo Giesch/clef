@@ -49,7 +49,10 @@ mod pulseaudio {
     }
 
     impl PulseAudioOutput {
-        pub fn try_open(spec: SignalSpec, duration: Duration) -> Result<Box<dyn AudioOutput>> {
+        pub fn try_open(
+            spec: SignalSpec,
+            duration: Duration,
+        ) -> Result<Box<dyn AudioOutput>> {
             // An interleaved buffer is required to send data to PulseAudio. Use a SampleBuffer to
             // move data between Symphonia AudioBuffers and the byte buffers required by PulseAudio.
             let sample_buf = RawSampleBuffer::<f32>::new(duration, spec);
@@ -127,7 +130,9 @@ mod pulseaudio {
     }
 
     /// Maps a set of Symphonia `Channels` to a PulseAudio channel map.
-    fn map_channels_to_pa_channelmap(channels: Channels) -> Option<pulse::channelmap::Map> {
+    fn map_channels_to_pa_channelmap(
+        channels: Channels,
+    ) -> Option<pulse::channelmap::Map> {
         let mut map: pulse::channelmap::Map = Default::default();
         map.init();
         map.set_len(channels.count() as u8);
@@ -144,8 +149,12 @@ mod pulseaudio {
                 Channels::REAR_CENTRE => pulse::channelmap::Position::RearCenter,
                 Channels::REAR_RIGHT => pulse::channelmap::Position::RearRight,
                 Channels::LFE1 => pulse::channelmap::Position::Lfe,
-                Channels::FRONT_LEFT_CENTRE => pulse::channelmap::Position::FrontLeftOfCenter,
-                Channels::FRONT_RIGHT_CENTRE => pulse::channelmap::Position::FrontRightOfCenter,
+                Channels::FRONT_LEFT_CENTRE => {
+                    pulse::channelmap::Position::FrontLeftOfCenter
+                }
+                Channels::FRONT_RIGHT_CENTRE => {
+                    pulse::channelmap::Position::FrontRightOfCenter
+                }
                 Channels::SIDE_LEFT => pulse::channelmap::Position::SideLeft,
                 Channels::SIDE_RIGHT => pulse::channelmap::Position::SideRight,
                 Channels::TOP_CENTRE => pulse::channelmap::Position::TopCenter,
@@ -194,7 +203,10 @@ mod cpal {
     impl AudioOutputSample for u16 {}
 
     impl CpalAudioOutput {
-        pub fn try_open(spec: SignalSpec, duration: Duration) -> Result<Box<dyn AudioOutput>> {
+        pub fn try_open(
+            spec: SignalSpec,
+            duration: Duration,
+        ) -> Result<Box<dyn AudioOutput>> {
             // Get default host.
             let host = cpal::default_host();
 
@@ -258,7 +270,8 @@ mod cpal {
             let ring_len = ((200 * spec.rate as usize) / 1000) * num_channels;
 
             let ring_buf = SpscRb::new(ring_len);
-            let (ring_buf_producer, ring_buf_consumer) = (ring_buf.producer(), ring_buf.consumer());
+            let (ring_buf_producer, ring_buf_consumer) =
+                (ring_buf.producer(), ring_buf.consumer());
 
             let stream_result = device.build_output_stream(
                 &config,
