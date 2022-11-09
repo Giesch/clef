@@ -145,7 +145,7 @@ pub struct AlbumDirView<'a> {
 
 impl<'a> AlbumDirView<'a> {
     pub fn display_title(&self) -> &str {
-        if let Some(first_tag) = self.songs.first().and_then(|&song| song.album_title()) {
+        if let Some(first_tag) = self.get_tag(TagKey::Album) {
             return first_tag;
         }
 
@@ -153,7 +153,19 @@ impl<'a> AlbumDirView<'a> {
     }
 
     pub fn display_artist(&self) -> Option<&str> {
-        self.songs.first().and_then(|&song| song.artist())
+        if let Some(album_artist) = self.get_tag(TagKey::AlbumArtist) {
+            return Some(album_artist);
+        }
+
+        self.get_tag(TagKey::Artist)
+    }
+
+    pub fn date(&self) -> Option<&str> {
+        self.get_tag(TagKey::Date)
+    }
+
+    fn get_tag(&self, tag: TagKey) -> Option<&str> {
+        self.songs.first().and_then(|&song| song.get_tag(tag))
     }
 }
 

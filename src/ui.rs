@@ -361,7 +361,8 @@ fn view_album<'a>(
 
     let album_info = column![
         text(album_dir.display_title()),
-        text(album_dir.display_artist().unwrap_or(""))
+        text(album_dir.display_artist().unwrap_or("")),
+        text(album_dir.date().unwrap_or("")),
     ]
     .width(Length::FillPortion(1));
 
