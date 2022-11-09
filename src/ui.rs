@@ -26,42 +26,53 @@ use hoverable::*;
 
 #[derive(Debug)]
 pub struct Ui {
-    player_state: PlayerStateView,
     inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
     should_exit: bool,
+    current_song: Option<CurrentSong>,
     progress: Option<ProgressTimes>,
     music_dir: Option<MusicDir>,
     hovered_song_id: Option<SongId>,
 }
 
-#[derive(Debug)]
-enum PlayerStateView {
-    Stopped,
-    Started(CurrentSong),
+impl Ui {
+    fn new(flags: Flags) -> Self {
+        Self {
+            inbox: flags.inbox,
+            to_audio: flags.to_audio,
+            should_exit: false,
+            current_song: None,
+            progress: None,
+            music_dir: None,
+            hovered_song_id: None,
+        }
+    }
+
+    fn send_to_audio(&mut self, to_audio: ToAudio) {
+        self.to_audio
+            .lock()
+            .send(to_audio)
+            .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
+    }
 }
 
 #[derive(Debug)]
 struct CurrentSong {
-    playing: bool, // false means paused
-    song: CurrentSongView,
-}
-
-#[derive(Debug)]
-struct CurrentSongView {
     id: SongId,
     title: String,
     album: Option<String>,
     artist: Option<String>,
+    playing: bool,
 }
 
-impl CurrentSongView {
-    pub fn from_song(song: &TaggedSong) -> Self {
+impl CurrentSong {
+    pub fn playing(song: &TaggedSong) -> Self {
         Self {
             id: song.id,
             title: song.display_title().to_owned(),
             album: song.album_title().map(str::to_owned),
             artist: song.artist().map(str::to_owned),
+            playing: true,
         }
     }
 }
@@ -85,27 +96,6 @@ pub enum Message {
     UnhoveredSong(SongId),
 }
 
-impl Ui {
-    fn from_flags(flags: Flags) -> Self {
-        Self {
-            player_state: PlayerStateView::Stopped,
-            inbox: flags.inbox,
-            to_audio: flags.to_audio,
-            should_exit: false,
-            progress: None,
-            music_dir: None,
-            hovered_song_id: None,
-        }
-    }
-
-    fn send_to_audio(&mut self, to_audio: ToAudio) {
-        self.to_audio
-            .lock()
-            .send(to_audio)
-            .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
-    }
-}
-
 impl Application for Ui {
     type Flags = Flags;
     type Message = Message;
@@ -113,7 +103,7 @@ impl Application for Ui {
     type Executor = executor::Default;
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
-        let initial_state = Self::from_flags(flags);
+        let initial_state = Self::new(flags);
         let initial_command = Command::perform(load_music(), Message::GotMusicDir);
 
         (initial_state, initial_command)
@@ -167,11 +157,11 @@ impl Application for Ui {
             }
 
             Message::PlayClicked => {
-                match &mut self.player_state {
-                    PlayerStateView::Stopped => {}
-                    PlayerStateView::Started(CurrentSong { playing, .. }) if *playing => {}
-                    PlayerStateView::Started(current_song_state) => {
-                        current_song_state.playing = true;
+                match &mut self.current_song {
+                    None => {}
+                    Some(CurrentSong { playing, .. }) if *playing => {}
+                    Some(current_song) => {
+                        current_song.playing = true;
                         self.send_to_audio(ToAudio::PlayPaused);
                     }
                 }
@@ -183,10 +173,7 @@ impl Application for Ui {
                 match &self.music_dir {
                     Some(music_dir) => {
                         let song = music_dir.get_song(&song_id);
-                        self.player_state = PlayerStateView::Started(CurrentSong {
-                            playing: true,
-                            song: CurrentSongView::from_song(song),
-                        });
+                        self.current_song = Some(CurrentSong::playing(song));
 
                         let up_next: VecDeque<_> = {
                             if let Some(album_id) = &song.album_id {
@@ -215,10 +202,10 @@ impl Application for Ui {
             }
 
             Message::PauseClicked => {
-                match &mut self.player_state {
-                    PlayerStateView::Stopped => {}
-                    PlayerStateView::Started(current_song_state) => {
-                        current_song_state.playing = false;
+                match &mut self.current_song {
+                    None => {}
+                    Some(current_song) => {
+                        current_song.playing = false;
                     }
                 };
 
@@ -259,16 +246,13 @@ impl Application for Ui {
                 };
 
                 let song = music_dir.get_song_by_path(song_path);
-                self.player_state = PlayerStateView::Started(CurrentSong {
-                    playing: true,
-                    song: CurrentSongView::from_song(song),
-                });
+                self.current_song = Some(CurrentSong::playing(song));
 
                 Command::none()
             }
 
             Message::FromAudio(ToUi::Stopped) => {
-                self.player_state = PlayerStateView::Stopped;
+                self.current_song = None;
                 self.progress = None;
                 Command::none()
             }
@@ -285,7 +269,7 @@ impl Application for Ui {
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
-        let bottom_row = view_bottom_row(&self.player_state);
+        let bottom_row = view_bottom_row(&self.current_song);
 
         let progress_slider = match &self.progress {
             Some(times) => {
@@ -298,7 +282,7 @@ impl Application for Ui {
         };
 
         let content: Element<'_, Message> = match &self.music_dir {
-            Some(music) => view_album_list(music, &self.hovered_song_id, &self.player_state).into(),
+            Some(music) => view_album_list(music, &self.hovered_song_id, &self.current_song).into(),
             None => vertical_space(Length::Fill).into(),
         };
 
@@ -326,10 +310,10 @@ fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a,
 fn view_album_list<'a>(
     music_dir: &'a MusicDir,
     hovered_song_id: &'a Option<SongId>,
-    player_state: &'a PlayerStateView,
+    current_song: &'a Option<CurrentSong>,
 ) -> Column<'a, Message> {
     let rows: Vec<_> = music_dir
-        .with_joined_song_data(|album_dir| view_album(album_dir, hovered_song_id, player_state))
+        .with_joined_song_data(|album_dir| view_album(album_dir, hovered_song_id, current_song))
         .into_iter()
         .collect();
 
@@ -342,7 +326,7 @@ fn view_album_list<'a>(
 fn view_album<'a>(
     album_dir: &AlbumDirView<'a>,
     hovered_song_id: &'a Option<SongId>,
-    player_state: &'a PlayerStateView,
+    current_song: &'a Option<CurrentSong>,
 ) -> Element<'a, Message> {
     let album_image = view_album_image(album_dir.loaded_cover.as_ref());
 
@@ -358,7 +342,7 @@ fn view_album<'a>(
         .iter()
         .enumerate()
         .map(|(index, &song)| {
-            let status = song_row_status(player_state, hovered_song_id, song.id);
+            let status = song_row_status(current_song, hovered_song_id, song.id);
             view_song_row(SongRowProps { song, status, index })
         })
         .collect();
@@ -370,13 +354,13 @@ fn view_album<'a>(
 }
 
 fn song_row_status(
-    player_state: &PlayerStateView,
+    current_song: &Option<CurrentSong>,
     hovered_song_id: &Option<SongId>,
     song_row_id: SongId,
 ) -> SongRowStatus {
-    match player_state {
-        PlayerStateView::Started(CurrentSong { playing, song }) if song.id == song_row_id => {
-            if *playing {
+    match current_song {
+        Some(song) if song.id == song_row_id => {
+            if song.playing {
                 SongRowStatus::Playing
             } else {
                 SongRowStatus::Paused
@@ -467,22 +451,22 @@ fn view_song_row<'a>(
 const MAGIC_SVG_SIZE: Length = Length::Units(34);
 
 /// The bottom row with the play/pause button and current song info
-fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
-    let row_content = match player_state {
-        PlayerStateView::Started(current_song_state) => {
-            let play_pause_button = if current_song_state.playing {
+fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
+    let row_content = match current_song {
+        Some(current_song) => {
+            let play_pause_button = if current_song.playing {
                 button(icons::pause()).on_press(Message::PauseClicked)
             } else {
                 button(icons::play()).on_press(Message::PlayClicked)
             };
 
             row![
-                view_current_album_artist(&current_song_state.song)
+                view_current_album_artist(&current_song)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
                     .align_items(Alignment::Center),
                 play_pause_button,
-                text(&current_song_state.song.title)
+                text(&current_song.title)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
                     .horizontal_alignment(alignment::Horizontal::Center)
@@ -490,7 +474,7 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
             ]
         }
 
-        PlayerStateView::Stopped => {
+        None => {
             row![
                 Space::new(Length::Fill, MAGIC_SVG_SIZE),
                 button(icons::play()),
@@ -504,7 +488,7 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
     Element::from(bottom_row)
 }
 
-fn view_current_album_artist(current: &CurrentSongView) -> Row<'_, Message> {
+fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {
     let mut children: Vec<Element<'_, Message>> = Vec::new();
 
     children.push(horizontal_space(Length::Fill).into());
