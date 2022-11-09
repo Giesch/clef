@@ -22,6 +22,7 @@ pub enum MusicDirError {
     WalkError,
 }
 
+// Gather decoded songs and recognized art paths
 pub async fn load_music() -> Result<MusicDir, MusicDirError> {
     let (songs, covers) = walk_audio_directory()?;
     let music_dir = prepare_for_display(songs, covers);
@@ -29,7 +30,6 @@ pub async fn load_music() -> Result<MusicDir, MusicDirError> {
     Ok(music_dir)
 }
 
-// Gather decoded songs and recognized art paths
 fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), MusicDirError> {
     let audio_dir = dirs::audio_dir().ok_or(MusicDirError::NoAudioDirectory)?;
 

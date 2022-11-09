@@ -1,9 +1,9 @@
 * Now
-- [-] make the play track buttons nicer
+- [X] make the play track buttons nicer
   - [X] display on hover
   - [X] address lag on hover
   - [X] add mouse interaction indicator
-  - [ ] add an indicator on the playing song row (pause button?)
+  - [X] add an indicator on the playing song row (pause button?)
 
 - [ ] make hover state update immediately
   could have both elements ready always, and draw based on mouse position

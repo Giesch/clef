@@ -49,6 +49,7 @@ struct CurrentSongState {
 
 #[derive(Debug)]
 struct CurrentSongView {
+    id: SongId,
     title: String,
     album: Option<String>,
     artist: Option<String>,
@@ -57,6 +58,7 @@ struct CurrentSongView {
 impl CurrentSongView {
     pub fn from_song(song: &TaggedSong) -> Self {
         Self {
+            id: song.id,
             title: song.display_title().to_owned(),
             album: song.album_title().map(str::to_owned),
             artist: song.artist().map(str::to_owned),
@@ -296,7 +298,7 @@ impl Application for Ui {
         };
 
         let content: Element<'_, Message> = match &self.music_dir {
-            Some(music_dir) => view_album_list(music_dir, &self.hovered_song_id).into(),
+            Some(music) => view_album_list(music, &self.hovered_song_id, &self.player_state).into(),
             None => vertical_space(Length::Fill).into(),
         };
 
@@ -324,9 +326,10 @@ fn fill_container<'a>(content: impl Into<Element<'a, Message>>) -> Container<'a,
 fn view_album_list<'a>(
     music_dir: &'a MusicDir,
     hovered_song_id: &'a Option<SongId>,
+    player_state: &'a PlayerStateView,
 ) -> Column<'a, Message> {
     let rows: Vec<_> = music_dir
-        .with_joined_song_data(|album_dir| view_album(album_dir, hovered_song_id))
+        .with_joined_song_data(|album_dir| view_album(album_dir, hovered_song_id, player_state))
         .into_iter()
         .collect();
 
@@ -334,6 +337,64 @@ fn view_album_list<'a>(
         .spacing(10)
         .width(Length::Fill)
         .align_items(Alignment::Center)
+}
+
+fn view_album<'a>(
+    album_dir: &AlbumDirView<'a>,
+    hovered_song_id: &'a Option<SongId>,
+    player_state: &'a PlayerStateView,
+) -> Element<'a, Message> {
+    let album_image = view_album_image(album_dir.loaded_cover.as_ref());
+
+    let album_info = column![
+        text(album_dir.display_title()),
+        text(album_dir.display_artist().unwrap_or("")),
+        text(album_dir.date().unwrap_or("")),
+    ]
+    .width(Length::FillPortion(1));
+
+    let song_rows: Vec<_> = album_dir
+        .songs
+        .iter()
+        .enumerate()
+        .map(|(index, &song)| {
+            let status = song_row_status(player_state, hovered_song_id, song.id);
+            view_song_row(SongRowProps {
+                song,
+                status,
+                index,
+            })
+        })
+        .collect();
+    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
+
+    let row = row![album_image, album_info, songs_list].spacing(10);
+
+    Element::from(row)
+}
+
+fn song_row_status(
+    player_state: &PlayerStateView,
+    hovered_song_id: &Option<SongId>,
+    song_row_id: SongId,
+) -> SongRowStatus {
+    match player_state {
+        PlayerStateView::Started(CurrentSongState { playing, song }) if song.id == song_row_id => {
+            if *playing {
+                SongRowStatus::Playing
+            } else {
+                SongRowStatus::Paused
+            }
+        }
+
+        _ => {
+            if *hovered_song_id == Some(song_row_id) {
+                SongRowStatus::Hovered
+            } else {
+                SongRowStatus::None
+            }
+        }
+    }
 }
 
 fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
@@ -353,51 +414,47 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     }
 }
 
-fn view_album<'a>(
-    album_dir: &AlbumDirView<'a>,
-    hovered_song_id: &'a Option<SongId>,
-) -> Element<'a, Message> {
-    let album_image = view_album_image(album_dir.loaded_cover.as_ref());
+struct SongRowProps<'a> {
+    song: &'a TaggedSong,
+    // 0-based index of the song in the album table
+    index: usize,
+    status: SongRowStatus,
+}
 
-    let album_info = column![
-        text(album_dir.display_title()),
-        text(album_dir.display_artist().unwrap_or("")),
-        text(album_dir.date().unwrap_or("")),
-    ]
-    .width(Length::FillPortion(1));
-
-    let song_rows: Vec<_> = album_dir
-        .songs
-        .iter()
-        .enumerate()
-        .map(|(index, &song)| view_song_row(song, hovered_song_id, index))
-        .collect();
-    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
-
-    let row = row![album_image, album_info, songs_list].spacing(10);
-
-    Element::from(row)
+#[derive(Debug, Eq, PartialEq)]
+enum SongRowStatus {
+    /// currently playing - show pause button
+    Playing,
+    /// currently paused - show play/pause button
+    Paused,
+    /// Both hovered and not currently playing - show play from start button
+    Hovered,
+    /// Both not playing and not hovered - show nothing
+    None,
 }
 
 /// A song in the album table
 fn view_song_row<'a>(
-    song: &'a TaggedSong,
-    hovered_song_id: &'a Option<SongId>,
-    index: usize,
+    SongRowProps {
+        song,
+        status,
+        index,
+    }: SongRowProps<'a>,
 ) -> Element<'a, Message> {
-    let hovered = *hovered_song_id == Some(song.id);
-
-    let button_slot: Element<'_, Message> = if hovered {
-        button(icons::play())
+    let button_slot: Element<'_, Message> = match status {
+        SongRowStatus::Playing => button(icons::pause())
+            .on_press(Message::PauseClicked)
+            .into(),
+        SongRowStatus::Paused => button(icons::play()).on_press(Message::PlayClicked).into(),
+        SongRowStatus::Hovered => button(icons::play())
             .on_press(Message::PlaySongClicked(song.id))
-            .into()
-    } else {
-        text(index + 1)
+            .into(),
+        SongRowStatus::None => text(index + 1)
             .width(MAGIC_SVG_SIZE)
             .height(MAGIC_SVG_SIZE)
             .horizontal_alignment(alignment::Horizontal::Center)
             .vertical_alignment(alignment::Vertical::Center)
-            .into()
+            .into(),
     };
 
     let hoverable = Hoverable::new(
@@ -450,7 +507,9 @@ fn view_bottom_row(player_state: &PlayerStateView) -> Element<'_, Message> {
         }
     };
 
-    row_content.width(Length::Fill).spacing(10).into()
+    let bottom_row = row_content.width(Length::Fill).spacing(10);
+
+    Element::from(bottom_row)
 }
 
 fn view_current_album_artist(current: &CurrentSongView) -> Row<'_, Message> {
