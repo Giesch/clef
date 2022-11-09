@@ -359,11 +359,7 @@ fn view_album<'a>(
         .enumerate()
         .map(|(index, &song)| {
             let status = song_row_status(player_state, hovered_song_id, song.id);
-            view_song_row(SongRowProps {
-                song,
-                status,
-                index,
-            })
+            view_song_row(SongRowProps { song, status, index })
         })
         .collect();
     let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
@@ -435,11 +431,7 @@ enum SongRowStatus {
 
 /// A song in the album table
 fn view_song_row<'a>(
-    SongRowProps {
-        song,
-        status,
-        index,
-    }: SongRowProps<'a>,
+    SongRowProps { song, status, index }: SongRowProps<'a>,
 ) -> Element<'a, Message> {
     let button_slot: Element<'_, Message> = match status {
         SongRowStatus::Playing => button(icons::pause())
