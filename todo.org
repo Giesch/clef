@@ -3,13 +3,12 @@
   - [X] display on hover
   - [X] address lag on hover
   - [X] add mouse interaction indicator
-
-  - [ ] custom app theme with a transparent background secondary button
-    - [ ] copy dark theme into app (delegate to it somehow?)
-    - [ ] change secondary button to have transparent background & white/gray stroke
-    - [ ] use secondary for hovered song play button
-
   - [ ] add an indicator on the playing song row (pause button?)
+
+- [ ] make hover state update immediately
+  could have both elements ready always, and draw based on mouse position
+    but this requires a way to keep laying out the invisible element
+  maybe use an overlay?
 
 * Next
 - [ ] add forward/back track buttons to bottom row
@@ -22,7 +21,6 @@
 - [ ] cache the converted rgba images in config dir
   also resize to thumbnails? for currently playing
 
-- [ ] add indicator on a song in the list that it's playing?
 - [ ] add song durations to view
   - [ ] for currently playing song
   - [ ] in the album song list
@@ -43,6 +41,12 @@
 - [ ] handle graceful shutdown on the audio thread
   need a typed return from the run method?
   or a way for the ui to join audio instead of disconnecting
+
+- [ ] custom app theme with a transparent background secondary button
+  - [ ] copy dark theme into app (delegate to it somehow?)
+  - [ ] change secondary button to have transparent background & white/gray stroke
+  - [ ] use secondary for hovered song play button
+
 
 * Someday
 - [ ] sqlite setup
@@ -77,7 +81,3 @@
 - [ ] select the music directory with a menu/modal, and cache it
 - [X] select the config directory based on platform
 
-- [ ] make hover state update immediately
-  could have both elements ready always, and draw based on mouse position
-    but this requires a way to keep laying out the invisible element
-  maybe use an overlay?

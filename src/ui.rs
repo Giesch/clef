@@ -84,6 +84,18 @@ pub enum Message {
 }
 
 impl Ui {
+    fn from_flags(flags: Flags) -> Self {
+        Self {
+            player_state: PlayerStateView::Stopped,
+            inbox: flags.inbox,
+            to_audio: flags.to_audio,
+            should_exit: false,
+            progress: None,
+            music_dir: None,
+            hovered_song_id: None,
+        }
+    }
+
     fn send_to_audio(&mut self, to_audio: ToAudio) {
         self.to_audio
             .lock()
@@ -99,16 +111,7 @@ impl Application for Ui {
     type Executor = executor::Default;
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
-        let initial_state = Self {
-            player_state: PlayerStateView::Stopped,
-            inbox: flags.inbox,
-            to_audio: flags.to_audio,
-            should_exit: false,
-            progress: None,
-            music_dir: None,
-            hovered_song_id: None,
-        };
-
+        let initial_state = Self::from_flags(flags);
         let initial_command = Command::perform(load_music(), Message::GotMusicDir);
 
         (initial_state, initial_command)
@@ -218,6 +221,7 @@ impl Application for Ui {
                 };
 
                 self.send_to_audio(ToAudio::Pause);
+
                 Command::none()
             }
 
@@ -364,7 +368,8 @@ fn view_album<'a>(
     let song_rows: Vec<_> = album_dir
         .songs
         .iter()
-        .map(|&song| view_song_row(song, hovered_song_id))
+        .enumerate()
+        .map(|(index, &song)| view_song_row(song, hovered_song_id, index))
         .collect();
     let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
 
@@ -377,26 +382,29 @@ fn view_album<'a>(
 fn view_song_row<'a>(
     song: &'a TaggedSong,
     hovered_song_id: &'a Option<SongId>,
+    index: usize,
 ) -> Element<'a, Message> {
     let hovered = *hovered_song_id == Some(song.id);
 
-    let button_or_space: Element<'_, Message> = if hovered {
+    let button_slot: Element<'_, Message> = if hovered {
         button(icons::play())
             .on_press(Message::PlaySongClicked(song.id))
             .into()
     } else {
-        Space::new(MAGIC_SVG_SIZE, MAGIC_SVG_SIZE).into()
+        text(index + 1)
+            .width(MAGIC_SVG_SIZE)
+            .height(MAGIC_SVG_SIZE)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+            .into()
     };
 
     let hoverable = Hoverable::new(
-        row![
-            button_or_space,
-            text(song.display_title()).width(Length::Fill)
-        ]
-        .width(Length::Fill)
-        .align_items(Alignment::Center)
-        .spacing(10)
-        .into(),
+        row![button_slot, text(song.display_title()).width(Length::Fill)]
+            .width(Length::Fill)
+            .align_items(Alignment::Center)
+            .spacing(10)
+            .into(),
         Message::HoveredSong(song.id),
         Message::UnhoveredSong(song.id),
     )
