@@ -38,11 +38,11 @@ pub struct Ui {
 #[derive(Debug)]
 enum PlayerStateView {
     Stopped,
-    Started(CurrentSongState),
+    Started(CurrentSong),
 }
 
 #[derive(Debug)]
-struct CurrentSongState {
+struct CurrentSong {
     playing: bool, // false means paused
     song: CurrentSongView,
 }
@@ -169,7 +169,7 @@ impl Application for Ui {
             Message::PlayClicked => {
                 match &mut self.player_state {
                     PlayerStateView::Stopped => {}
-                    PlayerStateView::Started(CurrentSongState { playing, .. }) if *playing => {}
+                    PlayerStateView::Started(CurrentSong { playing, .. }) if *playing => {}
                     PlayerStateView::Started(current_song_state) => {
                         current_song_state.playing = true;
                         self.send_to_audio(ToAudio::PlayPaused);
@@ -183,7 +183,7 @@ impl Application for Ui {
                 match &self.music_dir {
                     Some(music_dir) => {
                         let song = music_dir.get_song(&song_id);
-                        self.player_state = PlayerStateView::Started(CurrentSongState {
+                        self.player_state = PlayerStateView::Started(CurrentSong {
                             playing: true,
                             song: CurrentSongView::from_song(song),
                         });
@@ -259,7 +259,7 @@ impl Application for Ui {
                 };
 
                 let song = music_dir.get_song_by_path(song_path);
-                self.player_state = PlayerStateView::Started(CurrentSongState {
+                self.player_state = PlayerStateView::Started(CurrentSong {
                     playing: true,
                     song: CurrentSongView::from_song(song),
                 });
@@ -375,7 +375,7 @@ fn song_row_status(
     song_row_id: SongId,
 ) -> SongRowStatus {
     match player_state {
-        PlayerStateView::Started(CurrentSongState { playing, song }) if song.id == song_row_id => {
+        PlayerStateView::Started(CurrentSong { playing, song }) if song.id == song_row_id => {
             if *playing {
                 SongRowStatus::Playing
             } else {
