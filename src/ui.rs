@@ -22,7 +22,7 @@ use startup::*;
 mod rgba;
 use rgba::*;
 mod data;
-use data::*;
+pub use data::*;
 mod hoverable;
 use hoverable::*;
 
@@ -70,12 +70,16 @@ struct CurrentSong {
 
 impl CurrentSong {
     pub fn playing(song: &TaggedSong) -> Self {
+        Self::from_song(song, true)
+    }
+
+    pub fn from_song(song: &TaggedSong, playing: bool) -> Self {
         Self {
             id: song.id,
             title: song.display_title().to_owned(),
             album: song.album_title().map(str::to_owned),
             artist: song.artist().map(str::to_owned),
-            playing: true,
+            playing,
         }
     }
 }
@@ -234,6 +238,7 @@ impl Application for Ui {
             }
 
             Message::BackClicked => {
+                self.progress = Some(ProgressDisplay::Optimistic(0.0));
                 self.send_to_audio(ToAudio::Back);
                 Command::none()
             }
@@ -272,32 +277,36 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::Progress(times)) => {
+            Message::FromAudio(ToUi::DisplayUpdate(Some(display))) => {
+                // update current song
+                match &mut self.current_song {
+                    Some(current_song) if current_song.id == display.song_id => {
+                        current_song.playing = display.playing;
+                    }
+
+                    _ => {
+                        let Some(music) = &self.music_dir else {
+                            error!("recieved audio thread message before loading music");
+                            return Command::none();
+                        };
+
+                        let song = music.get_song(&display.song_id);
+                        self.current_song =
+                            Some(CurrentSong::from_song(song, display.playing));
+                    }
+                }
+
+                // update progress bar if necessary
                 if let Some(ProgressDisplay::Dragging(_)) = &self.progress {
                     // ignore update to preserve drag state
                 } else {
-                    self.progress = Some(ProgressDisplay::FromAudio(times));
+                    self.progress = Some(ProgressDisplay::FromAudio(display.times));
                 }
 
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::NewSongPlaying(song_path)) => {
-                let music_dir = match &self.music_dir {
-                    Some(m) => m,
-                    None => {
-                        error!("recieved NextSong before loading music");
-                        return Command::none();
-                    }
-                };
-
-                let song = music_dir.get_song_by_path(song_path);
-                self.current_song = Some(CurrentSong::playing(song));
-
-                Command::none()
-            }
-
-            Message::FromAudio(ToUi::Stopped) => {
+            Message::FromAudio(ToUi::DisplayUpdate(None)) => {
                 self.current_song = None;
                 self.progress = None;
                 Command::none()
@@ -439,10 +448,8 @@ fn song_row_status(
 fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     let length = 256;
 
-    // NOTE this doesn't distinguish between loading and no art to load
     match image_bytes {
-        // NOTE this isn't cached, so the clone happens every time;
-        // currently it's not a problem, it might be with more images
+        // NOTE this isn't cached, so the clone happens every time
         Some(image_bytes) => Image::new(image_bytes.clone())
             .width(Length::Units(length))
             .height(Length::Units(length))
@@ -521,23 +528,19 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
                 button(icons::play()).on_press(Message::PlayClicked)
             };
 
-            let back_button = button(icons::back()).on_press(Message::BackClicked);
-            let forward_button =
-                button(icons::forward()).on_press(Message::ForwardClicked);
-
             row![
-                view_current_album_artist(current_song)
-                    .width(Length::Fill)
-                    .height(MAGIC_SVG_SIZE)
-                    .align_items(Alignment::Center),
-                back_button,
-                play_pause_button,
-                forward_button,
                 text(&current_song.title)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
                     .horizontal_alignment(alignment::Horizontal::Center)
-                    .vertical_alignment(alignment::Vertical::Center)
+                    .vertical_alignment(alignment::Vertical::Center),
+                button(icons::back()).on_press(Message::BackClicked),
+                play_pause_button,
+                button(icons::forward()).on_press(Message::ForwardClicked),
+                view_current_album_artist(current_song)
+                    .width(Length::Fill)
+                    .height(MAGIC_SVG_SIZE)
+                    .align_items(Alignment::Center),
             ]
         }
 

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::thread;
 use std::{sync::Arc, thread::JoinHandle};
 
@@ -8,13 +9,14 @@ use parking_lot::Mutex;
 use symphonia::core::units::Time;
 
 use crate::audio::player::Player;
+use crate::ui::SongId;
 
 /// An mpsc message to the audio thread
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToAudio {
     /// Begin playing the file (0) immediately,
     /// and continue playing files from the queue (1) when it ends
-    PlayQueue(Queue),
+    PlayQueue(Queue<(SongId, Utf8PathBuf)>),
     /// Pause the currently playing song, if any
     Pause,
     /// Play the currently paused song, if any
@@ -30,23 +32,30 @@ pub enum ToAudio {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Queue {
-    pub previous: Vec<Utf8PathBuf>,
-    pub current: Utf8PathBuf,
-    pub next: VecDeque<Utf8PathBuf>,
+pub struct Queue<T>
+where
+    T: Debug + Clone + PartialEq,
+{
+    pub previous: Vec<T>,
+    pub current: T,
+    pub next: VecDeque<T>,
 }
 
 /// An mpsc message to the main/ui thread
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToUi {
-    /// The player has made progress on the current song
-    Progress(ProgressTimes),
-    /// The player has started playing a new song
-    NewSongPlaying(Utf8PathBuf),
-    /// The player reached the end of the queue
-    Stopped,
-    /// The player thread died
+    /// A change that affects ui state; None = player stopped
+    DisplayUpdate(Option<PlayerDisplay>),
+
+    /// The audio thread died
     AudioDied,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerDisplay {
+    pub song_id: SongId,
+    pub playing: bool,
+    pub times: ProgressTimes,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +63,14 @@ pub struct ProgressTimes {
     pub elapsed: Time,
     pub remaining: Time,
     pub total: Time,
+}
+
+impl ProgressTimes {
+    pub const ZERO: Self = Self {
+        elapsed: Time { seconds: 0, frac: 0.0 },
+        remaining: Time { seconds: 0, frac: 0.0 },
+        total: Time { seconds: 0, frac: 0.0 },
+    };
 }
 
 pub fn spawn_player(

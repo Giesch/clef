@@ -1,6 +1,7 @@
 use std::fs::File;
 
 use anyhow::{bail, Context};
+use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
 use symphonia::core::codecs::{CodecParameters, Decoder, CODEC_TYPE_NULL};
@@ -12,7 +13,8 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units::{Time, TimeBase};
 
 use crate::audio::output::{self, AudioOutput};
-use crate::channels::{ProgressTimes, Queue, ToAudio, ToUi};
+use crate::channels::{PlayerDisplay, ProgressTimes, Queue, ToAudio, ToUi};
+use crate::ui::SongId;
 
 #[derive(Debug)]
 pub struct Player {
@@ -28,7 +30,7 @@ struct PlayerState {
     playing: bool, // false = paused
     seek_ts: Option<u64>,
     track_info: TrackInfo,
-    queue: Queue,
+    queue: Queue<(SongId, Utf8PathBuf)>,
     timestamp: u64,
 }
 
@@ -47,6 +49,23 @@ impl std::fmt::Debug for PlayerState {
             .field("queue", &self.queue)
             .field("timestamp", &self.timestamp)
             .finish()
+    }
+}
+
+impl From<&PlayerState> for PlayerDisplay {
+    fn from(player_state: &PlayerState) -> Self {
+        let song_id = player_state.queue.current.0;
+        let playing = player_state.playing;
+
+        let times = player_state
+            .track_info
+            .progress_times(player_state.timestamp)
+            .unwrap_or_else(|| {
+                error!("missing track time info");
+                ProgressTimes::ZERO
+            });
+
+        Self { song_id, playing, times }
     }
 }
 
@@ -120,18 +139,21 @@ impl Player {
             (Some(PlayQueue(queue)), _any_state) => {
                 // NOTE keep this in sync with the EOF section of continue_playing below
                 let player_state = PlayerState::play_queue(queue)?;
-                Ok((Some(player_state), None))
+                let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                Ok((Some(player_state), Some(ui_message)))
             }
 
             (Some(Pause), Some(mut player_state)) if player_state.playing => {
                 player_state.playing = false;
-                Ok((Some(player_state), None))
+                let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                Ok((Some(player_state), Some(ui_message)))
             }
             (Some(Pause), state) => Ok((state, None)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
-                Ok((Some(player_state), None))
+                let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                Ok((Some(player_state), Some(ui_message)))
             }
             (Some(PlayPaused), state) => Ok((state, None)),
 
@@ -149,11 +171,14 @@ impl Player {
                 {
                     let mut seek_seconds = total.seconds as f32 * proportion;
                     seek_seconds += total.frac as f32 * proportion;
-                    let state = Some(player_state.seek_to(seek_seconds));
-                    Ok((state, None))
+
+                    let player_state = player_state.seek_to(seek_seconds);
+                    let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                    Ok((Some(player_state), Some(ui_message)))
                 } else {
                     error!("missing track info: {:#?}", player_state.track_info);
-                    Ok((Some(player_state), None))
+                    let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                    Ok((Some(player_state), Some(ui_message)))
                 }
             }
             (Some(Seek(_)), None) => Ok((None, None)),
@@ -170,16 +195,16 @@ type StepResult = anyhow::Result<(Option<PlayerState>, Option<ToUi>)>;
 
 impl PlayerState {
     // This is based on the main loop in the symphonia-play example
-    fn play_queue(queue: Queue) -> anyhow::Result<Self> {
+    fn play_queue(queue: Queue<(SongId, Utf8PathBuf)>) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
 
         // Provide the file extension as a hint.
-        if let Some(extension) = queue.current.extension() {
+        if let Some(extension) = queue.current.1.extension() {
             hint.with_extension(extension);
         }
 
-        let file = File::open(&queue.current)
-            .with_context(|| format!("file not found: {}", &queue.current))?;
+        let file = File::open(&queue.current.1)
+            .with_context(|| format!("file not found: {}", &queue.current.1))?;
 
         let source = Box::new(file);
 
@@ -237,8 +262,6 @@ impl PlayerState {
     fn forward(mut self) -> StepResult {
         match self.queue.next.pop_front() {
             Some(new_current) => {
-                let ui_message = ToUi::NewSongPlaying(new_current.clone());
-
                 let new_queue = Queue {
                     previous: {
                         self.queue.previous.push(self.queue.current);
@@ -248,12 +271,15 @@ impl PlayerState {
                     next: self.queue.next,
                 };
 
-                let new_state = Self::play_queue(new_queue)?;
+                let mut new_state = Self::play_queue(new_queue)?;
+                new_state.playing = self.playing;
+
+                let ui_message = ToUi::DisplayUpdate(Some((&new_state).into()));
 
                 return Ok((Some(new_state), Some(ui_message)));
             }
 
-            None => Ok((None, Some(ToUi::Stopped))),
+            None => Ok((None, Some(ToUi::DisplayUpdate(None)))),
         }
     }
 
@@ -266,8 +292,6 @@ impl PlayerState {
 
         if !past_two_seconds {
             if let Some(new_current) = self.queue.previous.pop() {
-                let ui_message = ToUi::NewSongPlaying(new_current.clone());
-
                 let new_queue = Queue {
                     previous: self.queue.previous,
                     current: new_current,
@@ -277,13 +301,20 @@ impl PlayerState {
                     },
                 };
 
-                let new_state = Self::play_queue(new_queue)?;
+                let mut new_state = Self::play_queue(new_queue)?;
+                new_state.playing = self.playing;
+
+                let ui_message = ToUi::DisplayUpdate(Some((&new_state).into()));
 
                 return Ok((Some(new_state), Some(ui_message)));
             }
         }
 
-        Ok((Some(self.seek_to(0.0)), None))
+        let mut new_state = self.seek_to(0.0);
+        new_state.timestamp = 0;
+        let display: PlayerDisplay = (&new_state).into();
+
+        Ok((Some(new_state), Some(ToUi::DisplayUpdate(Some(display)))))
     }
 
     // This is based on the main loop in the symphonia-play example
@@ -366,12 +397,10 @@ impl PlayerState {
 
         audio_output.write(decoded).context("writing audio")?;
 
-        let progress_msg = player_state
-            .track_info
-            .progress_times(timestamp)
-            .map(ToUi::Progress);
+        let display: PlayerDisplay = (&player_state).into();
+        let ui_message = ToUi::DisplayUpdate(Some(display));
 
-        Ok((Some(player_state), progress_msg))
+        Ok((Some(player_state), Some(ui_message)))
     }
 }
 
@@ -383,6 +412,8 @@ fn first_supported_track(tracks: &[Track]) -> Option<&Track> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use crate::audio::output::AudioOutput;
     use mockall::mock;
@@ -405,6 +436,12 @@ mod tests {
             Err(SymphoniaError::IoError(io_error))
         });
 
+        let queue = Queue {
+            previous: Default::default(),
+            current: (SongId::unique(), Utf8PathBuf::from_str("fake").unwrap()),
+            next: Default::default(),
+        };
+
         let player_state = PlayerState {
             audio_output: Some(Box::new(output)),
             reader: Box::new(reader),
@@ -412,12 +449,14 @@ mod tests {
             playing: true,
             seek_ts: None,
             track_info,
+            timestamp: 0,
+            queue,
         };
 
         let (new_state, to_ui) = player_state.continue_playing().unwrap();
 
         assert!(matches!(new_state, None));
-        assert!(matches!(to_ui, Some(ToUi::Stopped)));
+        assert!(matches!(to_ui, Some(ToUi::DisplayUpdate(None))));
     }
 
     mock! {

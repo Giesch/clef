@@ -108,7 +108,10 @@ impl MusicDir {
         self.albums_by_id.get(album_id).unwrap()
     }
 
-    pub fn get_album_queue(&self, song: &TaggedSong) -> Option<Queue> {
+    pub fn get_album_queue(
+        &self,
+        song: &TaggedSong,
+    ) -> Option<Queue<(SongId, Utf8PathBuf)>> {
         if let Some(album_id) = song.album_id {
             let album = self.get_album(&album_id);
 
@@ -122,12 +125,12 @@ impl MusicDir {
 
                 if current.is_none() {
                     if album_song.id == song.id {
-                        current = Some(path);
+                        current = Some((*song_id, path));
                     } else {
-                        previous.push(path);
+                        previous.push((*song_id, path));
                     }
                 } else {
-                    next.push_back(path);
+                    next.push_back((*song_id, path));
                 }
             }
 
@@ -139,7 +142,7 @@ impl MusicDir {
         } else {
             Some(Queue {
                 previous: Default::default(),
-                current: song.path.clone(),
+                current: (song.id, song.path.clone()),
                 next: Default::default(),
             })
         }

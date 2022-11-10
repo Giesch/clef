@@ -1,6 +1,15 @@
 * Now
 - [X] do optimistic ui for the slider state
-- [ ] get on iced 0.5
+- [X] get on iced 0.5
+- [X] fix bugs with forward/back when paused
+  - [X] back doesn't update the slider when paused
+  - [X] forward starts playing immediately
+  - [X] player needs to be publishing a fuller state to display
+    ie when going to a new song, ui needs to know if it's paused or not
+  - [X] channels should use song/album ids
+    ui->player should send paths AND ids for use later
+    player->ui should send id of playing song
+
 - [-] choose an option for dealing with image perf
   - [X] first, see if cloning bytes is the problem
     from_pixels doesn't allow avoiding this
@@ -39,6 +48,8 @@
 
 - [ ] in player, if audio output is present,
   then spec and duration should still be validated
+
+- [ ] in ui, current_song and progress should be in one optional
 
 - [ ] cache the converted rgba images in config dir
   also resize to thumbnails? for currently playing
@@ -93,6 +104,13 @@
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)
 - [ ] other views
+
+- [ ] handle missing time data on track info
+  currently it just logs and uses zero
+  should transition to an error state at the beginning
+  ie have an Option<TrackInfo> with guaranteed fields
+  instead of a TrackInfo with two optional fields
+  does that mean refusing to play the song at all, though? need the id
 
 - [ ] integration tests
 - [ ] restart audio thread after a crash
