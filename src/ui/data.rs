@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use iced::Element;
+
+use crate::channels::Queue;
 
 use super::rgba::RgbaBytes;
 
@@ -13,8 +15,6 @@ pub use album_id::*;
 
 pub mod tag_key;
 pub use tag_key::*;
-
-// TODO remove the unwraps/expects here when moving to sqlite
 
 #[derive(Debug, Clone)]
 pub struct MusicDir {
@@ -48,8 +48,6 @@ impl MusicDir {
         mut loaded_images_by_path: HashMap<Utf8PathBuf, RgbaBytes>,
     ) {
         for (_id, album) in self.albums_by_id.iter_mut() {
-            // TODO this needs a better way of matching loaded images up to albums
-            // ie, by sql id
             match album.covers.first() {
                 Some(cover_path) => {
                     if let Some(bytes) = loaded_images_by_path.remove(cover_path) {
@@ -108,6 +106,43 @@ impl MusicDir {
 
     pub fn get_album(&self, album_id: &AlbumId) -> &AlbumDir {
         self.albums_by_id.get(album_id).unwrap()
+    }
+
+    pub fn get_album_queue(&self, song: &TaggedSong) -> Option<Queue> {
+        if let Some(album_id) = song.album_id {
+            let album = self.get_album(&album_id);
+
+            let mut previous = Vec::new();
+            let mut next = VecDeque::new();
+            let mut current = None;
+
+            for song_id in &album.song_ids {
+                let album_song = self.get_song(song_id);
+                let path = album_song.path.clone();
+
+                if current.is_none() {
+                    if album_song.id == song.id {
+                        current = Some(path);
+                    } else {
+                        previous.push(path);
+                    }
+                } else {
+                    next.push_back(path);
+                }
+            }
+
+            if let Some(current) = current {
+                Some(Queue { previous, current, next })
+            } else {
+                None
+            }
+        } else {
+            Some(Queue {
+                previous: Default::default(),
+                current: song.path.clone(),
+                next: Default::default(),
+            })
+        }
     }
 }
 

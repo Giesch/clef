@@ -12,10 +12,27 @@ use crate::audio::player::Player;
 /// An mpsc message to the audio thread
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToAudio {
-    PlayQueue((Utf8PathBuf, VecDeque<Utf8PathBuf>)),
+    /// Begin playing the file (0) immediately,
+    /// and continue playing files from the queue (1) when it ends
+    PlayQueue(Queue),
+    /// Pause the currently playing song, if any
     Pause,
+    /// Play the currently paused song, if any
     PlayPaused,
+    /// Seek (0) seconds into the current song, if any
     Seek(f32),
+    /// Play the next track, if any, or transition to stopped
+    Forward,
+    /// Seek to the beginning of the current song,
+    /// or if near it already, go back a track in the queue, if possible
+    Back,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Queue {
+    pub previous: Vec<Utf8PathBuf>,
+    pub current: Utf8PathBuf,
+    pub next: VecDeque<Utf8PathBuf>,
 }
 
 /// An mpsc message to the main/ui thread
@@ -23,8 +40,8 @@ pub enum ToAudio {
 pub enum ToUi {
     /// The player has made progress on the current song
     Progress(ProgressTimes),
-    /// The player has continued to the next song in the queue
-    NextSong(Utf8PathBuf),
+    /// The player has started playing a new song
+    NewSongPlaying(Utf8PathBuf),
     /// The player reached the end of the queue
     Stopped,
     /// The player thread died
@@ -85,6 +102,8 @@ async fn listen(
 
         Err(TryRecvError::Empty) => (None, AudioSubState::Ready),
 
-        Err(TryRecvError::Disconnected) => (None, AudioSubState::Disconnected),
+        Err(TryRecvError::Disconnected) => {
+            (Some(ToUi::AudioDied), AudioSubState::Disconnected)
+        }
     }
 }

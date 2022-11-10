@@ -1,12 +1,27 @@
 * Now
-- [X] seekable progress bar
-- [ ] add forward/back track buttons to bottom row
+- [ ] do optimistic ui for the slider state
 
 * Next
+- [ ] use the new custom theme options
+  - [ ] transparent background play button for song list
+  - [ ] transparent background forward/back buttons
+  - [ ] make the play button unique as well?
+
+- [ ] make a custom Effect type wrapping Command and ToAudio
+
 - [ ] add a config dir
   consider switching to 'directories' crate from 'dirs'
 
 - [ ] start using sqlite for decoded data
+  remove the unwraps/expects from ui::data
+  replace the weird joins in ui::startup
+  match album covers to albums in a less dumb way
+  change startup process to be more incremental
+    ie, can happen in the background while app is interactive,
+    and start where it left off if app is killed
+
+- [ ] in player, if audio output is present,
+  then spec and duration should still be validated
 
 - [ ] cache the converted rgba images in config dir
   also resize to thumbnails? for currently playing

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use camino::Utf8PathBuf;
@@ -93,6 +93,8 @@ pub enum Message {
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
+    ForwardClicked,
+    BackClicked,
     FromAudio(ToUi),
     SeekDrag(f32),
     SeekRelease,
@@ -179,39 +181,20 @@ impl Application for Ui {
             }
 
             Message::PlaySongClicked(song_id) => {
-                match &self.music_dir {
-                    Some(music_dir) => {
-                        let song = music_dir.get_song(&song_id);
-                        self.current_song = Some(CurrentSong::playing(song));
+                let Some(music_dir) = &self.music_dir else {
+                    error!("play clicked before music loaded");
+                    return Command::none();
+                };
 
-                        let up_next: VecDeque<_> = {
-                            if let Some(album_id) = &song.album_id {
-                                let album = music_dir.get_album(album_id);
-                                let mut remaining_songs =
-                                    album.song_ids.iter().skip_while(|&s| s != &song.id);
+                let song = music_dir.get_song(&song_id);
+                self.current_song = Some(CurrentSong::playing(song));
+                let Some(queue) = music_dir.get_album_queue(song) else {
+                    error!("failed to find album for song");
+                    return Command::none();
+                };
 
-                                // remove new current track
-                                remaining_songs.next();
+                self.send_to_audio(ToAudio::PlayQueue(queue));
 
-                                remaining_songs
-                                    .map(|song_id| {
-                                        music_dir.get_song(song_id).path.clone()
-                                    })
-                                    .collect()
-                            } else {
-                                Default::default()
-                            }
-                        };
-
-                        self.send_to_audio(ToAudio::PlayQueue((
-                            song.path.clone(),
-                            up_next,
-                        )));
-                    }
-                    None => {
-                        error!("play clicked before music loaded");
-                    }
-                }
                 Command::none()
             }
 
@@ -228,6 +211,16 @@ impl Application for Ui {
                 Command::none()
             }
 
+            Message::ForwardClicked => {
+                self.send_to_audio(ToAudio::Forward);
+                Command::none()
+            }
+
+            Message::BackClicked => {
+                self.send_to_audio(ToAudio::Back);
+                Command::none()
+            }
+
             Message::SeekDrag(proportion) => {
                 self.seek_drag = Some(proportion);
                 Command::none()
@@ -236,8 +229,9 @@ impl Application for Ui {
             Message::SeekRelease => {
                 match (self.seek_drag, &self.progress) {
                     (Some(proportion), Some(progress)) => {
-                        let to_send = progress.total.seconds as f32 * proportion;
-                        self.send_to_audio(ToAudio::Seek(to_send));
+                        let mut seek_seconds = progress.total.seconds as f32 * proportion;
+                        seek_seconds += progress.total.frac as f32 * proportion;
+                        self.send_to_audio(ToAudio::Seek(seek_seconds));
                     }
                     (Some(_proportion), None) => {
                         error!("seek release without existing progress");
@@ -271,7 +265,7 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::NextSong(song_path)) => {
+            Message::FromAudio(ToUi::NewSongPlaying(song_path)) => {
                 let music_dir = match &self.music_dir {
                     Some(m) => m,
                     None => {
@@ -516,12 +510,18 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
                 button(icons::play()).on_press(Message::PlayClicked)
             };
 
+            let back_button = button(icons::back()).on_press(Message::BackClicked);
+            let forward_button =
+                button(icons::forward()).on_press(Message::ForwardClicked);
+
             row![
                 view_current_album_artist(current_song)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
                     .align_items(Alignment::Center),
+                back_button,
                 play_pause_button,
+                forward_button,
                 text(&current_song.title)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
