@@ -1,5 +1,5 @@
 * Now
-- [ ] do optimistic ui for the slider state
+- [X] do optimistic ui for the slider state
 
 * Next
 - [ ] use the new custom theme options
@@ -8,6 +8,7 @@
   - [ ] make the play button unique as well?
 
 - [ ] make a custom Effect type wrapping Command and ToAudio
+  also make non-channel stuff a sub-struct?
 
 - [ ] add a config dir
   consider switching to 'directories' crate from 'dirs'

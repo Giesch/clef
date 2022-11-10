@@ -19,7 +19,8 @@ pub enum ToAudio {
     Pause,
     /// Play the currently paused song, if any
     PlayPaused,
-    /// Seek (0) seconds into the current song, if any
+    /// Seek to position (0) of the current song, if any
+    /// Expected to be a proportion in range 0.0..=1.0
     Seek(f32),
     /// Play the next track, if any, or transition to stopped
     Forward,

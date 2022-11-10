@@ -30,12 +30,12 @@ use hoverable::*;
 pub struct Ui {
     inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
+
     should_exit: bool,
     current_song: Option<CurrentSong>,
-    progress: Option<ProgressTimes>,
+    progress: Option<ProgressDisplay>,
     music_dir: Option<MusicDir>,
     hovered_song_id: Option<SongId>,
-    seek_drag: Option<f32>,
 }
 
 impl Ui {
@@ -48,7 +48,6 @@ impl Ui {
             progress: None,
             music_dir: None,
             hovered_song_id: None,
-            seek_drag: None,
         }
     }
 
@@ -77,6 +76,27 @@ impl CurrentSong {
             album: song.album_title().map(str::to_owned),
             artist: song.artist().map(str::to_owned),
             playing: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProgressDisplay {
+    Dragging(f32),
+    Optimistic(f32),
+    FromAudio(ProgressTimes),
+}
+
+impl ProgressDisplay {
+    fn display_proportion(&self) -> f32 {
+        match self {
+            ProgressDisplay::Dragging(proportion) => *proportion,
+            ProgressDisplay::Optimistic(proportion) => *proportion,
+            ProgressDisplay::FromAudio(times) => {
+                let elapsed = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
+                let total = times.total.seconds as f32 + times.total.frac as f32;
+                elapsed / total
+            }
         }
     }
 }
@@ -199,12 +219,9 @@ impl Application for Ui {
             }
 
             Message::PauseClicked => {
-                match &mut self.current_song {
-                    None => {}
-                    Some(current_song) => {
-                        current_song.playing = false;
-                    }
-                };
+                if let Some(current_song) = &mut self.current_song {
+                    current_song.playing = false;
+                }
 
                 self.send_to_audio(ToAudio::Pause);
 
@@ -222,26 +239,21 @@ impl Application for Ui {
             }
 
             Message::SeekDrag(proportion) => {
-                self.seek_drag = Some(proportion);
+                self.progress = Some(ProgressDisplay::Dragging(proportion));
                 Command::none()
             }
 
             Message::SeekRelease => {
-                match (self.seek_drag, &self.progress) {
-                    (Some(proportion), Some(progress)) => {
-                        let mut seek_seconds = progress.total.seconds as f32 * proportion;
-                        seek_seconds += progress.total.frac as f32 * proportion;
-                        self.send_to_audio(ToAudio::Seek(seek_seconds));
+                let proportion = match &self.progress {
+                    Some(ProgressDisplay::Dragging(proportion)) => *proportion,
+                    _ => {
+                        error!("seek release without drag");
+                        return Command::none();
                     }
-                    (Some(_proportion), None) => {
-                        error!("seek release without existing progress");
-                    }
-                    (None, _) => {
-                        error!("seek release without previous drag event");
-                    }
-                }
+                };
 
-                self.seek_drag = None;
+                self.progress = Some(ProgressDisplay::Optimistic(proportion));
+                self.send_to_audio(ToAudio::Seek(proportion));
 
                 Command::none()
             }
@@ -261,7 +273,12 @@ impl Application for Ui {
             }
 
             Message::FromAudio(ToUi::Progress(times)) => {
-                self.progress = Some(times);
+                if let Some(ProgressDisplay::Dragging(_)) = &self.progress {
+                    // ignore update to preserve drag state
+                } else {
+                    self.progress = Some(ProgressDisplay::FromAudio(times));
+                }
+
                 Command::none()
             }
 
@@ -303,30 +320,24 @@ impl Application for Ui {
         const MAX: f32 = 1.0;
         const STEP: f32 = 0.01;
 
-        let progress_slider = match (&self.seek_drag, &self.progress) {
-            // currently dragging
-            (Some(seek_drag), Some(_)) => {
-                slider(0.0..=MAX, *seek_drag, Message::SeekDrag)
+        let progress_slider = match &self.progress {
+            Some(progress) => {
+                let proportion = progress.display_proportion();
+
+                slider(0.0..=MAX, proportion, Message::SeekDrag)
                     .step(STEP)
                     .on_release(Message::SeekRelease)
             }
-            // currently playing
-            (None, Some(times)) => {
-                let elapsed = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
-                let total = times.total.seconds as f32 + times.total.frac as f32;
-                let progress = elapsed / total;
-                slider(0.0..=MAX, progress, Message::SeekDrag)
-                    .step(STEP)
-                    .on_release(Message::SeekRelease)
-            }
+
             // disabled
-            _ => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
+            None => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
         };
 
         let content: Element<'_, Message> = match &self.music_dir {
             Some(music) => {
                 view_album_list(music, &self.hovered_song_id, &self.current_song).into()
             }
+
             None => vertical_space(Length::Fill).into(),
         };
 

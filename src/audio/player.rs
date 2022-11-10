@@ -141,9 +141,20 @@ impl Player {
             (Some(Back), Some(player_state)) => player_state.back(),
             (Some(Back), None) => Ok((None, None)),
 
-            (Some(Seek(target)), Some(player_state)) => {
-                let state = Some(player_state.seek_to(target));
-                Ok((state, None))
+            (Some(Seek(proportion)), Some(player_state)) => {
+                if let Some(total) = player_state
+                    .track_info
+                    .progress_times(player_state.timestamp)
+                    .map(|times| times.total)
+                {
+                    let mut seek_seconds = total.seconds as f32 * proportion;
+                    seek_seconds += total.frac as f32 * proportion;
+                    let state = Some(player_state.seek_to(seek_seconds));
+                    Ok((state, None))
+                } else {
+                    error!("missing track info: {:#?}", player_state.track_info);
+                    Ok((Some(player_state), None))
+                }
             }
             (Some(Seek(_)), None) => Ok((None, None)),
 
