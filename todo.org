@@ -1,5 +1,21 @@
 * Now
 - [X] do optimistic ui for the slider state
+- [ ] get on iced 0.5
+- [-] choose an option for dealing with image perf
+  - [X] first, see if cloning bytes is the problem
+    from_pixels doesn't allow avoiding this
+  - [X] try keeping handles in app state
+    Image::new still has to take ownership
+  - [ ] then, pick one:
+    - remove images from the app for now
+    - make an infinite list widget https://github.com/iced-rs/iced/issues/160
+    - try to address cache issue https://github.com/iced-rs/iced/issues/549
+    - find a specific workaround
+  - [ ] is it possible to use an overlay & custom style?
+    ie always draw a transparent button over the number
+    should the content or the hoverable have the overlay?
+    can this be simplified by making a widget for just this case?
+      ie the cutom widget is for track numbers and play buttons
 
 * Next
 - [ ] use the new custom theme options

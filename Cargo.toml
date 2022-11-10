@@ -18,12 +18,12 @@ walkdir = "2.3.2"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
-rev = "da2325d18df661edd20cac486233997f29be73b6" # IcedVersion
+version = "0.5"
 features = ["svg", "image", "debug"]
 
 [dependencies.iced_native]
 git = "https://github.com/iced-rs/iced"
-rev = "da2325d18df661edd20cac486233997f29be73b6" # IcedVersion
+version = "0.6"
 
 [dependencies.image_rs]
 package = "image"
