@@ -1,12 +1,17 @@
 * Now
+- [X] add a config dir
 
-* Next
-- [ ] add a config dir
-  consider switching to 'directories' crate from 'dirs'
+- [ ] create a minimal sqlite database
+  ids for albums and songs
+  file locations for each
 
 - [ ] cache the converted rgba images in config dir
-  also resize to thumbnails? for currently playing
+  generate filename; keep in sqlite
 
+- [X] fix flicker on seek release when playing
+  optimistic gets wiped sooner than expected
+
+* Next
 - [ ] sqlite setup
   - [ ] decoded song metadata
   - [ ] locations/names of resized album art
