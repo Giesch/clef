@@ -1,25 +1,8 @@
 * Now
-- [-] choose an option for dealing with image perf
-  - [X] first, see if cloning bytes is the problem
-    from_pixels doesn't allow avoiding this
-  - [X] try keeping handles in app state
-    Image::new still has to take ownership
-  - [ ] is it possible to use an overlay & custom style?
-    ie always draw a transparent button over the number
-    should the content or the hoverable have the overlay?
-    can this be simplified by making a widget for just this case?
-      ie the cutom widget is for track numbers and play buttons
-  - [ ] then, pick one:
-    - remove images from the app for now
-    - make an infinite list widget https://github.com/iced-rs/iced/issues/160
-    - try to address cache issue https://github.com/iced-rs/iced/issues/549
+- [X] use the new custom theme options for buttons
+- [ ] consider canvas instead of svg for icons
 
 * Next
-- [ ] use the new custom theme options
-  - [ ] transparent background play button for song list
-  - [ ] transparent background forward/back buttons
-  - [ ] make the play button unique as well?
-
 - [ ] make a custom Effect type wrapping Command and ToAudio
   also make non-channel stuff a sub-struct?
 
@@ -68,16 +51,7 @@
   need a typed return from the run method?
   or a way for the ui to join audio instead of disconnecting
 
-- [ ] custom app theme with a transparent background secondary button
-  - [ ] copy dark theme into app (delegate to it somehow?)
-  - [ ] change secondary button to have transparent background & white/gray stroke
-  - [ ] use secondary for hovered song play button
-
-- [ ] make hover state update immediately
-  could have both elements ready always, and draw based on mouse position
-    but this requires a way to keep laying out the invisible element
-  maybe use an overlay?
-  see if getting to smaller scrollables helps
+- [ ] make a full custom app theme
 
 * Someday
 - [ ] sqlite setup

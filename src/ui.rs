@@ -25,6 +25,8 @@ mod data;
 pub use data::*;
 mod hoverable;
 use hoverable::*;
+mod custom_style;
+use custom_style::no_background;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -492,13 +494,19 @@ fn view_song_row(
     let button_slot: Element<'_, Message> = match status {
         SongRowStatus::Playing => button(icons::pause())
             .on_press(Message::PauseClicked)
+            .style(no_background())
             .into(),
-        SongRowStatus::Paused => {
-            button(icons::play()).on_press(Message::PlayClicked).into()
-        }
+
+        SongRowStatus::Paused => button(icons::play())
+            .on_press(Message::PlayClicked)
+            .style(no_background())
+            .into(),
+
         SongRowStatus::Hovered => button(icons::play())
             .on_press(Message::PlaySongClicked(song.id))
+            .style(no_background())
             .into(),
+
         SongRowStatus::None => text(index + 1)
             .width(MAGIC_SVG_SIZE)
             .height(MAGIC_SVG_SIZE)
@@ -529,9 +537,13 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
     let row_content = match current_song {
         Some(current_song) => {
             let play_pause_button = if current_song.playing {
-                button(icons::pause()).on_press(Message::PauseClicked)
+                button(icons::pause())
+                    .on_press(Message::PauseClicked)
+                    .style(no_background())
             } else {
-                button(icons::play()).on_press(Message::PlayClicked)
+                button(icons::play())
+                    .on_press(Message::PlayClicked)
+                    .style(no_background())
             };
 
             row![
@@ -540,9 +552,13 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
                     .height(MAGIC_SVG_SIZE)
                     .horizontal_alignment(alignment::Horizontal::Center)
                     .vertical_alignment(alignment::Vertical::Center),
-                button(icons::back()).on_press(Message::BackClicked),
+                button(icons::back())
+                    .on_press(Message::BackClicked)
+                    .style(no_background()),
                 play_pause_button,
-                button(icons::forward()).on_press(Message::ForwardClicked),
+                button(icons::forward())
+                    .on_press(Message::ForwardClicked)
+                    .style(no_background()),
                 view_current_album_artist(current_song)
                     .width(Length::Fill)
                     .height(MAGIC_SVG_SIZE)
@@ -553,7 +569,7 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
         None => {
             row![
                 Space::new(Length::Fill, MAGIC_SVG_SIZE),
-                button(icons::play()),
+                button(icons::play()).style(no_background()),
                 Space::new(Length::Fill, MAGIC_SVG_SIZE),
             ]
         }
