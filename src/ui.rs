@@ -297,10 +297,18 @@ impl Application for Ui {
                 }
 
                 // update progress bar if necessary
-                if let Some(ProgressDisplay::Dragging(_)) = &self.progress {
-                    // ignore update to preserve drag state
-                } else {
-                    self.progress = Some(ProgressDisplay::FromAudio(display.times));
+
+                match &self.progress {
+                    Some(ProgressDisplay::Dragging(_)) => {
+                        // ignore update to preserve drag state
+                    }
+                    Some(ProgressDisplay::Optimistic(_)) if !display.playing => {
+                        // this is after dragging while paused
+                        // ignore update to preserve dropped state
+                    }
+                    _ => {
+                        self.progress = Some(ProgressDisplay::FromAudio(display.times));
+                    }
                 }
 
                 Command::none()
@@ -324,8 +332,6 @@ impl Application for Ui {
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
-        let bottom_row = view_bottom_row(&self.current_song);
-
         const MAX: f32 = 1.0;
         const STEP: f32 = 0.01;
 
@@ -351,6 +357,7 @@ impl Application for Ui {
         };
 
         let content = fill_container(scrollable(content));
+        let bottom_row = view_bottom_row(&self.current_song);
 
         let main_column = column![content, bottom_row, progress_slider]
             .spacing(10)

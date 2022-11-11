@@ -1,30 +1,18 @@
 * Now
-- [X] do optimistic ui for the slider state
-- [X] get on iced 0.5
-- [X] fix bugs with forward/back when paused
-  - [X] back doesn't update the slider when paused
-  - [X] forward starts playing immediately
-  - [X] player needs to be publishing a fuller state to display
-    ie when going to a new song, ui needs to know if it's paused or not
-  - [X] channels should use song/album ids
-    ui->player should send paths AND ids for use later
-    player->ui should send id of playing song
-
 - [-] choose an option for dealing with image perf
   - [X] first, see if cloning bytes is the problem
     from_pixels doesn't allow avoiding this
   - [X] try keeping handles in app state
     Image::new still has to take ownership
-  - [ ] then, pick one:
-    - remove images from the app for now
-    - make an infinite list widget https://github.com/iced-rs/iced/issues/160
-    - try to address cache issue https://github.com/iced-rs/iced/issues/549
-    - find a specific workaround
   - [ ] is it possible to use an overlay & custom style?
     ie always draw a transparent button over the number
     should the content or the hoverable have the overlay?
     can this be simplified by making a widget for just this case?
       ie the cutom widget is for track numbers and play buttons
+  - [ ] then, pick one:
+    - remove images from the app for now
+    - make an infinite list widget https://github.com/iced-rs/iced/issues/160
+    - try to address cache issue https://github.com/iced-rs/iced/issues/549
 
 * Next
 - [ ] use the new custom theme options
@@ -129,6 +117,6 @@
   https://github.com/iced-rs/iced/issues/1454
 
 - [ ] select the music directory with a menu/modal, and cache it
-- [X] select the config directory based on platform
+- [ ] select the config directory based on platform
 
 - [ ] add a subtle play button to album art
