@@ -1,5 +1,6 @@
 use camino::Utf8PathBuf;
 use iced::widget::image;
+use image_rs::imageops::FilterType;
 
 /// Image pixels in the format that iced converts them to internally
 /// Doing the conversion ahead of time (outside the framework)
@@ -28,10 +29,13 @@ impl std::fmt::Debug for RgbaBytes {
     }
 }
 
+pub const IMAGE_SIZE: u16 = 256;
+
 /// NOTE this is slow
-/// https://github.com/iced-rs/iced/issues/549
 pub fn load_rgba(path: &Utf8PathBuf) -> Option<RgbaBytes> {
     let img = image_rs::open(path).ok()?;
+    let img = img.resize(IMAGE_SIZE as u32, IMAGE_SIZE as u32, FilterType::Lanczos3);
+
     let rgba = img.to_rgba8();
 
     let rgba_bytes = RgbaBytes {

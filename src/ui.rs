@@ -453,17 +453,16 @@ fn song_row_status(
 }
 
 fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
-    let length = 256;
+    let length = Length::Units(IMAGE_SIZE);
 
     match image_bytes {
-        // NOTE this isn't cached, so the clone happens every time
         Some(image_bytes) => Image::new(image_bytes.clone())
-            .width(Length::Units(length))
-            .height(Length::Units(length))
+            .width(length)
+            .height(length)
             .content_fit(ContentFit::ScaleDown)
             .into(),
 
-        None => Space::new(Length::Units(length), Length::Units(length)).into(),
+        None => Space::new(length, length).into(),
     }
 }
 
