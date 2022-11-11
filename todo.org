@@ -1,19 +1,23 @@
 * Now
-- [X] use the new custom theme options for buttons
-- [ ] consider canvas instead of svg for icons
 
 * Next
-- [ ] make a custom Effect type wrapping Command and ToAudio
-  also make non-channel stuff a sub-struct?
-
 - [ ] add a config dir
   consider switching to 'directories' crate from 'dirs'
 
-- [ ] start using sqlite for decoded data
-  remove the unwraps/expects from ui::data
-  replace the weird joins in ui::startup
-  match album covers to albums in a less dumb way
-  change startup process to be more incremental
+- [ ] cache the converted rgba images in config dir
+  also resize to thumbnails? for currently playing
+
+- [ ] sqlite setup
+  - [ ] decoded song metadata
+  - [ ] locations/names of resized album art
+    match album covers to albums in a less dumb way
+  - [ ] load a nice startup ui quickly
+    - [ ] last played song
+    - [ ] music directory index
+  - [ ] remove the expect/unwraps taking song ids
+  - [ ] replace the weird joins in ui::startup
+
+  - [ ] change startup process to be more incremental
     ie, can happen in the background while app is interactive,
     and start where it left off if app is killed
 
@@ -21,9 +25,6 @@
   then spec and duration should still be validated
 
 - [ ] in ui, current_song and progress should be in one optional
-
-- [ ] cache the converted rgba images in config dir
-  also resize to thumbnails? for currently playing
 
 - [ ] add song durations to view
   - [ ] for currently playing song
@@ -54,15 +55,6 @@
 - [ ] make a full custom app theme
 
 * Someday
-- [ ] sqlite setup
-  - [ ] load a nice startup ui quickly
-  - [ ] last played song
-  - [ ] music directory index
-  - [ ] tags
-  - [ ] re-evaluate the expect/unwraps taking song ids
-  - [ ] figure out how the ui and audio threads should share songs
-    id/path/somthing else
-
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)
 - [ ] other views
