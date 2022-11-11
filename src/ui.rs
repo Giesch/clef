@@ -89,15 +89,20 @@ impl CurrentSong {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgressDisplay {
     Dragging(f32),
-    Optimistic(f32),
+    Optimistic(f32, usize),
     FromAudio(ProgressTimes),
 }
 
 impl ProgressDisplay {
+    /// The number of audio thread updates to skip after the user
+    /// releases the mouse while seeking. This prevents a flicker of
+    /// displaying the old play position.
+    const OPTIMISTIC_THRESHOLD: usize = 2;
+
     fn display_proportion(&self) -> f32 {
         match self {
             ProgressDisplay::Dragging(proportion) => *proportion,
-            ProgressDisplay::Optimistic(proportion) => *proportion,
+            ProgressDisplay::Optimistic(proportion, _) => *proportion,
             ProgressDisplay::FromAudio(times) => {
                 let elapsed = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
                 let total = times.total.seconds as f32 + times.total.frac as f32;
@@ -115,7 +120,7 @@ pub struct Flags {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GotMusic(Result<Music, MusicDirError>),
+    GotMusic(Result<Music, LoadMusicError>),
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
@@ -240,7 +245,10 @@ impl Application for Ui {
             }
 
             Message::BackClicked => {
-                self.progress = Some(ProgressDisplay::Optimistic(0.0));
+                self.progress = Some(ProgressDisplay::Optimistic(
+                    0.0,
+                    ProgressDisplay::OPTIMISTIC_THRESHOLD,
+                ));
                 self.send_to_audio(ToAudio::Back);
                 Command::none()
             }
@@ -259,7 +267,7 @@ impl Application for Ui {
                     }
                 };
 
-                self.progress = Some(ProgressDisplay::Optimistic(proportion));
+                self.progress = Some(ProgressDisplay::Optimistic(proportion, 0));
                 self.send_to_audio(ToAudio::Seek(proportion));
 
                 Command::none()
@@ -299,14 +307,22 @@ impl Application for Ui {
                 }
 
                 // update progress bar if necessary
-
                 match &self.progress {
                     Some(ProgressDisplay::Dragging(_)) => {
                         // ignore update to preserve drag state
                     }
-                    Some(ProgressDisplay::Optimistic(_)) if !display.playing => {
+                    Some(ProgressDisplay::Optimistic(_, _)) if !display.playing => {
                         // this is after dragging while paused
                         // ignore update to preserve dropped state
+                    }
+                    Some(ProgressDisplay::Optimistic(proportion, skips))
+                        if display.playing
+                            && *skips < ProgressDisplay::OPTIMISTIC_THRESHOLD =>
+                    {
+                        // this is after dragging while playing
+                        // ignores first updates after releasing to avoid flicker
+                        self.progress =
+                            Some(ProgressDisplay::Optimistic(*proportion, skips + 1));
                     }
                     _ => {
                         self.progress = Some(ProgressDisplay::FromAudio(display.times));

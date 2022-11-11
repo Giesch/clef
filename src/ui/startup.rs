@@ -14,20 +14,20 @@ use walkdir::WalkDir;
 use super::data::*;
 use super::rgba::{load_rgba, RgbaBytes};
 
-#[derive(thiserror::Error, Debug, Clone)]
-pub enum LoadMusicError {
-    #[error("no audio directory found")]
-    NoAudioDirectory,
-    #[error("error walking audio directory")]
-    WalkError,
-}
-
 // Gather decoded songs and recognized art paths
 pub async fn load_music() -> Result<Music, LoadMusicError> {
+    let config_dir = get_app_config_dir().ok_or_else(|| LoadMusicError::NoConfigDir)?;
     let (songs, covers) = walk_audio_directory()?;
-    let music = prepare_for_display(songs, covers);
+    let music = prepare_for_display(songs, covers, config_dir);
 
     Ok(music)
+}
+
+const APP_NAME: &str = "clef";
+
+fn get_app_config_dir() -> Option<Utf8PathBuf> {
+    let config_dir: Utf8PathBuf = dirs::config_dir()?.try_into().ok()?;
+    Some(config_dir.join(APP_NAME))
 }
 
 fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), LoadMusicError> {
@@ -69,7 +69,11 @@ fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), LoadMus
     Ok((songs, covers))
 }
 
-fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Music {
+fn prepare_for_display(
+    songs: Vec<TaggedSong>,
+    covers: Vec<Utf8PathBuf>,
+    config_dir: Utf8PathBuf,
+) -> Music {
     use itertools::Itertools;
 
     let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
@@ -138,7 +142,7 @@ fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Musi
         }
     }
 
-    Music::new(sorted_albums, songs_by_id, albums_by_id)
+    Music::new(sorted_albums, songs_by_id, albums_by_id, config_dir)
 }
 
 // itertools' sorted_by_key puts None first
