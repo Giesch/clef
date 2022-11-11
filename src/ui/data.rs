@@ -17,19 +17,19 @@ pub mod tag_key;
 pub use tag_key::*;
 
 #[derive(Debug, Clone)]
-pub struct MusicDir {
+pub struct Music {
     sorted_albums: Vec<AlbumId>,
     songs_by_id: HashMap<SongId, TaggedSong>,
     albums_by_id: HashMap<AlbumId, AlbumDir>,
 }
 
-impl MusicDir {
+impl Music {
     pub fn new(
         sorted_albums: Vec<AlbumId>,
         songs_by_id: HashMap<SongId, TaggedSong>,
         albums_by_id: HashMap<AlbumId, AlbumDir>,
     ) -> Self {
-        MusicDir {
+        Music {
             sorted_albums,
             songs_by_id,
             albums_by_id,
