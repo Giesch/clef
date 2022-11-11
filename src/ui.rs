@@ -36,7 +36,7 @@ pub struct Ui {
     should_exit: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
-    music_dir: Option<MusicDir>,
+    music: Option<Music>,
     hovered_song_id: Option<SongId>,
 }
 
@@ -48,7 +48,7 @@ impl Ui {
             should_exit: false,
             current_song: None,
             progress: None,
-            music_dir: None,
+            music: None,
             hovered_song_id: None,
         }
     }
@@ -115,7 +115,7 @@ pub struct Flags {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GotMusicDir(Result<MusicDir, MusicDirError>),
+    GotMusic(Result<Music, MusicDirError>),
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
@@ -138,7 +138,7 @@ impl Application for Ui {
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let initial_state = Self::new(flags);
-        let initial_command = Command::perform(load_music(), Message::GotMusicDir);
+        let initial_command = Command::perform(load_music(), Message::GotMusic);
 
         (initial_state, initial_command)
     }
@@ -160,24 +160,24 @@ impl Application for Ui {
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
-            Message::GotMusicDir(Ok(music_dir)) => {
-                let image_paths: Vec<_> = music_dir
+            Message::GotMusic(Ok(music)) => {
+                let image_paths: Vec<_> = music
                     .albums()
                     .iter()
                     .flat_map(|album| album.covers.first())
                     .cloned()
                     .collect();
 
-                self.music_dir = Some(music_dir);
+                self.music = Some(music);
 
                 Command::perform(load_images(image_paths), Message::LoadedImages)
             }
-            Message::GotMusicDir(Err(_)) => Command::none(),
+            Message::GotMusic(Err(_)) => Command::none(),
 
             Message::LoadedImages(Some(loaded_images_by_path)) => {
-                match &mut self.music_dir {
-                    Some(music_dir) => {
-                        music_dir.add_album_covers(loaded_images_by_path);
+                match &mut self.music {
+                    Some(music) => {
+                        music.add_album_covers(loaded_images_by_path);
                     }
 
                     None => {
@@ -207,14 +207,14 @@ impl Application for Ui {
             }
 
             Message::PlaySongClicked(song_id) => {
-                let Some(music_dir) = &self.music_dir else {
+                let Some(music) = &self.music else {
                     error!("play clicked before music loaded");
                     return Command::none();
                 };
 
-                let song = music_dir.get_song(&song_id);
+                let song = music.get_song(&song_id);
                 self.current_song = Some(CurrentSong::playing(song));
-                let Some(queue) = music_dir.get_album_queue(song) else {
+                let Some(queue) = music.get_album_queue(song) else {
                     error!("failed to find album for song");
                     return Command::none();
                 };
@@ -287,7 +287,7 @@ impl Application for Ui {
                     }
 
                     _ => {
-                        let Some(music) = &self.music_dir else {
+                        let Some(music) = &self.music else {
                             error!("recieved audio thread message before loading music");
                             return Command::none();
                         };
@@ -350,7 +350,7 @@ impl Application for Ui {
             None => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
         };
 
-        let content: Element<'_, Message> = match &self.music_dir {
+        let content: Element<'_, Message> = match &self.music {
             Some(music) => {
                 view_album_list(music, &self.hovered_song_id, &self.current_song).into()
             }
@@ -383,11 +383,11 @@ fn fill_container<'a>(
 }
 
 fn view_album_list<'a>(
-    music_dir: &'a MusicDir,
+    music: &'a Music,
     hovered_song_id: &'a Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Column<'a, Message> {
-    let rows: Vec<_> = music_dir
+    let rows: Vec<_> = music
         .with_joined_song_data(|album_dir| {
             view_album(album_dir, hovered_song_id, current_song)
         })

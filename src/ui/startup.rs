@@ -15,7 +15,7 @@ use super::data::*;
 use super::rgba::{load_rgba, RgbaBytes};
 
 #[derive(thiserror::Error, Debug, Clone)]
-pub enum MusicDirError {
+pub enum LoadMusicError {
     #[error("no audio directory found")]
     NoAudioDirectory,
     #[error("error walking audio directory")]
@@ -23,15 +23,15 @@ pub enum MusicDirError {
 }
 
 // Gather decoded songs and recognized art paths
-pub async fn load_music() -> Result<MusicDir, MusicDirError> {
+pub async fn load_music() -> Result<Music, LoadMusicError> {
     let (songs, covers) = walk_audio_directory()?;
-    let music_dir = prepare_for_display(songs, covers);
+    let music = prepare_for_display(songs, covers);
 
-    Ok(music_dir)
+    Ok(music)
 }
 
-fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), MusicDirError> {
-    let audio_dir = dirs::audio_dir().ok_or(MusicDirError::NoAudioDirectory)?;
+fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), LoadMusicError> {
+    let audio_dir = dirs::audio_dir().ok_or(LoadMusicError::NoAudioDirectory)?;
 
     let mut songs: Vec<TaggedSong> = Vec::new();
     let mut covers: Vec<Utf8PathBuf> = Vec::new();
@@ -40,7 +40,7 @@ fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), MusicDi
             Ok(dir_entry) => dir_entry,
             Err(e) => {
                 error!("error walking music directory: {e}");
-                return Err(MusicDirError::WalkError);
+                return Err(LoadMusicError::WalkError);
             }
         };
 
@@ -69,7 +69,7 @@ fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), MusicDi
     Ok((songs, covers))
 }
 
-fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> MusicDir {
+fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Music {
     use itertools::Itertools;
 
     let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
@@ -138,7 +138,7 @@ fn prepare_for_display(songs: Vec<TaggedSong>, covers: Vec<Utf8PathBuf>) -> Musi
         }
     }
 
-    MusicDir::new(sorted_albums, songs_by_id, albums_by_id)
+    Music::new(sorted_albums, songs_by_id, albums_by_id)
 }
 
 // itertools' sorted_by_key puts None first
