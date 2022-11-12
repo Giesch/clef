@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs::File;
 
 use camino::{Utf8Path, Utf8PathBuf};
+use directories::UserDirs;
 use log::{error, info};
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
@@ -14,24 +15,30 @@ use walkdir::WalkDir;
 use super::data::*;
 use super::rgba::{load_rgba, RgbaBytes};
 
+/// NOTE needs to use 'thiserror' rather than 'anyhow',
+/// because it appears in an iced messsage that has to be Clone
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum LoadMusicError {
+    #[error("no audio directory found")]
+    NoAudioDirectory,
+    #[error("error walking audio directory")]
+    WalkError,
+}
+
 // Gather decoded songs and recognized art paths
-pub async fn load_music() -> Result<Music, LoadMusicError> {
-    let config_dir = get_app_config_dir().ok_or_else(|| LoadMusicError::NoConfigDir)?;
-    let (songs, covers) = walk_audio_directory()?;
-    let music = prepare_for_display(songs, covers, config_dir);
+pub async fn load_music(user_dirs: UserDirs) -> Result<Music, LoadMusicError> {
+    let (songs, covers) = walk_audio_directory(&user_dirs)?;
+    let music = prepare_music(songs, covers)?;
 
     Ok(music)
 }
 
-const APP_NAME: &str = "clef";
-
-fn get_app_config_dir() -> Option<Utf8PathBuf> {
-    let config_dir: Utf8PathBuf = dirs::config_dir()?.try_into().ok()?;
-    Some(config_dir.join(APP_NAME))
-}
-
-fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), LoadMusicError> {
-    let audio_dir = dirs::audio_dir().ok_or(LoadMusicError::NoAudioDirectory)?;
+fn walk_audio_directory(
+    user_dirs: &UserDirs,
+) -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), LoadMusicError> {
+    let audio_dir = user_dirs
+        .audio_dir()
+        .ok_or(LoadMusicError::NoAudioDirectory)?;
 
     let mut songs: Vec<TaggedSong> = Vec::new();
     let mut covers: Vec<Utf8PathBuf> = Vec::new();
@@ -69,11 +76,10 @@ fn walk_audio_directory() -> Result<(Vec<TaggedSong>, Vec<Utf8PathBuf>), LoadMus
     Ok((songs, covers))
 }
 
-fn prepare_for_display(
+fn prepare_music(
     songs: Vec<TaggedSong>,
     covers: Vec<Utf8PathBuf>,
-    config_dir: Utf8PathBuf,
-) -> Music {
+) -> Result<Music, LoadMusicError> {
     use itertools::Itertools;
 
     let song_ids_by_directory: HashMap<Utf8PathBuf, Vec<SongId>> = songs
@@ -142,7 +148,7 @@ fn prepare_for_display(
         }
     }
 
-    Music::new(sorted_albums, songs_by_id, albums_by_id, config_dir)
+    Ok(Music::new(sorted_albums, songs_by_id, albums_by_id))
 }
 
 // itertools' sorted_by_key puts None first

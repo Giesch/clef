@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use camino::Utf8PathBuf;
+use directories::{ProjectDirs, UserDirs};
 use flume::{Receiver, Sender};
 use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text,
@@ -14,7 +15,7 @@ use iced::{
 use log::error;
 use parking_lot::Mutex;
 
-use crate::channels::{self, ProgressTimes, ToAudio, ToUi};
+use crate::channels::{self, audio_subscription, ProgressTimes, ToAudio, ToUi};
 
 mod icons;
 mod startup;
@@ -27,12 +28,14 @@ mod hoverable;
 use hoverable::*;
 mod custom_style;
 use custom_style::no_background;
+mod crawler;
 
 #[derive(Debug)]
 pub struct Ui {
+    user_dirs: UserDirs,
+    project_dirs: ProjectDirs,
     inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
-
     should_exit: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
@@ -43,6 +46,8 @@ pub struct Ui {
 impl Ui {
     fn new(flags: Flags) -> Self {
         Self {
+            user_dirs: flags.user_dirs,
+            project_dirs: flags.project_dirs,
             inbox: flags.inbox,
             to_audio: flags.to_audio,
             should_exit: false,
@@ -114,6 +119,8 @@ impl ProgressDisplay {
 
 #[derive(Debug)]
 pub struct Flags {
+    pub user_dirs: UserDirs,
+    pub project_dirs: ProjectDirs,
     pub inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     pub to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
 }
@@ -143,7 +150,10 @@ impl Application for Ui {
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let initial_state = Self::new(flags);
-        let initial_command = Command::perform(load_music(), Message::GotMusic);
+        let initial_command = Command::perform(
+            load_music(initial_state.user_dirs.clone()),
+            Message::GotMusic,
+        );
 
         (initial_state, initial_command)
     }
@@ -346,7 +356,10 @@ impl Application for Ui {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        channels::audio_subscription(self.inbox.clone()).map(Message::FromAudio)
+        let crawler = Subscription::none();
+        let audio = audio_subscription(self.inbox.clone()).map(Message::FromAudio);
+
+        Subscription::batch([crawler, audio])
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {

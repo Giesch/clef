@@ -31,10 +31,10 @@ pub enum ToAudio {
     Back,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Queue<T>
 where
-    T: Debug + Clone + PartialEq,
+    T: Debug + Clone + PartialEq + Eq,
 {
     pub previous: Vec<T>,
     pub current: T,
