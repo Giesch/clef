@@ -1,16 +1,29 @@
 * Now
-- [X] add a config dir
-
 - [ ] create a minimal sqlite database
-  ids for albums and songs
-  file locations for each
+  - [ ] keep connection somewhere
+    either in Ui struct, worker thread/subscription or both
+  - [ ] ids for albums and songs
+    file locations for each
+
+- [ ] change initial load command to start a subscription
+  first, worker thread that:
+  loads album data from audio directory
+  resizes images
+  notifies ui of loaded albums & art as they come in
+    separate worker thread just for image resizing?
+    or do all crawling first, then start doing images?
+
+  eventually, worker thread that:
+  loads album data from audio directory
+  creates sqlite db if it's missing
+  adds album data to sqlite
+  resizes images
+  saves resized images to config dir
+  notifies ui of loaded albums & art as they come in
 
 - [ ] cache the converted rgba images in config dir
   generate filename; keep in sqlite
-
-- [X] fix flicker on seek release when playing
-  optimistic gets wiped sooner than expected
-
+echo DATABASE_URL=/tmp/diesel_demo.sqlite > .env
 * Next
 - [ ] sqlite setup
   - [ ] decoded song metadata
@@ -25,6 +38,12 @@
   - [ ] change startup process to be more incremental
     ie, can happen in the background while app is interactive,
     and start where it left off if app is killed
+
+- [ ] embed migrations, run on startup
+  diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
+  - [ ] create db if it doesn't exist
+  - [ ] add module and call fn in main
+  - [ ] add build.rs for rerunning on change
 
 - [ ] in player, if audio output is present,
   then spec and duration should still be validated

@@ -276,7 +276,7 @@ impl PlayerState {
 
                 let ui_message = ToUi::DisplayUpdate(Some((&new_state).into()));
 
-                return Ok((Some(new_state), Some(ui_message)));
+                Ok((Some(new_state), Some(ui_message)))
             }
 
             None => Ok((None, Some(ToUi::DisplayUpdate(None)))),

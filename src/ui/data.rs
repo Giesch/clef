@@ -16,23 +16,11 @@ pub use album_id::*;
 pub mod tag_key;
 pub use tag_key::*;
 
-#[derive(thiserror::Error, Debug, Clone)]
-pub enum LoadMusicError {
-    #[error("no audio directory found")]
-    NoAudioDirectory,
-    #[error("error walking audio directory")]
-    WalkError,
-    #[error("no user config dir available")]
-    NoConfigDir,
-}
-
 #[derive(Debug, Clone)]
 pub struct Music {
     sorted_albums: Vec<AlbumId>,
     songs_by_id: HashMap<SongId, TaggedSong>,
     albums_by_id: HashMap<AlbumId, AlbumDir>,
-    /// Application subdirectory of the user's config dir
-    config_dir: Utf8PathBuf,
 }
 
 impl Music {
@@ -40,13 +28,11 @@ impl Music {
         sorted_albums: Vec<AlbumId>,
         songs_by_id: HashMap<SongId, TaggedSong>,
         albums_by_id: HashMap<AlbumId, AlbumDir>,
-        config_dir: Utf8PathBuf,
     ) -> Self {
         Music {
             sorted_albums,
             songs_by_id,
             albums_by_id,
-            config_dir,
         }
     }
 
@@ -148,11 +134,7 @@ impl Music {
                 }
             }
 
-            if let Some(current) = current {
-                Some(Queue { previous, current, next })
-            } else {
-                None
-            }
+            current.map(|current| Queue { previous, current, next })
         } else {
             Some(Queue {
                 previous: Default::default(),
