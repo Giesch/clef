@@ -14,16 +14,16 @@ use super::crawler::CrawledAlbum;
 
 #[derive(Default, Debug)]
 pub struct MusicCache {
-    sorted_albums: Vec<(AlbumId, AlbumSortKey)>,
+    album_display_order: Vec<(AlbumId, AlbumSortKey)>,
     songs_by_id: HashMap<SongId, Song>,
     albums_by_id: HashMap<AlbumId, CachedAlbum>,
 }
 
-// this will eventually include image data
+// this is intended include image data
 #[derive(Debug)]
 pub struct CachedAlbum {
-    album: Album,
-    songs: Vec<Song>,
+    pub album: Album,
+    pub songs: Vec<Song>,
 }
 
 /// Artist, Display Title
@@ -32,6 +32,18 @@ type AlbumSortKey = (Option<String>, String);
 impl MusicCache {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn albums(&self) -> Vec<&CachedAlbum> {
+        let mut albums = Vec::new();
+
+        for (album_id, _sort_key) in self.album_display_order.iter() {
+            if let Some(album) = self.albums_by_id.get(album_id) {
+                albums.push(album);
+            }
+        }
+
+        albums
     }
 
     pub fn add_crawled_album(&mut self, crawled: CrawledAlbum) {
@@ -43,8 +55,8 @@ impl MusicCache {
             crawled.album.artist.clone(),
             crawled.album.display_title().to_string(),
         );
-        self.sorted_albums.push((crawled.album.id, sort_key));
-        self.sorted_albums
+        self.album_display_order.push((crawled.album.id, sort_key));
+        self.album_display_order
             .sort_by(|a, b| artist_then_title_with_nones_last(&a.1, &b.1));
 
         let album_id = crawled.album.id;

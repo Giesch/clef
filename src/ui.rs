@@ -16,6 +16,7 @@ use log::error;
 use parking_lot::Mutex;
 
 use crate::channels::{self, audio_subscription, ProgressTimes, ToAudio, ToUi};
+use crate::db::queries::*;
 use crate::db::SqlitePool;
 
 mod icons;
@@ -23,8 +24,8 @@ mod startup;
 use startup::*;
 mod rgba;
 use rgba::*;
-mod data;
-pub use data::*;
+pub mod data;
+// pub use data::*;
 mod hoverable;
 use hoverable::*;
 mod custom_style;
@@ -44,7 +45,7 @@ pub struct Ui {
     should_exit: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
-    music: Option<Music>,
+    // music: Option<Music>,
     hovered_song_id: Option<SongId>,
     crawling_music: bool,
     music_cache: MusicCache,
@@ -61,7 +62,7 @@ impl Ui {
             should_exit: false,
             current_song: None,
             progress: None,
-            music: None,
+            // music: None,
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
@@ -86,16 +87,16 @@ struct CurrentSong {
 }
 
 impl CurrentSong {
-    pub fn playing(song: &TaggedSong) -> Self {
+    pub fn playing(song: &Song) -> Self {
         Self::from_song(song, true)
     }
 
-    pub fn from_song(song: &TaggedSong, playing: bool) -> Self {
+    pub fn from_song(song: &Song, playing: bool) -> Self {
         Self {
             id: song.id,
             title: song.display_title().to_owned(),
-            album: song.album_title().map(str::to_owned),
-            artist: song.artist().map(str::to_owned),
+            album: song.title.clone(),
+            artist: song.artist.clone(),
             playing,
         }
     }
@@ -139,7 +140,7 @@ pub struct Flags {
 #[derive(Debug, Clone)]
 pub enum Message {
     FromCrawler(CrawlerMessage),
-    GotMusic(Result<Music, LoadMusicError>),
+    // GotMusic(Result<Music, LoadMusicError>),
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
@@ -149,7 +150,7 @@ pub enum Message {
     SeekDrag(f32),
     SeekRelease,
     SeekWithoutSong(f32),
-    LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
+    // LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
 }
@@ -162,10 +163,11 @@ impl Application for Ui {
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let initial_state = Self::new(flags);
-        let initial_command = Command::perform(
-            load_music(initial_state.user_dirs.clone()),
-            Message::GotMusic,
-        );
+        let initial_command = Command::none();
+        // let initial_command = Command::perform(
+        //     load_music(initial_state.user_dirs.clone()),
+        //     Message::GotMusic,
+        // );
 
         (initial_state, initial_command)
     }
@@ -206,39 +208,33 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::GotMusic(Ok(music)) => {
-                let image_paths: Vec<_> = music
-                    .albums()
-                    .iter()
-                    .flat_map(|album| album.covers.first())
-                    .cloned()
-                    .collect();
+            // Message::GotMusic(Ok(music)) => {
+            //     let image_paths: Vec<_> = music
+            //         .albums()
+            //         .iter()
+            //         .flat_map(|album| album.covers.first())
+            //         .cloned()
+            //         .collect();
+            //     self.music = Some(music);
+            //     Command::perform(load_images(image_paths), Message::LoadedImages)
+            // }
+            // Message::GotMusic(Err(_)) => Command::none(),
 
-                self.music = Some(music);
-
-                Command::perform(load_images(image_paths), Message::LoadedImages)
-            }
-            Message::GotMusic(Err(_)) => Command::none(),
-
-            Message::LoadedImages(Some(loaded_images_by_path)) => {
-                match &mut self.music {
-                    Some(music) => {
-                        music.add_album_covers(loaded_images_by_path);
-                    }
-
-                    None => {
-                        error!("loaded images before music directory")
-                    }
-                }
-
-                Command::none()
-            }
-
-            Message::LoadedImages(None) => {
-                error!("failed to load images");
-                Command::none()
-            }
-
+            // Message::LoadedImages(Some(loaded_images_by_path)) => {
+            //     match &mut self.music {
+            //         Some(music) => {
+            //             music.add_album_covers(loaded_images_by_path);
+            //         }
+            //         None => {
+            //             error!("loaded images before music directory")
+            //         }
+            //     }
+            //     Command::none()
+            // }
+            // Message::LoadedImages(None) => {
+            //     error!("failed to load images");
+            //     Command::none()
+            // }
             Message::PlayClicked => {
                 match &mut self.current_song {
                     None => {}
@@ -253,17 +249,9 @@ impl Application for Ui {
             }
 
             Message::PlaySongClicked(song_id) => {
-                let Some(music) = &self.music else {
-                    error!("play clicked before music loaded");
-                    return Command::none();
-                };
-
-                let song = music.get_song(&song_id);
+                let song = self.music_cache.get_song(&song_id);
                 self.current_song = Some(CurrentSong::playing(song));
-                let Some(queue) = music.get_album_queue(song) else {
-                    error!("failed to find album for song");
-                    return Command::none();
-                };
+                let queue = self.music_cache.get_album_queue(song);
 
                 self.send_to_audio(ToAudio::PlayQueue(queue));
 
@@ -336,12 +324,7 @@ impl Application for Ui {
                     }
 
                     _ => {
-                        let Some(music) = &self.music else {
-                            error!("recieved audio thread message before loading music");
-                            return Command::none();
-                        };
-
-                        let song = music.get_song(&display.song_id);
+                        let song = self.music_cache.get_song(&display.song_id);
                         self.current_song =
                             Some(CurrentSong::from_song(song, display.playing));
                     }
@@ -415,13 +398,8 @@ impl Application for Ui {
             None => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
         };
 
-        let content: Element<'_, Message> = match &self.music {
-            Some(music) => {
-                view_album_list(music, &self.hovered_song_id, &self.current_song).into()
-            }
-
-            None => vertical_space(Length::Fill).into(),
-        };
+        let content =
+            view_album_list(&self.music_cache, &self.hovered_song_id, &self.current_song);
 
         let content = fill_container(scrollable(content));
         let bottom_row = view_bottom_row(&self.current_song);
@@ -448,15 +426,14 @@ fn fill_container<'a>(
 }
 
 fn view_album_list<'a>(
-    music: &'a Music,
+    music: &'a MusicCache,
     hovered_song_id: &'a Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Column<'a, Message> {
     let rows: Vec<_> = music
-        .with_joined_song_data(|album_dir| {
-            view_album(album_dir, hovered_song_id, current_song)
-        })
-        .into_iter()
+        .albums()
+        .iter()
+        .map(|a| view_album(a, hovered_song_id, current_song))
         .collect();
 
     Column::with_children(rows)
@@ -466,24 +443,24 @@ fn view_album_list<'a>(
 }
 
 fn view_album<'a>(
-    album_dir: &AlbumDirView<'a>,
+    album: &'a CachedAlbum,
     hovered_song_id: &'a Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Element<'a, Message> {
-    let album_image = view_album_image(album_dir.loaded_cover.as_ref());
+    let album_image = view_album_image(None);
 
     let album_info = column![
-        text(album_dir.display_title()),
-        text(album_dir.display_artist().unwrap_or("")),
-        text(album_dir.date().unwrap_or("")),
+        text(album.album.display_title()),
+        text(album.album.artist.as_deref().unwrap_or("")),
+        text(album.album.release_date.as_deref().unwrap_or("")),
     ]
     .width(Length::FillPortion(1));
 
-    let song_rows: Vec<_> = album_dir
+    let song_rows: Vec<_> = album
         .songs
         .iter()
         .enumerate()
-        .map(|(index, &song)| {
+        .map(|(index, song)| {
             let status = song_row_status(current_song, hovered_song_id, song.id);
             view_song_row(SongRowProps { song, status, index })
         })
@@ -534,7 +511,7 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
 }
 
 struct SongRowProps<'a> {
-    song: &'a TaggedSong,
+    song: &'a Song,
     // 0-based index of the song in the album table
     index: usize,
     status: SongRowStatus,
