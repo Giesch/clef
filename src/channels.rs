@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use symphonia::core::units::Time;
 
 use crate::audio::player::Player;
-use crate::ui::SongId;
+use crate::db::queries::SongId;
 
 /// An mpsc message to the audio thread
 #[derive(Debug, Clone, PartialEq)]

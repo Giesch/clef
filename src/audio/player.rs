@@ -14,7 +14,7 @@ use symphonia::core::units::{Time, TimeBase};
 
 use crate::audio::output::{self, AudioOutput};
 use crate::channels::{PlayerDisplay, ProgressTimes, Queue, ToAudio, ToUi};
-use crate::ui::SongId;
+use crate::db::queries::SongId;
 
 #[derive(Debug)]
 pub struct Player {

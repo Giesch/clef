@@ -13,7 +13,7 @@ use symphonia::core::{
 };
 use symphonia::default::get_probe;
 
-use super::TagKey;
+use super::data::TagKey;
 use crate::db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
