@@ -121,7 +121,6 @@ fn prepare_music(
             let album = AlbumDir::new(directory, song_ids, covers);
             let album_id = album.id;
 
-            // let dir_name = album.directory.to_string();
             let album_sort_title =
                 album_title.map(|s| s.to_string()).unwrap_or_else(|| {
                     album.directory.components().last().unwrap().to_string()

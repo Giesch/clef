@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::fs::File;
+use std::{cmp::Ordering, collections::HashMap};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
@@ -15,7 +15,7 @@ use symphonia::default::get_probe;
 
 use super::TagKey;
 use crate::db::{
-    queries::{self, NewAlbum, NewSong},
+    queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
 };
 
@@ -29,8 +29,8 @@ pub enum CrawlerMessage {
 
 #[derive(Clone, Debug)]
 pub struct CrawledAlbum {
-    pub songs: Vec<CrawledSong>,
-    pub covers: Vec<Utf8PathBuf>,
+    pub album: Album,
+    pub songs: Vec<Song>,
 }
 
 #[derive(Clone, Debug)]
@@ -176,7 +176,7 @@ fn collect_single_album(
         }
     }
 
-    let thing = conn
+    let (saved_album, mut saved_songs) = conn
         .immediate_transaction(|tx| {
             let saved_album = {
                 let (album_title, album_artist, album_date) = (&songs)
@@ -204,6 +204,7 @@ fn collect_single_album(
                 saved_album
             };
 
+            let mut saved_songs = Vec::new();
             for song in &songs {
                 let new_song = NewSong {
                     album_id: saved_album.id,
@@ -218,18 +219,22 @@ fn collect_single_album(
                 };
 
                 let saved_song = queries::find_or_insert_song(tx, new_song)?;
+                saved_songs.push(saved_song);
             }
 
-            Ok(saved_album)
+            Ok((saved_album, saved_songs))
         })
         .map_err(|e: DieselError| {
             error!("failed to insert album: {e}");
             Some(CrawlerMessage::DbError)
         })?;
 
-    // TODO sort songs by track number after adding to sqlite
+    saved_songs.sort_by_key(|s| s.track_number);
 
-    Ok(CrawledAlbum { songs, covers })
+    Ok(CrawledAlbum {
+        album: saved_album,
+        songs: saved_songs,
+    })
 }
 
 fn is_music(path: &Utf8Path) -> bool {
