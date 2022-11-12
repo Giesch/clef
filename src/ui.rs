@@ -16,6 +16,7 @@ use log::error;
 use parking_lot::Mutex;
 
 use crate::channels::{self, audio_subscription, ProgressTimes, ToAudio, ToUi};
+use crate::db::SqlitePool;
 
 mod icons;
 mod startup;
@@ -28,6 +29,8 @@ mod hoverable;
 use hoverable::*;
 mod custom_style;
 use custom_style::no_background;
+
+use self::crawler::{crawler_subcription, CrawlerMessage};
 mod crawler;
 
 #[derive(Debug)]
@@ -36,11 +39,13 @@ pub struct Ui {
     project_dirs: ProjectDirs,
     inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
+    db: SqlitePool,
     should_exit: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
     music: Option<Music>,
     hovered_song_id: Option<SongId>,
+    crawling_music: bool,
 }
 
 impl Ui {
@@ -50,11 +55,13 @@ impl Ui {
             project_dirs: flags.project_dirs,
             inbox: flags.inbox,
             to_audio: flags.to_audio,
+            db: flags.db_pool,
             should_exit: false,
             current_song: None,
             progress: None,
             music: None,
             hovered_song_id: None,
+            crawling_music: true,
         }
     }
 
@@ -123,10 +130,12 @@ pub struct Flags {
     pub project_dirs: ProjectDirs,
     pub inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
     pub to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
+    pub db_pool: SqlitePool,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    FromCrawler(CrawlerMessage),
     GotMusic(Result<Music, LoadMusicError>),
     PlayClicked,
     PlaySongClicked(SongId),
@@ -175,6 +184,28 @@ impl Application for Ui {
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
+            Message::FromCrawler(CrawlerMessage::NoAudioDirectory) => {
+                error!("failed to crawl audio directory");
+                self.crawling_music = false;
+                Command::none()
+            }
+            Message::FromCrawler(CrawlerMessage::DbError) => {
+                error!("crawler database error");
+                self.crawling_music = false;
+                Command::none()
+            }
+            Message::FromCrawler(CrawlerMessage::Done) => {
+                self.crawling_music = false;
+                Command::none()
+            }
+            Message::FromCrawler(CrawlerMessage::CrawledAlbum(album)) => {
+                // TODO integrate into app state
+                // send message to separate resizer?
+                // have the resizer sub just watch for None art?
+                //   that'll work better when it starts caching later
+                Command::none()
+            }
+
             Message::GotMusic(Ok(music)) => {
                 let image_paths: Vec<_> = music
                     .albums()
@@ -356,7 +387,12 @@ impl Application for Ui {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        let crawler = Subscription::none();
+        let crawler = if self.crawling_music {
+            crawler_subcription(self.db.clone()).map(Message::FromCrawler)
+        } else {
+            Subscription::none()
+        };
+
         let audio = audio_subscription(self.inbox.clone()).map(Message::FromAudio);
 
         Subscription::batch([crawler, audio])

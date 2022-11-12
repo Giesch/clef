@@ -163,6 +163,7 @@ impl AlbumDir {
         song_ids: Vec<SongId>,
         covers: Vec<Utf8PathBuf>,
     ) -> Self {
+        // TODO remove this
         let id = AlbumId::unique();
 
         Self {
@@ -170,6 +171,7 @@ impl AlbumDir {
             directory,
             song_ids,
             covers,
+            // TODO remove this
             loaded_cover: None,
         }
     }
@@ -224,6 +226,7 @@ impl TaggedSong {
         album_id: Option<AlbumId>,
         tags: HashMap<TagKey, String>,
     ) -> Self {
+        // TODO remove this
         let id = SongId::unique();
 
         Self { id, path, album_id, tags }

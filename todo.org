@@ -24,6 +24,14 @@
 - [ ] cache the converted rgba images in config dir
   generate filename; keep in sqlite
 echo DATABASE_URL=/tmp/diesel_demo.sqlite > .env
+
+- [ ] replace icons with slightly darker color
+  - convert to pngs?
+  - modify iced to use theme text_color for svg currentColor?
+
+- [ ] integration test the crawler
+  with filesystem & db, without audio/ui
+
 * Next
 - [ ] sqlite setup
   - [ ] decoded song metadata
