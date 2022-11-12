@@ -4,16 +4,16 @@ use diesel::SqliteConnection;
 
 use super::models::{AlbumRow, NewAlbumRow, NewSongRow, SongRow};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AlbumId(i32);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SongId(i32);
 
 #[derive(Debug, Clone)]
 pub struct Album {
     pub id: AlbumId,
-    pub directory: String,
+    pub directory: Utf8PathBuf,
 
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -26,13 +26,25 @@ impl From<AlbumRow> for Album {
     fn from(row: AlbumRow) -> Self {
         Self {
             id: AlbumId(row.id),
-            directory: row.directory,
+            directory: row.directory.into(),
             title: row.title,
             artist: row.artist,
             release_date: row.release_date,
             original_art: row.original_art.map(Into::into),
             resized_art: row.resized_art.map(Into::into),
         }
+    }
+}
+
+impl Album {
+    pub fn display_title(&self) -> &str {
+        if let Some(title) = &self.title {
+            return title;
+        }
+
+        let directory_name = self.directory.components().last();
+
+        directory_name.map(|c| c.as_str()).unwrap_or_default()
     }
 }
 
@@ -57,6 +69,16 @@ impl From<SongRow> for Song {
             artist: row.artist,
             track_number: row.track_number,
         }
+    }
+}
+
+impl Song {
+    pub fn display_title(&self) -> &str {
+        if let Some(title) = &self.title {
+            return title;
+        }
+
+        self.file.file_stem().unwrap_or_default()
     }
 }
 

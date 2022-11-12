@@ -29,9 +29,10 @@ mod hoverable;
 use hoverable::*;
 mod custom_style;
 use custom_style::no_background;
-
-use self::crawler::{crawler_subcription, CrawlerMessage};
 mod crawler;
+use self::crawler::{crawler_subcription, CrawledAlbum, CrawlerMessage};
+mod music_cache;
+use music_cache::*;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -46,6 +47,7 @@ pub struct Ui {
     music: Option<Music>,
     hovered_song_id: Option<SongId>,
     crawling_music: bool,
+    music_cache: MusicCache,
 }
 
 impl Ui {
@@ -62,6 +64,7 @@ impl Ui {
             music: None,
             hovered_song_id: None,
             crawling_music: true,
+            music_cache: MusicCache::new(),
         }
     }
 
@@ -198,11 +201,8 @@ impl Application for Ui {
                 self.crawling_music = false;
                 Command::none()
             }
-            Message::FromCrawler(CrawlerMessage::CrawledAlbum(album)) => {
-                // TODO integrate into app state
-                // send message to separate resizer?
-                // have the resizer sub just watch for None art?
-                //   that'll work better when it starts caching later
+            Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
+                self.music_cache.add_crawled_album(crawled);
                 Command::none()
             }
 

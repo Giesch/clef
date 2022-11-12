@@ -65,16 +65,6 @@ impl Music {
         self.songs_by_id.get(song_id).expect("unexpected song id")
     }
 
-    pub fn get_song_by_path(&self, song_path: Utf8PathBuf) -> &TaggedSong {
-        let (_id, song) = self
-            .songs_by_id
-            .iter()
-            .find(|(_id, song)| song.path == song_path)
-            .expect("no matching song path found");
-
-        song
-    }
-
     pub fn with_joined_song_data<'a, F, M>(&'a self, view_fn: F) -> Vec<Element<'a, M>>
     where
         F: Fn(&AlbumDirView<'a>) -> Element<'a, M>,
