@@ -3,9 +3,10 @@ use std::time::Duration;
 use camino::Utf8Path;
 use diesel::r2d2::ConnectionManager;
 use diesel::sqlite::SqliteConnection;
-use r2d2::Pool;
+use r2d2::{Pool, PooledConnection};
 
 pub mod models;
+pub mod queries;
 pub mod schema;
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -17,13 +18,12 @@ pub enum ConnectionError {
 }
 
 pub type SqlitePool = Pool<ConnectionManager<SqliteConnection>>;
+pub type SqlitePoolConn = PooledConnection<ConnectionManager<SqliteConnection>>;
 
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(1);
 
-/// Takes a directory, and returns a sqlite connection pool
-pub fn create_pool(dir: &Utf8Path) -> Result<SqlitePool, r2d2::Error> {
-    let db_url = dir.join("db.sqlite");
-    let manager = ConnectionManager::new(db_url.as_str());
+pub fn create_pool(db_path: &Utf8Path) -> Result<SqlitePool, r2d2::Error> {
+    let manager = ConnectionManager::new(db_path.as_str());
 
     Pool::builder()
         .connection_timeout(CONNECTION_TIMEOUT)
