@@ -44,14 +44,14 @@ impl From<AlbumRow> for Album {
 }
 
 impl Album {
-    pub fn display_title(&self) -> &str {
-        if let Some(title) = &self.title {
-            return title;
+    pub fn display_title(&self) -> Option<&str> {
+        if self.title.is_some() {
+            return self.title.as_deref();
         }
 
         let directory_name = self.directory.components().last();
 
-        directory_name.map(|c| c.as_str()).unwrap_or_default()
+        directory_name.map(|c| c.as_str())
     }
 }
 
@@ -80,12 +80,12 @@ impl From<SongRow> for Song {
 }
 
 impl Song {
-    pub fn display_title(&self) -> &str {
-        if let Some(title) = &self.title {
-            return title;
+    pub fn display_title(&self) -> Option<&str> {
+        if self.title.is_some() {
+            return self.title.as_deref();
         }
 
-        self.file.file_stem().unwrap_or_default()
+        self.file.file_stem()
     }
 }
 

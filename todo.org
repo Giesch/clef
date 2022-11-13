@@ -1,12 +1,12 @@
 * Now
 - [X] clean shutdown for audio thread - no noisy logs
-- [ ] change display_title methods to return option
+- [X] change display_title methods to return option
 - [X] sort dependencies again
-- [ ] double check all writes happen with immediate_transaction
-- [ ] move more into 'platform' module, maybe rename it
-  all paths and path extensions - db name, cache dir name
+- [X] double check all writes happen with immediate_transaction
 - [X] audit all unwraps and expects
   even if it's fine now, it won't be in the future
+- [ ] move more into 'platform' module, maybe rename it
+  all paths and path extensions - db name, cache dir name
 - [ ] pull request for sqlite branch
 - [ ] resolve all TODO tags
 

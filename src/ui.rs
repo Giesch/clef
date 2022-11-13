@@ -98,7 +98,7 @@ impl CurrentSong {
     pub fn from_song(song: &Song, playing: bool) -> Self {
         Self {
             id: song.id,
-            title: song.display_title().to_owned(),
+            title: song.display_title().unwrap_or_default().to_owned(),
             album: song.title.clone(),
             artist: song.artist.clone(),
             playing,
@@ -205,7 +205,11 @@ impl Application for Ui {
                     if let Some(cover_art) = crawled.covers.first() {
                         self.send_to_resizer(ResizeRequest {
                             album_id: crawled.album.id,
-                            album_title: crawled.album.display_title().to_string(),
+                            album_title: crawled
+                                .album
+                                .display_title()
+                                .unwrap_or_default()
+                                .to_string(),
                             source_path: cover_art.clone(),
                         })
                     }
@@ -460,9 +464,9 @@ fn view_album<'a>(
     let album_image = view_album_image(album.art.as_ref());
 
     let album_info = column![
-        text(album.album.display_title()),
-        text(album.album.artist.as_deref().unwrap_or("")),
-        text(album.album.release_date.as_deref().unwrap_or("")),
+        text(album.album.display_title().unwrap_or_default()),
+        text(album.album.artist.as_deref().unwrap_or_default()),
+        text(album.album.release_date.as_deref().unwrap_or_default()),
     ]
     .width(Length::FillPortion(1));
 
@@ -568,11 +572,14 @@ fn view_song_row(
     };
 
     let hoverable = Hoverable::new(
-        row![button_slot, text(song.display_title()).width(Length::Fill)]
-            .width(Length::Fill)
-            .align_items(Alignment::Center)
-            .spacing(10)
-            .into(),
+        row![
+            button_slot,
+            text(song.display_title().unwrap_or_default()).width(Length::Fill)
+        ]
+        .width(Length::Fill)
+        .align_items(Alignment::Center)
+        .spacing(10)
+        .into(),
         Message::HoveredSong(song.id),
         Message::UnhoveredSong(song.id),
     )
