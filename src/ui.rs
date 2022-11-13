@@ -21,7 +21,6 @@ use crate::db::SqlitePool;
 mod icons;
 mod rgba;
 use rgba::*;
-pub mod data;
 mod hoverable;
 use hoverable::*;
 mod custom_style;

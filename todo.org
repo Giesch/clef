@@ -2,9 +2,9 @@
 - [ ] change crawler message to have cached image state in the type
   helps avoid re-resizing by accident
 
-- [ ] replace icons with slightly darker color
-  - convert to pngs?
-  - modify iced to use theme text_color for svg currentColor?
+- [ ] use results instead of sloppy options
+
+- [ ] resolve all todos/fixmes
 
 * Next
 - [-] sqlite setup goals
@@ -24,6 +24,10 @@
   - [ ] create db if it doesn't exist
   - [ ] add module and call fn in main
   - [ ] add build.rs for rerunning on change
+
+- [ ] replace icons with slightly darker color
+  - convert to pngs?
+  - modify iced to use theme text_color for svg currentColor?
 
 - [ ] integration test the crawler and resizer
   with filesystem & db, without audio/ui
