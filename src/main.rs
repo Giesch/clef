@@ -20,8 +20,8 @@ fn main() -> iced::Result {
     let db_path: Utf8PathBuf = db_path.try_into().expect("non-utf8 local data directory");
     let db_pool = db::create_pool(&db_path).expect("failed to create db pool");
 
-    let (to_audio_tx, to_audio_rx) = flume::bounded::<ToAudio>(10);
-    let (to_ui_tx, to_ui_rx) = flume::bounded::<ToUi>(10);
+    let (to_audio_tx, to_audio_rx) = flume::bounded::<AudioAction>(10);
+    let (to_ui_tx, to_ui_rx) = flume::bounded::<AudioMessage>(10);
 
     spawn_player(to_audio_rx, to_ui_tx).expect("failed to start audio thread");
 

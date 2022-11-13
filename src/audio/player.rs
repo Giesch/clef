@@ -13,14 +13,14 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units::{Time, TimeBase};
 
 use crate::audio::output::{self, AudioOutput};
-use crate::channels::{PlayerDisplay, ProgressTimes, Queue, ToAudio, ToUi};
+use crate::channels::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes, Queue};
 use crate::db::queries::SongId;
 
 #[derive(Debug)]
 pub struct Player {
     state: Option<PlayerState>, // None = stopped
-    inbox: Receiver<ToAudio>,
-    to_ui: Sender<ToUi>,
+    inbox: Receiver<AudioAction>,
+    to_ui: Sender<AudioMessage>,
 }
 
 struct PlayerState {
@@ -105,7 +105,7 @@ impl From<&Track> for TrackInfo {
 }
 
 impl Player {
-    pub fn new(inbox: Receiver<ToAudio>, to_ui: Sender<ToUi>) -> Self {
+    pub fn new(inbox: Receiver<AudioAction>, to_ui: Sender<AudioMessage>) -> Self {
         Self { state: None, inbox, to_ui }
     }
 
@@ -132,27 +132,30 @@ impl Player {
         }
     }
 
-    fn step(state: Option<PlayerState>, msg: Option<ToAudio>) -> StepResult {
-        use ToAudio::*;
+    fn step(state: Option<PlayerState>, msg: Option<AudioAction>) -> StepResult {
+        use AudioAction::*;
 
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
                 // NOTE keep this in sync with the EOF section of continue_playing below
                 let player_state = PlayerState::play_queue(queue)?;
-                let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                let ui_message =
+                    AudioMessage::DisplayUpdate(Some((&player_state).into()));
                 Ok((Some(player_state), Some(ui_message)))
             }
 
             (Some(Pause), Some(mut player_state)) if player_state.playing => {
                 player_state.playing = false;
-                let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                let ui_message =
+                    AudioMessage::DisplayUpdate(Some((&player_state).into()));
                 Ok((Some(player_state), Some(ui_message)))
             }
             (Some(Pause), state) => Ok((state, None)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
-                let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                let ui_message =
+                    AudioMessage::DisplayUpdate(Some((&player_state).into()));
                 Ok((Some(player_state), Some(ui_message)))
             }
             (Some(PlayPaused), state) => Ok((state, None)),
@@ -173,11 +176,13 @@ impl Player {
                     seek_seconds += total.frac as f32 * proportion;
 
                     let player_state = player_state.seek_to(seek_seconds);
-                    let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                    let ui_message =
+                        AudioMessage::DisplayUpdate(Some((&player_state).into()));
                     Ok((Some(player_state), Some(ui_message)))
                 } else {
                     error!("missing track info: {:#?}", player_state.track_info);
-                    let ui_message = ToUi::DisplayUpdate(Some((&player_state).into()));
+                    let ui_message =
+                        AudioMessage::DisplayUpdate(Some((&player_state).into()));
                     Ok((Some(player_state), Some(ui_message)))
                 }
             }
@@ -191,7 +196,7 @@ impl Player {
     }
 }
 
-type StepResult = anyhow::Result<(Option<PlayerState>, Option<ToUi>)>;
+type StepResult = anyhow::Result<(Option<PlayerState>, Option<AudioMessage>)>;
 
 impl PlayerState {
     // This is based on the main loop in the symphonia-play example
@@ -274,12 +279,12 @@ impl PlayerState {
                 let mut new_state = Self::play_queue(new_queue)?;
                 new_state.playing = self.playing;
 
-                let ui_message = ToUi::DisplayUpdate(Some((&new_state).into()));
+                let ui_message = AudioMessage::DisplayUpdate(Some((&new_state).into()));
 
                 Ok((Some(new_state), Some(ui_message)))
             }
 
-            None => Ok((None, Some(ToUi::DisplayUpdate(None)))),
+            None => Ok((None, Some(AudioMessage::DisplayUpdate(None)))),
         }
     }
 
@@ -304,7 +309,7 @@ impl PlayerState {
                 let mut new_state = Self::play_queue(new_queue)?;
                 new_state.playing = self.playing;
 
-                let ui_message = ToUi::DisplayUpdate(Some((&new_state).into()));
+                let ui_message = AudioMessage::DisplayUpdate(Some((&new_state).into()));
 
                 return Ok((Some(new_state), Some(ui_message)));
             }
@@ -314,7 +319,10 @@ impl PlayerState {
         new_state.timestamp = 0;
         let display: PlayerDisplay = (&new_state).into();
 
-        Ok((Some(new_state), Some(ToUi::DisplayUpdate(Some(display)))))
+        Ok((
+            Some(new_state),
+            Some(AudioMessage::DisplayUpdate(Some(display))),
+        ))
     }
 
     // This is based on the main loop in the symphonia-play example
@@ -398,7 +406,7 @@ impl PlayerState {
         audio_output.write(decoded).context("writing audio")?;
 
         let display: PlayerDisplay = (&player_state).into();
-        let ui_message = ToUi::DisplayUpdate(Some(display));
+        let ui_message = AudioMessage::DisplayUpdate(Some(display));
 
         Ok((Some(player_state), Some(ui_message)))
     }
@@ -456,7 +464,7 @@ mod tests {
         let (new_state, to_ui) = player_state.continue_playing().unwrap();
 
         assert!(matches!(new_state, None));
-        assert!(matches!(to_ui, Some(ToUi::DisplayUpdate(None))));
+        assert!(matches!(to_ui, Some(AudioMessage::DisplayUpdate(None))));
     }
 
     mock! {

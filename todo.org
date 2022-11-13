@@ -4,6 +4,13 @@
     remove original load music command
     leave in codebase unused until replaced
 
+- [ ] have main thread check sqlite on startup
+  - [ ] load all albums
+  - [ ] load any .bmp files known to be cached from sqlite
+    ensure we don't re-resize these
+    the crawler should load the cached file if it exists
+- [ ] have the main thread save resized image locations to sqlite
+
 - [ ] make a resizer subscription
   save resized images to data or cache dir
   save that location in sqlite

@@ -30,7 +30,7 @@ pub fn create_pool(db_path: &Utf8Path) -> Result<SqlitePool, r2d2::Error> {
         .connection_customizer(Box::new(ConnectionOptions {
             enable_wal: true,
             enable_foreign_keys: true,
-            busy_timeout: Some(Duration::from_secs(30)),
+            busy_timeout: Some(Duration::from_secs(5)),
         }))
         .build(manager)
 }
@@ -50,16 +50,19 @@ impl diesel::r2d2::CustomizeConnection<SqliteConnection, diesel::r2d2::Error>
         (|| {
             use diesel::connection::SimpleConnection;
 
-            if self.enable_wal {
-                conn.batch_execute(
-                    "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;",
-                )?;
-            }
-            if self.enable_foreign_keys {
-                conn.batch_execute("PRAGMA foreign_keys = ON;")?;
-            }
+            // NOTE this needs to be first
+            // https://github.com/diesel-rs/diesel/issues/2365
             if let Some(d) = self.busy_timeout {
                 conn.batch_execute(&format!("PRAGMA busy_timeout = {};", d.as_millis()))?;
+            }
+
+            if self.enable_wal {
+                conn.batch_execute("PRAGMA journal_mode = WAL;")?;
+                conn.batch_execute("PRAGMA synchronous = NORMAL;")?;
+            }
+
+            if self.enable_foreign_keys {
+                conn.batch_execute("PRAGMA foreign_keys = ON;")?;
             }
             Ok(())
         })()

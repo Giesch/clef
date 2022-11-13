@@ -12,35 +12,38 @@ use iced::{alignment, executor};
 use iced::{
     Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme,
 };
-use log::error;
+use log::{error, info};
 use parking_lot::Mutex;
 
-use crate::channels::{self, audio_subscription, ProgressTimes, ToAudio, ToUi};
+use crate::channels::{
+    self, audio_subscription, AudioAction, AudioMessage, ProgressTimes,
+};
 use crate::db::queries::*;
 use crate::db::SqlitePool;
 
 mod icons;
-mod startup;
-use startup::*;
 mod rgba;
+mod startup;
 use rgba::*;
 pub mod data;
-// pub use data::*;
 mod hoverable;
 use hoverable::*;
 mod custom_style;
 use custom_style::no_background;
 mod crawler;
-use self::crawler::{crawler_subcription, CrawledAlbum, CrawlerMessage};
+use crawler::*;
 mod music_cache;
 use music_cache::*;
+
+use self::resizer::{resizer_subscription, ResizeRequest, ResizerMessage};
+mod resizer;
 
 #[derive(Debug)]
 pub struct Ui {
     user_dirs: UserDirs,
     project_dirs: ProjectDirs,
-    inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
-    to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
+    inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
+    to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
     db: SqlitePool,
     should_exit: bool,
     current_song: Option<CurrentSong>,
@@ -49,10 +52,14 @@ pub struct Ui {
     hovered_song_id: Option<SongId>,
     crawling_music: bool,
     music_cache: MusicCache,
+    resizer: Arc<Mutex<Sender<ResizeRequest>>>,
+    resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
 }
 
 impl Ui {
     fn new(flags: Flags) -> Self {
+        let (to_resizer_tx, to_resizer_rx) = flume::unbounded::<ResizeRequest>();
+
         Self {
             user_dirs: flags.user_dirs,
             project_dirs: flags.project_dirs,
@@ -66,14 +73,23 @@ impl Ui {
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
+            resizer: Arc::new(Mutex::new(to_resizer_tx)),
+            resizer_inbox: Arc::new(Mutex::new(to_resizer_rx)),
         }
     }
 
-    fn send_to_audio(&mut self, to_audio: ToAudio) {
+    fn send_to_audio(&mut self, to_audio: AudioAction) {
         self.to_audio
             .lock()
             .send(to_audio)
             .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
+    }
+
+    fn send_to_resizer(&mut self, to_resizer: ResizeRequest) {
+        self.resizer
+            .lock()
+            .send(to_resizer)
+            .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
     }
 }
 
@@ -132,21 +148,22 @@ impl ProgressDisplay {
 pub struct Flags {
     pub user_dirs: UserDirs,
     pub project_dirs: ProjectDirs,
-    pub inbox: Arc<Mutex<Receiver<channels::ToUi>>>,
-    pub to_audio: Arc<Mutex<Sender<channels::ToAudio>>>,
+    pub inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
+    pub to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
     pub db_pool: SqlitePool,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     FromCrawler(CrawlerMessage),
+    FromResizer(ResizerMessage),
+    FromAudio(AudioMessage),
     // GotMusic(Result<Music, LoadMusicError>),
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
     ForwardClicked,
     BackClicked,
-    FromAudio(ToUi),
     SeekDrag(f32),
     SeekRelease,
     SeekWithoutSong(f32),
@@ -204,7 +221,26 @@ impl Application for Ui {
                 Command::none()
             }
             Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
+                if let Some(cover_art) = crawled.covers.first() {
+                    self.send_to_resizer(ResizeRequest {
+                        album_id: crawled.album.id,
+                        album_title: crawled.album.display_title().to_string(),
+                        source_path: cover_art.clone(),
+                    })
+                }
+
                 self.music_cache.add_crawled_album(crawled);
+
+                Command::none()
+            }
+
+            Message::FromResizer(ResizerMessage::ResizedImage(resized)) => {
+                self.music_cache
+                    .load_album_art(resized.album_id, resized.bytes);
+                Command::none()
+            }
+            Message::FromResizer(ResizerMessage::ResizerError) => {
+                // TODO
                 Command::none()
             }
 
@@ -241,7 +277,7 @@ impl Application for Ui {
                     Some(CurrentSong { playing, .. }) if *playing => {}
                     Some(current_song) => {
                         current_song.playing = true;
-                        self.send_to_audio(ToAudio::PlayPaused);
+                        self.send_to_audio(AudioAction::PlayPaused);
                     }
                 }
 
@@ -253,7 +289,7 @@ impl Application for Ui {
                 self.current_song = Some(CurrentSong::playing(song));
                 let queue = self.music_cache.get_album_queue(song);
 
-                self.send_to_audio(ToAudio::PlayQueue(queue));
+                self.send_to_audio(AudioAction::PlayQueue(queue));
 
                 Command::none()
             }
@@ -263,13 +299,13 @@ impl Application for Ui {
                     current_song.playing = false;
                 }
 
-                self.send_to_audio(ToAudio::Pause);
+                self.send_to_audio(AudioAction::Pause);
 
                 Command::none()
             }
 
             Message::ForwardClicked => {
-                self.send_to_audio(ToAudio::Forward);
+                self.send_to_audio(AudioAction::Forward);
                 Command::none()
             }
 
@@ -278,7 +314,7 @@ impl Application for Ui {
                     0.0,
                     ProgressDisplay::OPTIMISTIC_THRESHOLD,
                 ));
-                self.send_to_audio(ToAudio::Back);
+                self.send_to_audio(AudioAction::Back);
                 Command::none()
             }
 
@@ -297,7 +333,7 @@ impl Application for Ui {
                 };
 
                 self.progress = Some(ProgressDisplay::Optimistic(proportion, 0));
-                self.send_to_audio(ToAudio::Seek(proportion));
+                self.send_to_audio(AudioAction::Seek(proportion));
 
                 Command::none()
             }
@@ -316,7 +352,7 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::DisplayUpdate(Some(display))) => {
+            Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
                 // update current song
                 match &mut self.current_song {
                     Some(current_song) if current_song.id == display.song_id => {
@@ -356,13 +392,13 @@ impl Application for Ui {
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::DisplayUpdate(None)) => {
+            Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {
                 self.current_song = None;
                 self.progress = None;
                 Command::none()
             }
 
-            Message::FromAudio(ToUi::AudioDied) => {
+            Message::FromAudio(AudioMessage::AudioDied) => {
                 self.should_exit = true;
                 Command::none()
             }
@@ -376,9 +412,12 @@ impl Application for Ui {
             Subscription::none()
         };
 
+        let resizer = resizer_subscription(self.db.clone(), self.resizer_inbox.clone())
+            .map(Message::FromResizer);
+
         let audio = audio_subscription(self.inbox.clone()).map(Message::FromAudio);
 
-        Subscription::batch([crawler, audio])
+        Subscription::batch([crawler, resizer, audio])
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
@@ -447,7 +486,7 @@ fn view_album<'a>(
     hovered_song_id: &'a Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Element<'a, Message> {
-    let album_image = view_album_image(None);
+    let album_image = view_album_image(album.loaded_art.as_ref());
 
     let album_info = column![
         text(album.album.display_title()),
