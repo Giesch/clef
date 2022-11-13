@@ -3,7 +3,6 @@ use std::fs::File;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
-use directories::UserDirs;
 use log::{error, info};
 use symphonia::core::meta::StandardTagKey;
 use symphonia::core::{
@@ -19,6 +18,7 @@ use crate::db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
 };
+use crate::platform::audio_dir;
 
 #[derive(Clone, Debug)]
 pub enum CrawlerMessage {
@@ -107,20 +107,13 @@ async fn step(
 }
 
 fn collect_album_dirs() -> Result<Vec<Utf8PathBuf>, CrawlerMessage> {
-    let user_dirs = UserDirs::new().ok_or_else(|| {
-        error!("no user directories found");
-        CrawlerMessage::NoAudioDirectory
-    })?;
-
-    let audio_dir = user_dirs.audio_dir().ok_or_else(|| {
-        error!("no audio directory found");
-        CrawlerMessage::NoAudioDirectory
-    })?;
-
-    let audio_dir: Utf8PathBuf = audio_dir.to_owned().try_into().map_err(|e| {
-        error!("invalid utf8 in audio directory: {e}");
-        CrawlerMessage::NoAudioDirectory
-    })?;
+    let audio_dir = match audio_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            error!("no audio directory: {e}");
+            return Err(CrawlerMessage::NoAudioDirectory);
+        }
+    };
 
     let mut album_dirs = Vec::new();
     let entries = audio_dir.read_dir().map_err(|e| {

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use camino::{Utf8Path, Utf8PathBuf};
-use directories::ProjectDirs;
+use directories::{ProjectDirs, UserDirs};
 
 pub fn local_data_dir() -> anyhow::Result<Utf8PathBuf> {
     let project_dirs =
@@ -22,6 +22,14 @@ pub fn db_path() -> anyhow::Result<Utf8PathBuf> {
         .context("non-utf8 local data directory")?;
 
     Ok(db_path)
+}
+
+pub fn audio_dir() -> anyhow::Result<Utf8PathBuf> {
+    let user_dirs = UserDirs::new().context("no user directories")?;
+    let audio_dir = user_dirs.audio_dir().context("no audio directory")?;
+    let audio_dir: &Utf8Path = audio_dir.try_into().context("invalid utf8")?;
+
+    Ok(audio_dir.to_owned())
 }
 
 fn project_dirs() -> Option<ProjectDirs> {
