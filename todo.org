@@ -5,10 +5,10 @@
 - [X] double check all writes happen with immediate_transaction
 - [X] audit all unwraps and expects
   even if it's fine now, it won't be in the future
-- [ ] move more into 'platform' module, maybe rename it
+- [X] move more into 'platform' module, maybe rename it
   all paths and path extensions - db name, cache dir name
+- [X] resolve all TODO tags
 - [ ] pull request for sqlite branch
-- [ ] resolve all TODO tags
 
 * Next
 - [ ] embed migrations, run on startup
