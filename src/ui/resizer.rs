@@ -12,7 +12,7 @@ use crate::ui::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 #[derive(Clone, Debug)]
 pub enum ResizerMessage {
     ResizedImage(ResizedImage),
-    ResizerError,
+    NonActionableError,
 }
 
 #[derive(Clone, Debug)]
@@ -58,7 +58,10 @@ async fn step(
             if let Some(images_directory) = get_images_directory() {
                 (None, ResizerState::Working(images_directory))
             } else {
-                (Some(ResizerMessage::ResizerError), ResizerState::Final)
+                (
+                    Some(ResizerMessage::NonActionableError),
+                    ResizerState::Final,
+                )
             }
         }
 
@@ -69,13 +72,17 @@ async fn step(
                     return (None, ResizerState::Working(images_directory));
                 }
                 Err(TryRecvError::Disconnected) => {
-                    return (Some(ResizerMessage::ResizerError), ResizerState::Final);
+                    return (
+                        Some(ResizerMessage::NonActionableError),
+                        ResizerState::Final,
+                    );
                 }
             };
 
             let message = match resize(request, &images_directory, db.clone()).await {
                 Some(resized_image) => ResizerMessage::ResizedImage(resized_image),
-                None => ResizerMessage::ResizerError,
+                // TODO should this one be a different UI message?
+                None => ResizerMessage::NonActionableError,
             };
 
             (Some(message), ResizerState::Working(images_directory))
@@ -85,8 +92,8 @@ async fn step(
     }
 }
 
+// TODO return a result, log it
 fn get_images_directory() -> Option<Utf8PathBuf> {
-    // TODO log these Nones as errors, or send useful messages to ui
     let project = project_dirs()?;
     let local_data: &Utf8Path = project.data_local_dir().try_into().ok()?;
     let resized_images_dir = local_data.join("resized_images");
@@ -97,6 +104,7 @@ fn get_images_directory() -> Option<Utf8PathBuf> {
     Some(resized_images_dir)
 }
 
+// TODO return a result, log it
 async fn resize(
     request: ResizeRequest,
     images_directory: &Utf8Path,
