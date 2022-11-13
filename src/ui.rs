@@ -221,7 +221,7 @@ impl Application for Ui {
                     }
                 }
 
-                self.music_cache.add_crawled_album(crawled);
+                self.music_cache.add_crawled_album(*crawled);
 
                 Command::none()
             }

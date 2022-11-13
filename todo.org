@@ -1,29 +1,6 @@
 * Now
-- [ ] change initial load command to start a subscription
-  - [ ] use the crawled albums as they come in
-    remove original load music command
-    leave in codebase unused until replaced
-
-- [ ] have main thread check sqlite on startup
-  - [ ] load all albums
-  - [ ] load any .bmp files known to be cached from sqlite
-    ensure we don't re-resize these
-    the crawler should load the cached file if it exists
-      see if that's fast
-    or have the resizer return the cached one?
-- [ ] have the main thread save resized image locations to sqlite
-
-- [ ] make a resizer subscription
-  save resized images to data or cache dir
-  save that location in sqlite
-  notify ui
-
-- [ ] cache the converted rgba images in config dir
-  generate filename; keep in sqlite
-  echo DATABASE_URL=/tmp/diesel_demo.sqlite > .env
-
-- [ ] load sqlite on startup instead of crawling
-- [ ] change crawler to not emit an album if it hasn't changed
+- [ ] change crawler message to have cached image state in the type
+  helps avoid re-resizing by accident
 
 - [ ] replace icons with slightly darker color
   - convert to pngs?
@@ -32,15 +9,13 @@
 * Next
 - [-] sqlite setup goals
   - [X] decoded song metadata
-  - [ ] locations/names of resized album art
-    match album covers to albums in a less dumb way
+  - [X] locations/names of resized album art
+  - [X] match album covers to albums in a less dumb way
   - [ ] load a nice startup ui quickly
-    - [ ] last played song
-    - [ ] music directory index
+    - [ ] last played song - progress and scroll?
   - [ ] remove the expect/unwraps taking song ids
-  - [ ] replace the weird joins in ui::startup
-
-  - [ ] change startup process to be more incremental
+  - [X] replace the weird joins in ui::startup
+  - [X] change startup process to be more incremental
     ie, can happen in the background while app is interactive,
     and start where it left off if app is killed
 

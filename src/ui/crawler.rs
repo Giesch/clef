@@ -24,7 +24,7 @@ use crate::db::{
 pub enum CrawlerMessage {
     NoAudioDirectory,
     DbError,
-    CrawledAlbum(CrawledAlbum),
+    CrawledAlbum(Box<CrawledAlbum>),
     Done,
 }
 
@@ -87,7 +87,7 @@ async fn step(
             };
 
             let crawled_album = match collect_single_album(album_dir, &mut conn) {
-                Ok(crawled_album) => crawled_album,
+                Ok(crawled_album) => Box::new(crawled_album),
                 Err(maybe_message) => {
                     return (
                         maybe_message,
@@ -182,7 +182,7 @@ fn collect_single_album(
     let (saved_album, mut saved_songs) = conn
         .immediate_transaction(|tx| {
             let saved_album = {
-                let (album_title, album_artist, album_date) = (&songs)
+                let (album_title, album_artist, album_date) = songs
                     .first()
                     .map(|s| {
                         (
@@ -202,9 +202,7 @@ fn collect_single_album(
                     resized_art: None,
                 };
 
-                let saved_album = queries::find_or_insert_album(tx, new_album)?;
-
-                saved_album
+                queries::find_or_insert_album(tx, new_album)?
             };
 
             let mut saved_songs = Vec::new();
@@ -217,8 +215,7 @@ fn collect_single_album(
                     track_number: song
                         .tags
                         .get(&TagKey::TrackNumber)
-                        .and_then(|s| s.parse().ok())
-                        .clone(),
+                        .and_then(|s| s.parse().ok()),
                 };
 
                 let saved_song = queries::find_or_insert_song(tx, new_song)?;
