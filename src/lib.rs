@@ -5,4 +5,5 @@
 pub mod audio;
 pub mod channels;
 pub mod db;
+pub mod platform;
 pub mod ui;

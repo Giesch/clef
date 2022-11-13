@@ -1,17 +1,12 @@
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, VecDeque},
-};
+use std::cmp::Ordering;
+use std::collections::{HashMap, VecDeque};
 
 use camino::Utf8PathBuf;
 use log::error;
 
-use crate::{
-    channels::Queue,
-    db::queries::{Album, AlbumId, Song, SongId},
-};
-
-use super::{crawler::CrawledAlbum, rgba::RgbaBytes};
+use crate::channels::Queue;
+use crate::db::queries::{Album, AlbumId, Song, SongId};
+use crate::ui::{crawler::CrawledAlbum, rgba::RgbaBytes};
 
 #[derive(Default, Debug)]
 pub struct MusicCache {
