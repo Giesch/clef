@@ -231,10 +231,14 @@ fn collect_single_album(
 
     saved_songs.sort_by_key(|s| s.track_number);
 
-    let cached_art = saved_album
-        .resized_art
-        .as_ref()
-        .and_then(|path| load_cached_rgba_bmp(path));
+    let cached_art = saved_album.resized_art.as_ref().and_then(|path| {
+        load_cached_rgba_bmp(path)
+            .map_err(|e| {
+                error!("error loading cached resized image: {e}");
+                e
+            })
+            .ok()
+    });
 
     Ok(CrawledAlbum {
         album: saved_album,
