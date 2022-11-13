@@ -1,6 +1,5 @@
 * Now
-- [X] resolve all TODO tags
-- [ ] clean shutdown for audio thread - no noisy logs
+- [X] clean shutdown for audio thread - no noisy logs
 - [ ] change display_title methods to return option
 - [X] sort dependencies again
 - [ ] double check all writes happen with immediate_transaction
@@ -9,6 +8,7 @@
 - [X] audit all unwraps and expects
   even if it's fine now, it won't be in the future
 - [ ] pull request for sqlite branch
+- [ ] resolve all TODO tags
 
 * Next
 - [ ] embed migrations, run on startup
