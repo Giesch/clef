@@ -446,7 +446,7 @@ mod tests {
 
         let queue = Queue {
             previous: Default::default(),
-            current: (SongId::unique(), Utf8PathBuf::from_str("fake").unwrap()),
+            current: (SongId::new(1), Utf8PathBuf::from_str("fake").unwrap()),
             next: Default::default(),
         };
 

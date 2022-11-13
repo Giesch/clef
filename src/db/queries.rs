@@ -10,6 +10,13 @@ pub struct AlbumId(i32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SongId(i32);
 
+impl SongId {
+    #[cfg(test)]
+    pub fn new(id: i32) -> Self {
+        Self(id)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Album {
     pub id: AlbumId,
