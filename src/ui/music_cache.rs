@@ -23,7 +23,7 @@ pub struct CachedAlbum {
 }
 
 /// Artist, Display Title
-type AlbumSortKey = (Option<String>, String);
+type AlbumSortKey = (Option<String>, Option<String>);
 
 impl MusicCache {
     pub fn new() -> Self {
@@ -49,7 +49,7 @@ impl MusicCache {
 
         let sort_key = (
             crawled.album.artist.clone(),
-            crawled.album.display_title().to_string(),
+            crawled.album.display_title().map(str::to_string),
         );
         self.album_display_order.push((crawled.album.id, sort_key));
         self.album_display_order
@@ -104,27 +104,24 @@ impl MusicCache {
     }
 }
 
-// default lexicographic sort puts None first
 fn artist_then_title_with_nones_last(
     (a_artist, a_title): &AlbumSortKey,
     (b_artist, b_title): &AlbumSortKey,
 ) -> Ordering {
-    match (a_artist, b_artist) {
-        (None, Some(_)) => {
-            return Ordering::Greater;
-        }
-        (Some(_), None) => {
-            return Ordering::Less;
-        }
-        (Some(a_artist), Some(b_artist)) => match a_artist.cmp(b_artist) {
-            Ordering::Less => {
-                return Ordering::Less;
-            }
-            Ordering::Greater => return Ordering::Greater,
-            Ordering::Equal => {}
-        },
-        (None, None) => {}
+    match with_nones_last(a_artist, b_artist) {
+        Ordering::Equal => {}
+        comparison => return comparison,
     }
 
-    a_title.cmp(b_title)
+    with_nones_last(a_title, b_title)
+}
+
+// default lexicographic sort puts None first
+fn with_nones_last<T: Ord>(a: &Option<T>, b: &Option<T>) -> Ordering {
+    match (a, b) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (Some(a), Some(b)) => a.cmp(b),
+    }
 }
