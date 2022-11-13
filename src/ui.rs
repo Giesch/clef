@@ -221,12 +221,14 @@ impl Application for Ui {
                 Command::none()
             }
             Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
-                if let Some(cover_art) = crawled.covers.first() {
-                    self.send_to_resizer(ResizeRequest {
-                        album_id: crawled.album.id,
-                        album_title: crawled.album.display_title().to_string(),
-                        source_path: cover_art.clone(),
-                    })
+                if crawled.album.resized_art.is_none() {
+                    if let Some(cover_art) = crawled.covers.first() {
+                        self.send_to_resizer(ResizeRequest {
+                            album_id: crawled.album.id,
+                            album_title: crawled.album.display_title().to_string(),
+                            source_path: cover_art.clone(),
+                        })
+                    }
                 }
 
                 self.music_cache.add_crawled_album(crawled);
@@ -486,7 +488,7 @@ fn view_album<'a>(
     hovered_song_id: &'a Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Element<'a, Message> {
-    let album_image = view_album_image(album.loaded_art.as_ref());
+    let album_image = view_album_image(album.art.as_ref());
 
     let album_info = column![
         text(album.album.display_title()),

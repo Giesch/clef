@@ -9,6 +9,8 @@
   - [ ] load any .bmp files known to be cached from sqlite
     ensure we don't re-resize these
     the crawler should load the cached file if it exists
+      see if that's fast
+    or have the resizer return the cached one?
 - [ ] have the main thread save resized image locations to sqlite
 
 - [ ] make a resizer subscription
