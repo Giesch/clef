@@ -8,7 +8,7 @@ use flume::{Receiver, Sender, TryRecvError};
 use parking_lot::Mutex;
 use symphonia::core::units::Time;
 
-use crate::audio::player::Player;
+use crate::audio::player::{AudioThreadError, Player};
 use crate::db::queries::SongId;
 
 /// An mpsc message to the audio thread from the ui
@@ -84,7 +84,14 @@ pub fn spawn_player(
             if let Err(err) = player.run_loop() {
                 to_ui.send(AudioMessage::AudioDied).ok();
 
-                panic!("unrecovered error: {:?}", err);
+                match err {
+                    AudioThreadError::Disconnected => {
+                        // wait for graceful shutdown
+                    }
+                    AudioThreadError::Other(e) => {
+                        panic!("unrecovered error: {e}");
+                    }
+                }
             }
         })
 }
