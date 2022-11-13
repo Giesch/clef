@@ -1,15 +1,14 @@
 * Now
-- [ ] resolve all TODO tags
-- [ ] clean shutdown for audio thread
-  no noisy logs
-- [ ] pull request for sqlite branch
+- [X] resolve all TODO tags
+- [ ] clean shutdown for audio thread - no noisy logs
 - [ ] change display_title methods to return option
-- [ ] sort dependencies again
+- [X] sort dependencies again
 - [ ] double check all writes happen with immediate_transaction
-- [ ] more more into 'platform' module, maybe rename it
+- [ ] move more into 'platform' module, maybe rename it
   all paths and path extensions - db name, cache dir name
-- [ ] audit all unwraps and expects
+- [X] audit all unwraps and expects
   even if it's fine now, it won't be in the future
+- [ ] pull request for sqlite branch
 
 * Next
 - [ ] embed migrations, run on startup

@@ -237,9 +237,21 @@ impl Application for Ui {
             }
 
             Message::PlaySongClicked(song_id) => {
-                let song = self.music_cache.get_song(&song_id);
+                let song = match self.music_cache.get_song(&song_id) {
+                    Some(song) => song,
+                    None => {
+                        error!("unexpected song id: {song_id:?}");
+                        return Command::none();
+                    }
+                };
                 self.current_song = Some(CurrentSong::playing(song));
-                let queue = self.music_cache.get_album_queue(song);
+                let queue = match self.music_cache.get_album_queue(song) {
+                    Some(queue) => queue,
+                    None => {
+                        error!("unable to build album queue");
+                        return Command::none();
+                    }
+                };
 
                 self.send_to_audio(AudioAction::PlayQueue(queue));
 
@@ -312,9 +324,16 @@ impl Application for Ui {
                     }
 
                     _ => {
-                        let song = self.music_cache.get_song(&display.song_id);
-                        self.current_song =
-                            Some(CurrentSong::from_song(song, display.playing));
+                        match self.music_cache.get_song(&display.song_id) {
+                            Some(song) => {
+                                self.current_song =
+                                    Some(CurrentSong::from_song(song, display.playing));
+                            }
+                            None => {
+                                let song_id = display.song_id;
+                                error!("unexpected song_id: {song_id:?}")
+                            }
+                        };
                     }
                 }
 

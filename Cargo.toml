@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }
 camino = "1.1.1"
+directories = "4.0.1"
 flume = { version = "0.10.14" }
 itertools = "0.10.5"
 log = { version = "0.4", features = ["release_max_level_info"] }
@@ -15,7 +16,6 @@ r2d2 = "0.8.10"
 symphonia = { version = "0.5.1", features = ["mp3"] }
 thiserror = "1.0.37"
 walkdir = "2.3.2"
-directories = "4.0.1"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
