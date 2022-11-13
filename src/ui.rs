@@ -29,9 +29,8 @@ mod crawler;
 use crawler::*;
 mod music_cache;
 use music_cache::*;
-
-use self::resizer::{resizer_subscription, ResizeRequest, ResizerMessage};
 mod resizer;
+use resizer::*;
 
 #[derive(Debug)]
 pub struct Ui {
@@ -44,7 +43,7 @@ pub struct Ui {
     hovered_song_id: Option<SongId>,
     crawling_music: bool,
     music_cache: MusicCache,
-    resizer: Arc<Mutex<Sender<ResizeRequest>>>,
+    to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
     resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
 }
 
@@ -62,7 +61,7 @@ impl Ui {
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
-            resizer: Arc::new(Mutex::new(to_resizer_tx)),
+            to_resizer: Arc::new(Mutex::new(to_resizer_tx)),
             resizer_inbox: Arc::new(Mutex::new(to_resizer_rx)),
         }
     }
@@ -75,7 +74,7 @@ impl Ui {
     }
 
     fn send_to_resizer(&mut self, to_resizer: ResizeRequest) {
-        self.resizer
+        self.to_resizer
             .lock()
             .send(to_resizer)
             .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
@@ -223,7 +222,7 @@ impl Application for Ui {
                 Command::none()
             }
             Message::FromResizer(ResizerMessage::ResizerError) => {
-                // TODO
+                // TODO handle or log resizer errors
                 Command::none()
             }
 

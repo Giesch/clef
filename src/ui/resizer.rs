@@ -1,16 +1,13 @@
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use directories::ProjectDirs;
 use flume::{Receiver, TryRecvError};
 use parking_lot::Mutex;
 
-use crate::db::{
-    queries::{add_resized_image_location, AlbumId},
-    SqlitePool,
-};
-
-use super::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
+use crate::db::queries::{add_resized_image_location, AlbumId};
+use crate::db::SqlitePool;
+use crate::platform::project_dirs;
+use crate::ui::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 
 #[derive(Clone, Debug)]
 pub enum ResizerMessage {
@@ -89,10 +86,8 @@ async fn step(
 }
 
 fn get_images_directory() -> Option<Utf8PathBuf> {
-    // TODO log these as errors, or send useful messages to ui
-    // ensure that ProjectDirs::from calls match across the application
-    //   make a helper for that
-    let project = ProjectDirs::from("", "", "Clef")?;
+    // TODO log these Nones as errors, or send useful messages to ui
+    let project = project_dirs()?;
     let local_data: &Utf8Path = project.data_local_dir().try_into().ok()?;
     let resized_images_dir = local_data.join("resized_images");
 

@@ -1,7 +1,4 @@
 * Now
-- [ ] change crawler message to have cached image state in the type
-  helps avoid re-resizing by accident
-
 - [ ] use results instead of sloppy options
 
 - [ ] resolve all todos/fixmes
