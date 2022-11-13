@@ -1,8 +1,6 @@
-use std::{fs::File, io::BufReader};
-
 use camino::{Utf8Path, Utf8PathBuf};
 use iced::widget::image;
-use image_rs::{imageops::FilterType, ColorType, ImageFormat};
+use image_rs::{imageops::FilterType, ColorType};
 
 /// Image pixels in the format that iced converts them to internally
 /// Doing the conversion ahead of time (outside the framework)
@@ -49,11 +47,9 @@ pub fn load_rgba(path: &Utf8PathBuf) -> Option<RgbaBytes> {
     Some(rgba_bytes)
 }
 
+// NOTE this assumes that the 'conversion'
+// will be fast because it's already in the right format
 pub fn load_cached_rgba_bmp(path: &Utf8Path) -> Option<RgbaBytes> {
-    let file = File::open(path).ok()?;
-    let file = BufReader::new(file);
-
-    let img = image_rs::load(file, ImageFormat::Bmp);
     let img = image_rs::open(path).ok()?;
     let rgba = img.to_rgba8();
 

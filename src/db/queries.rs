@@ -1,7 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
 use diesel::SqliteConnection;
-use image_rs::imageops::resize;
 
 use super::models::{AlbumRow, NewAlbumRow, NewSongRow, SongRow};
 
