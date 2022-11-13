@@ -41,7 +41,6 @@ pub struct Ui {
     should_exit: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
-    // music: Option<Music>,
     hovered_song_id: Option<SongId>,
     crawling_music: bool,
     music_cache: MusicCache,
@@ -60,7 +59,6 @@ impl Ui {
             should_exit: false,
             current_song: None,
             progress: None,
-            // music: None,
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
@@ -147,7 +145,6 @@ pub enum Message {
     FromCrawler(CrawlerMessage),
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
-    // GotMusic(Result<Music, LoadMusicError>),
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
@@ -156,7 +153,6 @@ pub enum Message {
     SeekDrag(f32),
     SeekRelease,
     SeekWithoutSong(f32),
-    // LoadedImages(Option<HashMap<Utf8PathBuf, RgbaBytes>>),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
 }
@@ -170,10 +166,6 @@ impl Application for Ui {
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let initial_state = Self::new(flags);
         let initial_command = Command::none();
-        // let initial_command = Command::perform(
-        //     load_music(initial_state.user_dirs.clone()),
-        //     Message::GotMusic,
-        // );
 
         (initial_state, initial_command)
     }
@@ -235,33 +227,6 @@ impl Application for Ui {
                 Command::none()
             }
 
-            // Message::GotMusic(Ok(music)) => {
-            //     let image_paths: Vec<_> = music
-            //         .albums()
-            //         .iter()
-            //         .flat_map(|album| album.covers.first())
-            //         .cloned()
-            //         .collect();
-            //     self.music = Some(music);
-            //     Command::perform(load_images(image_paths), Message::LoadedImages)
-            // }
-            // Message::GotMusic(Err(_)) => Command::none(),
-
-            // Message::LoadedImages(Some(loaded_images_by_path)) => {
-            //     match &mut self.music {
-            //         Some(music) => {
-            //             music.add_album_covers(loaded_images_by_path);
-            //         }
-            //         None => {
-            //             error!("loaded images before music directory")
-            //         }
-            //     }
-            //     Command::none()
-            // }
-            // Message::LoadedImages(None) => {
-            //     error!("failed to load images");
-            //     Command::none()
-            // }
             Message::PlayClicked => {
                 match &mut self.current_song {
                     None => {}
