@@ -1,6 +1,7 @@
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
 use diesel::SqliteConnection;
+use image_rs::imageops::resize;
 
 use super::models::{AlbumRow, NewAlbumRow, NewSongRow, SongRow};
 
@@ -176,4 +177,21 @@ pub fn find_or_insert_song(
         .get_result(tx)?;
 
     Ok(created_row.into())
+}
+
+pub fn add_resized_image_location(
+    tx: &mut SqliteConnection,
+    AlbumId(album_id): AlbumId,
+    location: &Utf8Path,
+) -> Result<(), DieselError> {
+    use super::schema::albums;
+    use albums::dsl::*;
+    use diesel::prelude::*;
+
+    diesel::update(albums)
+        .filter(id.eq(&album_id))
+        .set(resized_art.eq(location.as_str()))
+        .execute(tx)?;
+
+    Ok(())
 }

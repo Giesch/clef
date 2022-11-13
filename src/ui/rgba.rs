@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 use iced::widget::image;
-use image_rs::imageops::FilterType;
+use image_rs::{imageops::FilterType, ColorType};
 
 /// Image pixels in the format that iced converts them to internally
 /// Doing the conversion ahead of time (outside the framework)
@@ -45,4 +45,11 @@ pub fn load_rgba(path: &Utf8PathBuf) -> Option<RgbaBytes> {
     };
 
     Some(rgba_bytes)
+}
+
+pub fn save_rgba(path: &Utf8PathBuf, rgba: &RgbaBytes) -> anyhow::Result<()> {
+    let RgbaBytes { height, width, bytes } = rgba;
+    image_rs::save_buffer(path, bytes, *width, *height, ColorType::Rgba8)?;
+
+    Ok(())
 }

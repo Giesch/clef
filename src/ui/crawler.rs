@@ -31,6 +31,7 @@ pub enum CrawlerMessage {
 pub struct CrawledAlbum {
     pub album: Album,
     pub songs: Vec<Song>,
+    pub covers: Vec<Utf8PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -234,6 +235,7 @@ fn collect_single_album(
     Ok(CrawledAlbum {
         album: saved_album,
         songs: saved_songs,
+        covers,
     })
 }
 

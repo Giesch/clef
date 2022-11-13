@@ -11,9 +11,9 @@ use symphonia::core::units::Time;
 use crate::audio::player::Player;
 use crate::db::queries::SongId;
 
-/// An mpsc message to the audio thread
+/// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]
-pub enum ToAudio {
+pub enum AudioAction {
     /// Begin playing the file (0) immediately,
     /// and continue playing files from the queue (1) when it ends
     PlayQueue(Queue<(SongId, Utf8PathBuf)>),
@@ -41,9 +41,9 @@ where
     pub next: VecDeque<T>,
 }
 
-/// An mpsc message to the main/ui thread
+/// An mpsc message to the main/ui thread from audio
 #[derive(Debug, Clone, PartialEq)]
-pub enum ToUi {
+pub enum AudioMessage {
     /// A change that affects ui state; None = player stopped
     DisplayUpdate(Option<PlayerDisplay>),
 
@@ -74,15 +74,15 @@ impl ProgressTimes {
 }
 
 pub fn spawn_player(
-    inbox: Receiver<ToAudio>,
-    to_ui: Sender<ToUi>,
+    inbox: Receiver<AudioAction>,
+    to_ui: Sender<AudioMessage>,
 ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
     thread::Builder::new()
         .name("ClefAudioPlayer".to_string())
         .spawn(move || {
             let player = Player::new(inbox, to_ui.clone());
             if let Err(err) = player.run_loop() {
-                to_ui.send(ToUi::AudioDied).ok();
+                to_ui.send(AudioMessage::AudioDied).ok();
 
                 panic!("unrecovered error: {:?}", err);
             }
@@ -97,7 +97,9 @@ enum AudioSubState {
     Disconnected,
 }
 
-pub fn audio_subscription(inbox: Arc<Mutex<Receiver<ToUi>>>) -> iced::Subscription<ToUi> {
+pub fn audio_subscription(
+    inbox: Arc<Mutex<Receiver<AudioMessage>>>,
+) -> iced::Subscription<AudioMessage> {
     struct AudioSub;
 
     iced::subscription::unfold(
@@ -109,8 +111,8 @@ pub fn audio_subscription(inbox: Arc<Mutex<Receiver<ToUi>>>) -> iced::Subscripti
 
 async fn listen(
     state: AudioSubState,
-    inbox: Arc<Mutex<Receiver<ToUi>>>,
-) -> (Option<ToUi>, AudioSubState) {
+    inbox: Arc<Mutex<Receiver<AudioMessage>>>,
+) -> (Option<AudioMessage>, AudioSubState) {
     if state == AudioSubState::Disconnected {
         return (None, AudioSubState::Disconnected);
     }
@@ -121,7 +123,7 @@ async fn listen(
         Err(TryRecvError::Empty) => (None, AudioSubState::Ready),
 
         Err(TryRecvError::Disconnected) => {
-            (Some(ToUi::AudioDied), AudioSubState::Disconnected)
+            (Some(AudioMessage::AudioDied), AudioSubState::Disconnected)
         }
     }
 }
