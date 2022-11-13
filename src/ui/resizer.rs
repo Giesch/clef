@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 
 use crate::db::queries::{add_resized_image_location, AlbumId};
 use crate::db::SqlitePool;
-use crate::platform::project_dirs;
+use crate::platform::local_data_dir;
 use crate::ui::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 
 #[derive(Clone, Debug)]
@@ -98,20 +98,18 @@ async fn step(
     }
 }
 
-fn get_images_directory() -> Option<Utf8PathBuf> {
-    let Some(project) = project_dirs() else {
-        error!("no app project directories");
-        return None;
-    };
+const IMAGES_DIR_NAME: &str = "resized_images";
 
-    let local_data: &Utf8Path = match project.data_local_dir().try_into() {
+fn get_images_directory() -> Option<Utf8PathBuf> {
+    let local_data = match local_data_dir() {
         Ok(path) => path,
         Err(e) => {
-            error!("non-utf8 path: {e}");
+            error!("no local data dir: {e}");
             return None;
         }
     };
-    let resized_images_dir = local_data.join("resized_images");
+
+    let resized_images_dir = local_data.join(IMAGES_DIR_NAME);
 
     // ensure the directory is created
     std::fs::create_dir(&resized_images_dir).ok();
