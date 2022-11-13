@@ -1,5 +1,15 @@
 * Now
 - [ ] resolve all TODO tags
+- [ ] clean shutdown for audio thread
+  no noisy logs
+- [ ] pull request for sqlite branch
+- [ ] change display_title methods to return option
+- [ ] sort dependencies again
+- [ ] double check all writes happen with immediate_transaction
+- [ ] more more into 'platform' module, maybe rename it
+  all paths and path extensions - db name, cache dir name
+- [ ] audit all unwraps and expects
+  even if it's fine now, it won't be in the future
 
 * Next
 - [ ] embed migrations, run on startup
@@ -8,10 +18,6 @@
   - [ ] add module and call fn in main
   - [ ] add build.rs for rebuilding migrations on change to those files
   - [ ] add a script for wiping cache & db for testing
-
-- [ ] audit all unwraps and expects
-  is it ok for get_song and similar to do it?
-  is it possible to guarantee that ids only show up after their in the cache?
 
 - [ ] replace icons with slightly darker color
   - convert to pngs?
