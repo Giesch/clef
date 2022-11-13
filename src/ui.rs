@@ -1,18 +1,15 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use camino::Utf8PathBuf;
-use directories::{ProjectDirs, UserDirs};
 use flume::{Receiver, Sender};
 use iced::widget::{
-    button, column, container, horizontal_space, row, scrollable, slider, text,
-    vertical_space, Column, Container, Image, Row, Space,
+    button, column, container, horizontal_space, row, scrollable, slider, text, Column,
+    Container, Image, Row, Space,
 };
 use iced::{alignment, executor};
 use iced::{
     Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme,
 };
-use log::{error, info};
+use log::error;
 use parking_lot::Mutex;
 
 use crate::channels::{
@@ -23,7 +20,6 @@ use crate::db::SqlitePool;
 
 mod icons;
 mod rgba;
-mod startup;
 use rgba::*;
 pub mod data;
 mod hoverable;
@@ -40,8 +36,6 @@ mod resizer;
 
 #[derive(Debug)]
 pub struct Ui {
-    user_dirs: UserDirs,
-    project_dirs: ProjectDirs,
     inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
     to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
     db: SqlitePool,
@@ -61,8 +55,6 @@ impl Ui {
         let (to_resizer_tx, to_resizer_rx) = flume::unbounded::<ResizeRequest>();
 
         Self {
-            user_dirs: flags.user_dirs,
-            project_dirs: flags.project_dirs,
             inbox: flags.inbox,
             to_audio: flags.to_audio,
             db: flags.db_pool,
@@ -146,8 +138,6 @@ impl ProgressDisplay {
 
 #[derive(Debug)]
 pub struct Flags {
-    pub user_dirs: UserDirs,
-    pub project_dirs: ProjectDirs,
     pub inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
     pub to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
     pub db_pool: SqlitePool,

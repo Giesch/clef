@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 use std::fs::File;
-use std::{cmp::Ordering, collections::HashMap};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
@@ -153,7 +153,7 @@ fn collect_single_album(
 ) -> Result<CrawledAlbum, Option<CrawlerMessage>> {
     let mut songs = Vec::new();
     let mut covers = Vec::new();
-    let entries = album_dir.read_dir().map_err(|e| None)?;
+    let entries = album_dir.read_dir().map_err(|_| None)?;
 
     for entry in entries {
         let Ok(entry) = entry else {
