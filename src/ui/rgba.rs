@@ -32,8 +32,8 @@ impl std::fmt::Debug for RgbaBytes {
 pub const IMAGE_SIZE: u16 = 256;
 
 /// NOTE this is slow
-pub fn load_rgba(path: &Utf8PathBuf) -> Option<RgbaBytes> {
-    let img = image_rs::open(path).ok()?;
+pub fn load_rgba(path: &Utf8PathBuf) -> anyhow::Result<RgbaBytes> {
+    let img = image_rs::open(path)?;
     let img = img.resize(IMAGE_SIZE as u32, IMAGE_SIZE as u32, FilterType::Lanczos3);
 
     let rgba = img.to_rgba8();
@@ -44,13 +44,13 @@ pub fn load_rgba(path: &Utf8PathBuf) -> Option<RgbaBytes> {
         bytes: rgba.into_raw(),
     };
 
-    Some(rgba_bytes)
+    Ok(rgba_bytes)
 }
 
 // NOTE this assumes that the 'conversion'
 // will be fast because it's already in the right format
-pub fn load_cached_rgba_bmp(path: &Utf8Path) -> Option<RgbaBytes> {
-    let img = image_rs::open(path).ok()?;
+pub fn load_cached_rgba_bmp(path: &Utf8Path) -> anyhow::Result<RgbaBytes> {
+    let img = image_rs::open(path)?;
     let rgba = img.to_rgba8();
 
     let rgba_bytes = RgbaBytes {
@@ -59,7 +59,7 @@ pub fn load_cached_rgba_bmp(path: &Utf8Path) -> Option<RgbaBytes> {
         bytes: rgba.into_raw(),
     };
 
-    Some(rgba_bytes)
+    Ok(rgba_bytes)
 }
 
 pub fn save_rgba(path: &Utf8PathBuf, rgba: &RgbaBytes) -> anyhow::Result<()> {

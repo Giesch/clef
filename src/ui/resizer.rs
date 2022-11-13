@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use flume::{Receiver, TryRecvError};
+use log::error;
 use parking_lot::Mutex;
 
 use crate::db::queries::{add_resized_image_location, AlbumId};
@@ -12,6 +13,8 @@ use crate::ui::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 #[derive(Clone, Debug)]
 pub enum ResizerMessage {
     ResizedImage(ResizedImage),
+    // either the thread disconnected,
+    // or there is no local data dir
     NonActionableError,
 }
 
@@ -80,22 +83,33 @@ async fn step(
             };
 
             let message = match resize(request, &images_directory, db.clone()).await {
-                Some(resized_image) => ResizerMessage::ResizedImage(resized_image),
-                // TODO should this one be a different UI message?
-                None => ResizerMessage::NonActionableError,
+                Ok(resized_image) => Some(ResizerMessage::ResizedImage(resized_image)),
+                Err(e) => {
+                    error!("error resizing image: {e}");
+                    None
+                }
             };
 
-            (Some(message), ResizerState::Working(images_directory))
+            (message, ResizerState::Working(images_directory))
         }
 
         ResizerState::Final => (None, ResizerState::Final),
     }
 }
 
-// TODO return a result, log it
 fn get_images_directory() -> Option<Utf8PathBuf> {
-    let project = project_dirs()?;
-    let local_data: &Utf8Path = project.data_local_dir().try_into().ok()?;
+    let Some(project) = project_dirs() else {
+        error!("no app project directories");
+        return None;
+    };
+
+    let local_data: &Utf8Path = match project.data_local_dir().try_into() {
+        Ok(path) => path,
+        Err(e) => {
+            error!("non-utf8 path: {e}");
+            return None;
+        }
+    };
     let resized_images_dir = local_data.join("resized_images");
 
     // ensure the directory is created
@@ -104,25 +118,23 @@ fn get_images_directory() -> Option<Utf8PathBuf> {
     Some(resized_images_dir)
 }
 
-// TODO return a result, log it
 async fn resize(
     request: ResizeRequest,
     images_directory: &Utf8Path,
     db: SqlitePool,
-) -> Option<ResizedImage> {
+) -> anyhow::Result<ResizedImage> {
     let image_bytes = load_rgba(&request.source_path)?;
 
     let title = request.album_title;
     let file_name = format!("{title}_{IMAGE_SIZE}.bmp");
     let path = images_directory.join(file_name);
 
-    save_rgba(&path, &image_bytes).ok()?;
+    save_rgba(&path, &image_bytes)?;
 
-    let mut conn = db.get().ok()?;
+    let mut conn = db.get()?;
     conn.immediate_transaction(|tx| {
         add_resized_image_location(tx, request.album_id, &path)
-    })
-    .ok()?;
+    })?;
 
     let resized = ResizedImage {
         album_id: request.album_id,
@@ -130,5 +142,5 @@ async fn resize(
         bytes: image_bytes,
     };
 
-    Some(resized)
+    Ok(resized)
 }
