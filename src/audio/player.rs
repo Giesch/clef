@@ -104,12 +104,21 @@ impl From<&Track> for TrackInfo {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum AudioThreadError {
+    #[error("disconnected from main ui thread")]
+    Disconnected,
+
+    #[error("unhandled audio error: {0}")]
+    Other(#[from] anyhow::Error),
+}
+
 impl Player {
     pub fn new(inbox: Receiver<AudioAction>, to_ui: Sender<AudioMessage>) -> Self {
         Self { state: None, inbox, to_ui }
     }
 
-    pub fn run_loop(self) -> anyhow::Result<()> {
+    pub fn run_loop(self) -> Result<(), AudioThreadError> {
         let Player { state, inbox, to_ui } = self;
 
         let mut state = state;
@@ -118,7 +127,9 @@ impl Player {
             let msg = match inbox.try_recv() {
                 Ok(msg) => Some(msg),
                 Err(TryRecvError::Empty) => None,
-                Err(TryRecvError::Disconnected) => bail!("disconnected from ui thread"),
+                Err(TryRecvError::Disconnected) => {
+                    return Err(AudioThreadError::Disconnected);
+                }
             };
 
             let (new_state, to_send) =

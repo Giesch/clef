@@ -22,6 +22,8 @@
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
 
+- [ ] add a hash or id to resized image names
+
 - [ ] load a nice startup ui quickly
   - [ ] last played song - progress and scroll?
 
@@ -60,6 +62,8 @@
   or a way for the ui to join audio instead of disconnecting
 
 - [ ] make a full custom app theme
+
+- [ ] handle the audio thread errors gracefully
 
 * Someday
 - [ ] playlists
