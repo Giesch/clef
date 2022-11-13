@@ -14,6 +14,7 @@ use symphonia::core::{
 use symphonia::default::get_probe;
 
 use super::data::TagKey;
+use super::rgba::{load_cached_rgba_bmp, RgbaBytes};
 use crate::db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
@@ -31,6 +32,7 @@ pub enum CrawlerMessage {
 pub struct CrawledAlbum {
     pub album: Album,
     pub songs: Vec<Song>,
+    pub cached_art: Option<RgbaBytes>,
     pub covers: Vec<Utf8PathBuf>,
 }
 
@@ -232,9 +234,15 @@ fn collect_single_album(
 
     saved_songs.sort_by_key(|s| s.track_number);
 
+    let cached_art = saved_album
+        .resized_art
+        .as_ref()
+        .and_then(|path| load_cached_rgba_bmp(path));
+
     Ok(CrawledAlbum {
         album: saved_album,
         songs: saved_songs,
+        cached_art,
         covers,
     })
 }

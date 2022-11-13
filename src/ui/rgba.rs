@@ -1,6 +1,8 @@
-use camino::Utf8PathBuf;
+use std::{fs::File, io::BufReader};
+
+use camino::{Utf8Path, Utf8PathBuf};
 use iced::widget::image;
-use image_rs::{imageops::FilterType, ColorType};
+use image_rs::{imageops::FilterType, ColorType, ImageFormat};
 
 /// Image pixels in the format that iced converts them to internally
 /// Doing the conversion ahead of time (outside the framework)
@@ -36,6 +38,23 @@ pub fn load_rgba(path: &Utf8PathBuf) -> Option<RgbaBytes> {
     let img = image_rs::open(path).ok()?;
     let img = img.resize(IMAGE_SIZE as u32, IMAGE_SIZE as u32, FilterType::Lanczos3);
 
+    let rgba = img.to_rgba8();
+
+    let rgba_bytes = RgbaBytes {
+        height: rgba.height(),
+        width: rgba.width(),
+        bytes: rgba.into_raw(),
+    };
+
+    Some(rgba_bytes)
+}
+
+pub fn load_cached_rgba_bmp(path: &Utf8Path) -> Option<RgbaBytes> {
+    let file = File::open(path).ok()?;
+    let file = BufReader::new(file);
+
+    let img = image_rs::load(file, ImageFormat::Bmp);
+    let img = image_rs::open(path).ok()?;
     let rgba = img.to_rgba8();
 
     let rgba_bytes = RgbaBytes {

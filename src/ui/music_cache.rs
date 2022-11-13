@@ -20,12 +20,11 @@ pub struct MusicCache {
     albums_by_id: HashMap<AlbumId, CachedAlbum>,
 }
 
-// this is intended include image data
 #[derive(Debug)]
 pub struct CachedAlbum {
     pub album: Album,
     pub songs: Vec<Song>,
-    pub loaded_art: Option<RgbaBytes>,
+    pub art: Option<RgbaBytes>,
 }
 
 /// Artist, Display Title
@@ -64,14 +63,18 @@ impl MusicCache {
         let album_id = crawled.album.id;
         let album = crawled.album;
         let songs = crawled.songs;
-        let cached_album = CachedAlbum { album, songs, loaded_art: None };
+        let cached_album = CachedAlbum {
+            album,
+            songs,
+            art: crawled.cached_art,
+        };
 
         self.albums_by_id.insert(album_id, cached_album);
     }
 
     pub fn load_album_art(&mut self, album_id: AlbumId, image_bytes: RgbaBytes) {
         if let Some(album) = self.albums_by_id.get_mut(&album_id) {
-            album.loaded_art = Some(image_bytes);
+            album.art = Some(image_bytes);
         } else {
             error!("loaded art for unknown album: {album_id:#?}");
         }
