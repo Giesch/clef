@@ -336,7 +336,6 @@ dependencies = [
  "iced",
  "iced_native",
  "image",
- "itertools",
  "libpulse-binding",
  "libpulse-simple-binding",
  "log",
@@ -347,7 +346,6 @@ dependencies = [
  "rb",
  "symphonia",
  "thiserror",
- "walkdir",
 ]
 
 [[package]]
