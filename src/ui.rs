@@ -221,10 +221,7 @@ impl Application for Ui {
                     .load_album_art(resized.album_id, resized.bytes);
                 Command::none()
             }
-            Message::FromResizer(ResizerMessage::ResizerError) => {
-                // TODO handle or log resizer errors
-                Command::none()
-            }
+            Message::FromResizer(ResizerMessage::NonActionableError) => Command::none(),
 
             Message::PlayClicked => {
                 match &mut self.current_song {

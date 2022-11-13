@@ -1,30 +1,24 @@
 * Now
-- [ ] use results instead of sloppy options
-
-- [ ] resolve all todos/fixmes
+- [ ] resolve all TODO tags
 
 * Next
-- [-] sqlite setup goals
-  - [X] decoded song metadata
-  - [X] locations/names of resized album art
-  - [X] match album covers to albums in a less dumb way
-  - [ ] load a nice startup ui quickly
-    - [ ] last played song - progress and scroll?
-  - [ ] remove the expect/unwraps taking song ids
-  - [X] replace the weird joins in ui::startup
-  - [X] change startup process to be more incremental
-    ie, can happen in the background while app is interactive,
-    and start where it left off if app is killed
-
 - [ ] embed migrations, run on startup
   diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
   - [ ] create db if it doesn't exist
   - [ ] add module and call fn in main
-  - [ ] add build.rs for rerunning on change
+  - [ ] add build.rs for rebuilding migrations on change to those files
+  - [ ] add a script for wiping cache & db for testing
+
+- [ ] audit all unwraps and expects
+  is it ok for get_song and similar to do it?
+  is it possible to guarantee that ids only show up after their in the cache?
 
 - [ ] replace icons with slightly darker color
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
+
+- [ ] load a nice startup ui quickly
+  - [ ] last played song - progress and scroll?
 
 - [ ] integration test the crawler and resizer
   with filesystem & db, without audio/ui
