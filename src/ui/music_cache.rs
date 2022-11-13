@@ -75,12 +75,12 @@ impl MusicCache {
         }
     }
 
-    pub fn get_song(&self, song_id: &SongId) -> &Song {
-        self.songs_by_id.get(song_id).expect("unexpected song id")
+    pub fn get_song(&self, song_id: &SongId) -> Option<&Song> {
+        self.songs_by_id.get(song_id)
     }
 
-    pub fn get_album_queue(&self, song: &Song) -> Queue<(SongId, Utf8PathBuf)> {
-        let album = self.albums_by_id.get(&song.album_id).unwrap();
+    pub fn get_album_queue(&self, song: &Song) -> Option<Queue<(SongId, Utf8PathBuf)>> {
+        let album = self.albums_by_id.get(&song.album_id)?;
 
         let mut previous = Vec::new();
         let mut next = VecDeque::new();
@@ -100,9 +100,7 @@ impl MusicCache {
             }
         }
 
-        let current = current.expect("failed to find matching song for album queue");
-
-        Queue { previous, current, next }
+        current.map(|current| Queue { previous, current, next })
     }
 }
 
