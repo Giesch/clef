@@ -134,9 +134,8 @@ fn with_nones_last<T: Ord>(a: &Option<T>, b: &Option<T>) -> Ordering {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
+    use crate::test_util::*;
 
     #[test]
     fn get_album_queue_smoke() {
@@ -157,44 +156,5 @@ mod tests {
 
         let next_ids: Vec<SongId> = queue.next.into_iter().map(|pair| pair.0).collect();
         assert_eq!(next_ids, vec![SongId::new(4), SongId::new(5)]);
-    }
-
-    fn fake_album() -> CrawledAlbum {
-        let album_id = AlbumId::new(1);
-        let album = Album {
-            id: album_id,
-            directory: Utf8PathBuf::from_str("Album Dir").unwrap(),
-            title: Some("Album Title".to_string()),
-            artist: Some("Fake Artist".to_string()),
-            release_date: None,
-            original_art: None,
-            resized_art: None,
-        };
-
-        let songs = vec![
-            fake_song(1, "First", album_id),
-            fake_song(2, "Second", album_id),
-            fake_song(3, "Third", album_id),
-            fake_song(4, "Fourth", album_id),
-            fake_song(5, "Fifth", album_id),
-        ];
-
-        CrawledAlbum {
-            album,
-            songs,
-            cached_art: None,
-            covers: Default::default(),
-        }
-    }
-
-    fn fake_song(number: i32, title: &str, album_id: AlbumId) -> Song {
-        Song {
-            id: SongId::new(number),
-            album_id,
-            file: Utf8PathBuf::from_str(title).unwrap(),
-            title: Some(title.to_string()),
-            artist: Some("Fake Artist".to_string()),
-            track_number: Some(number),
-        }
     }
 }

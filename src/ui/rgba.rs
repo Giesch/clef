@@ -14,6 +14,17 @@ pub struct RgbaBytes {
     bytes: Vec<u8>,
 }
 
+impl RgbaBytes {
+    #[cfg(test)]
+    pub fn empty() -> Self {
+        Self {
+            height: 0,
+            width: 0,
+            bytes: Default::default(),
+        }
+    }
+}
+
 impl From<RgbaBytes> for image::Handle {
     fn from(rgba_bytes: RgbaBytes) -> Self {
         image::Handle::from_pixels(rgba_bytes.width, rgba_bytes.height, rgba_bytes.bytes)

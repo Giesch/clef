@@ -34,7 +34,6 @@ pub struct CrawledAlbum {
     pub album: Album,
     pub songs: Vec<Song>,
     pub cached_art: Option<RgbaBytes>,
-    pub covers: Vec<Utf8PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -234,7 +233,6 @@ fn collect_single_album(
         album: saved_album,
         songs: saved_songs,
         cached_art,
-        covers,
     })
 }
 

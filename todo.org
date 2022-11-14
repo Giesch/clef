@@ -11,16 +11,10 @@
 - [ ] add a way to search
   - modal? keyboard-based
 
-- [X] change column size
-  more space for song titles / data - 2/3 or 3/4
-
-- [X] unit tests for music cache
-  build album queue was broken in a dumb way
-
-- [ ] unit tests for update
-  - [ ] make an inner type for the non-thready ui state
-  - [ ] only pass the inner type to inner update
-  - [ ] test the limited inner update
+- [X] unit tests for update
+  - [X] make an inner type for the non-thready ui state
+  - [X] only pass the inner type to inner update
+  - [X] test the limited inner update
 
 * Next
 - [ ] replace icons with slightly darker color
@@ -32,6 +26,7 @@
   - [ ] in the album song list
 
 - [ ] add a hash or id to resized image names
+  two missing album titles results in duplicated names
 
 - [ ] load a nice startup ui quickly
   - [ ] last played song - progress and scroll?
@@ -115,3 +110,6 @@
 - [ ] reconsider assumptions re: audio directory
   - the crawler only goes one layer deep
   - songs get their album id based on directory instead of tag
+
+- [ ] need a way to add/edit tags
+  maybe just in the db, maybe also on the audio file

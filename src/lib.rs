@@ -6,3 +6,6 @@ pub mod audio;
 pub mod channels;
 pub mod db;
 pub mod ui;
+
+#[cfg(test)]
+pub mod test_util;

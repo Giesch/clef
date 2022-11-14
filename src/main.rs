@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use clef::channels::*;
 use clef::db;
 use clef::ui::config::Config;
-use clef::ui::{Flags, Ui};
+use clef::ui::{App, Flags};
 
 fn main() -> iced::Result {
     pretty_env_logger::init();
@@ -27,7 +27,7 @@ fn main() -> iced::Result {
     let to_audio = Arc::new(Mutex::new(to_audio_tx));
     let flags = Flags { inbox, to_audio, db_pool, config };
 
-    Ui::run(Settings::with_flags(flags)).map_err(|e| {
+    App::run(Settings::with_flags(flags)).map_err(|e| {
         audio_handle.join().ok();
         e
     })

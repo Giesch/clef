@@ -5,56 +5,71 @@ use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text, Column,
     Container, Image, Row, Space,
 };
-use iced::{alignment, executor};
 use iced::{
-    Alignment, Application, Command, ContentFit, Element, Length, Subscription, Theme,
+    alignment, executor, Alignment, Application, Command, ContentFit, Element, Length,
+    Subscription, Theme,
 };
 use log::error;
 use parking_lot::Mutex;
 
-use crate::channels::{
-    self, audio_subscription, AudioAction, AudioMessage, ProgressTimes,
-};
+use crate::channels::{audio_subscription, AudioAction, AudioMessage, ProgressTimes};
 use crate::db::queries::*;
 use crate::db::SqlitePool;
 
-mod icons;
-mod rgba;
-use rgba::*;
-mod hoverable;
-use hoverable::*;
-mod custom_style;
-use custom_style::no_background;
-mod crawler;
-use crawler::*;
-mod music_cache;
-use music_cache::*;
-mod resizer;
-use resizer::*;
-mod effect;
-
-use self::config::Config;
-use self::effect::Effect;
 pub mod config;
+pub mod crawler;
+mod custom_style;
+mod effect;
+mod hoverable;
+mod icons;
+mod music_cache;
+mod resizer;
+mod rgba;
+
+use config::Config;
+use crawler::*;
+use custom_style::no_background;
+use effect::Effect;
+use hoverable::*;
+use music_cache::*;
+use resizer::*;
+use rgba::*;
 
 #[derive(Debug)]
-pub struct Ui {
-    inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
-    to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
+pub struct App {
+    config: Arc<Config>,
+    db: SqlitePool,
+    inbox: Arc<Mutex<Receiver<AudioMessage>>>,
+    to_audio: Arc<Mutex<Sender<AudioAction>>>,
     to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
     resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
-    db: SqlitePool,
+    ui: Ui,
+}
 
-    config: Arc<Config>,
+#[derive(Debug)]
+struct Ui {
     should_exit: bool,
+    crawling_music: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
     hovered_song_id: Option<SongId>,
-    crawling_music: bool,
     music_cache: MusicCache,
 }
 
 impl Ui {
+    fn new() -> Self {
+        Self {
+            should_exit: false,
+            current_song: None,
+            progress: None,
+            hovered_song_id: None,
+            crawling_music: true,
+            music_cache: MusicCache::new(),
+        }
+    }
+}
+
+impl App {
     fn new(flags: Flags) -> Self {
         let (to_resizer_tx, to_resizer_rx) = flume::unbounded::<ResizeRequest>();
 
@@ -63,20 +78,17 @@ impl Ui {
             inbox: flags.inbox,
             to_audio: flags.to_audio,
             db: flags.db_pool,
-            should_exit: false,
-            current_song: None,
-            progress: None,
-            hovered_song_id: None,
-            crawling_music: true,
-            music_cache: MusicCache::new(),
             to_resizer: Arc::new(Mutex::new(to_resizer_tx)),
             resizer_inbox: Arc::new(Mutex::new(to_resizer_rx)),
+            ui: Ui::new(),
         }
     }
 
     fn execute(&mut self, effect: Effect<Message>) -> Command<Message> {
         match effect {
             Effect::Command(cmd) => cmd,
+
+            Effect::None => Command::none(),
 
             Effect::ToAudio(audio_action) => {
                 self.to_audio
@@ -150,8 +162,8 @@ impl ProgressDisplay {
 
 #[derive(Debug)]
 pub struct Flags {
-    pub inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
-    pub to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
+    pub inbox: Arc<Mutex<Receiver<AudioMessage>>>,
+    pub to_audio: Arc<Mutex<Sender<AudioAction>>>,
     pub db_pool: SqlitePool,
     pub config: Config,
 }
@@ -173,7 +185,7 @@ pub enum Message {
     UnhoveredSong(SongId),
 }
 
-impl Application for Ui {
+impl Application for App {
     type Flags = Flags;
     type Message = Message;
     type Theme = Theme;
@@ -187,7 +199,7 @@ impl Application for Ui {
     }
 
     fn title(&self) -> String {
-        match &self.current_song {
+        match &self.ui.current_song {
             Some(CurrentSong { title, .. }) => format!("Clef - {title}"),
             None => "Clef".to_string(),
         }
@@ -198,16 +210,16 @@ impl Application for Ui {
     }
 
     fn should_exit(&self) -> bool {
-        self.should_exit
+        self.ui.should_exit
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
-        let effect = update(self, message);
+        let effect = update(&mut self.ui, message);
         self.execute(effect)
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        let crawler = if self.crawling_music {
+        let crawler = if self.ui.crawling_music {
             crawler_subcription(self.config.clone(), self.db.clone())
                 .map(Message::FromCrawler)
         } else {
@@ -230,7 +242,9 @@ impl Application for Ui {
         const MAX: f32 = 1.0;
         const STEP: f32 = 0.01;
 
-        let progress_slider = match &self.progress {
+        let ui = &self.ui;
+
+        let progress_slider = match &ui.progress {
             Some(progress) => {
                 let proportion = progress.display_proportion();
 
@@ -244,10 +258,10 @@ impl Application for Ui {
         };
 
         let content =
-            view_album_list(&self.music_cache, &self.hovered_song_id, &self.current_song);
+            view_album_list(&ui.music_cache, &ui.hovered_song_id, &ui.current_song);
 
         let content = fill_container(scrollable(content));
-        let bottom_row = view_bottom_row(&self.current_song);
+        let bottom_row = view_bottom_row(&ui.current_song);
 
         let main_column = column![content, bottom_row, progress_slider]
             .spacing(10)
@@ -278,15 +292,19 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
         Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
             let resize = if crawled.cached_art.is_none() {
-                crawled.covers.first().map(|cover_art| ResizeRequest {
-                    album_id: crawled.album.id,
-                    album_title: crawled
-                        .album
-                        .display_title()
-                        .unwrap_or_default()
-                        .to_string(),
-                    source_path: cover_art.clone(),
-                })
+                crawled
+                    .album
+                    .original_art
+                    .as_ref()
+                    .map(|cover_art| ResizeRequest {
+                        album_id: crawled.album.id,
+                        album_title: crawled
+                            .album
+                            .display_title()
+                            .unwrap_or_default()
+                            .to_string(),
+                        source_path: cover_art.clone(),
+                    })
             } else {
                 None
             };
@@ -376,7 +394,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             ui.hovered_song_id = Some(song_id);
             Effect::none()
         }
-
         Message::UnhoveredSong(song_id) => {
             if ui.hovered_song_id == Some(song_id) {
                 ui.hovered_song_id = None;
@@ -680,4 +697,66 @@ fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {
     children.push(horizontal_space(Length::Fill).into());
 
     Row::with_children(children).spacing(10)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use camino::Utf8PathBuf;
+
+    use super::*;
+    use crate::test_util::*;
+
+    #[test]
+    fn crawled_album_with_no_original_art_sends_no_resize_request() {
+        let mut ui = Ui::new();
+
+        let mut crawled = fake_album();
+        crawled.cached_art = None;
+        crawled.album.original_art = None;
+
+        let message =
+            Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())));
+
+        let effect = update(&mut ui, message);
+
+        assert!(matches!(effect, Effect::None))
+    }
+
+    #[test]
+    fn crawled_album_with_cached_resized_art_sends_no_resize_request() {
+        let mut ui = Ui::new();
+
+        let mut crawled = fake_album();
+        crawled.cached_art = Some(RgbaBytes::empty());
+        crawled.album.original_art = Some(Utf8PathBuf::from_str("original").unwrap());
+
+        let message =
+            Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())));
+
+        let effect = update(&mut ui, message);
+
+        assert!(matches!(effect, Effect::None))
+    }
+
+    #[test]
+    fn crawled_album_with_uncached_resized_art_sends_resize_request() {
+        let mut ui = Ui::new();
+        let mut crawled = fake_album();
+        crawled.cached_art = None;
+        crawled.album.original_art = Some(Utf8PathBuf::from_str("original").unwrap());
+
+        let message =
+            Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())));
+
+        let effect = update(&mut ui, message);
+
+        assert!(matches!(
+            effect,
+            Effect::ToResizer(ResizeRequest { album_id, source_path, .. })
+                if album_id == crawled.album.id &&
+                   source_path == crawled.album.original_art.unwrap()
+        ))
+    }
 }

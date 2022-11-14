@@ -3,10 +3,13 @@ use iced::Command;
 use crate::channels::AudioAction;
 use crate::ui::resizer::ResizeRequest;
 
+#[derive(Debug)]
 pub enum Effect<Message> {
+    #[allow(unused)] // will need this for one-off commands
     Command(Command<Message>),
     ToAudio(AudioAction),
     ToResizer(ResizeRequest),
+    None,
 }
 
 impl<Message> Default for Effect<Message> {
@@ -17,7 +20,7 @@ impl<Message> Default for Effect<Message> {
 
 impl<Message> Effect<Message> {
     pub fn none() -> Self {
-        Self::Command(Command::none())
+        Self::None
     }
 }
 
