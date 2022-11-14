@@ -116,7 +116,7 @@ fn artist_then_title_with_nones_last(
 ) -> Ordering {
     match with_nones_last(a_artist, b_artist) {
         Ordering::Equal => {}
-        comparison => return comparison,
+        unequal => return unequal,
     }
 
     with_nones_last(a_title, b_title)

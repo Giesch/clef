@@ -508,7 +508,7 @@ fn view_album<'a>(
             view_song_row(SongRowProps { song, status, index })
         })
         .collect();
-    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(1));
+    let songs_list = Column::with_children(song_rows).width(Length::FillPortion(2));
 
     let row = row![album_image, album_info, songs_list].spacing(10);
 
