@@ -1,9 +1,19 @@
 * Now
+- [ ] add some vimmy commands (scroll)
+- [ ] add a way to search
+  - modal? keyboard-based
+- [ ] change column size
+  more space for song titles / data - 2/3 or 3/4
+  do a golden/silver ratio thing?
 
 * Next
 - [ ] replace icons with slightly darker color
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
+
+- [ ] add song durations to view
+  - [ ] for currently playing song
+  - [ ] in the album song list
 
 - [ ] add a hash or id to resized image names
 
@@ -17,10 +27,6 @@
   then spec and duration should still be validated
 
 - [ ] in ui, current_song and progress should be in one optional
-
-- [ ] add song durations to view
-  - [ ] for currently playing song
-  - [ ] in the album song list
 
 - [ ] make a custom slider / player progress widget
   style it differently

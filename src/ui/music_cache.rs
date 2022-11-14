@@ -77,24 +77,27 @@ impl MusicCache {
         self.songs_by_id.get(song_id)
     }
 
-    pub fn get_album_queue(&self, song: &Song) -> Option<Queue<(SongId, Utf8PathBuf)>> {
-        let album = self.albums_by_id.get(&song.album_id)?;
+    pub fn get_album_queue(
+        &self,
+        clicked_song: &Song,
+    ) -> Option<Queue<(SongId, Utf8PathBuf)>> {
+        let album = self.albums_by_id.get(&clicked_song.album_id)?;
 
         let mut previous = Vec::new();
         let mut next = VecDeque::new();
         let mut current = None;
 
         for album_song in &album.songs {
-            let path = album_song.file.clone();
+            let id_path = (album_song.id, album_song.file.clone());
 
             if current.is_none() {
-                if album_song.id == song.id {
-                    current = Some((song.id, path));
+                if album_song.id == clicked_song.id {
+                    current = Some(id_path);
                 } else {
-                    previous.push((song.id, path));
+                    previous.push(id_path);
                 }
             } else {
-                next.push_back((song.id, path));
+                next.push_back(id_path);
             }
         }
 

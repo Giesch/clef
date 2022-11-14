@@ -238,12 +238,20 @@ fn collect_single_album(
     })
 }
 
+const AUDIO_EXTENSIONS: [&str; 2] = ["mp3", "flac"];
+
 fn is_music(path: &Utf8Path) -> bool {
-    path.extension() == Some("mp3")
+    path.extension()
+        .map(|ext| AUDIO_EXTENSIONS.contains(&ext))
+        .unwrap_or_default()
 }
 
+const IMAGE_EXTENSIONS: [&str; 2] = ["jpg", "png"];
+
 fn is_cover_art(path: &Utf8Path) -> bool {
-    path.extension() == Some("jpg") || path.extension() == Some("png")
+    path.extension()
+        .map(|ext| IMAGE_EXTENSIONS.contains(&ext))
+        .unwrap_or_default()
 }
 
 /// NOTE This returns an empty tag map if they're missing,

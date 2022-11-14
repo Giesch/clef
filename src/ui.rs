@@ -247,12 +247,9 @@ impl Application for Ui {
             }
 
             Message::PlaySongClicked(song_id) => {
-                let song = match self.music_cache.get_song(&song_id) {
-                    Some(song) => song,
-                    None => {
-                        error!("unexpected song id: {song_id:?}");
-                        return Command::none();
-                    }
+                let Some(song) = self.music_cache.get_song(&song_id) else {
+                    error!("unexpected song id: {song_id:?}");
+                    return Command::none();
                 };
                 self.current_song = Some(CurrentSong::playing(song));
                 let queue = match self.music_cache.get_album_queue(song) {
