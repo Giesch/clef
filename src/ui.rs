@@ -502,10 +502,9 @@ fn view_album<'a>(
     let song_rows: Vec<_> = album
         .songs
         .iter()
-        .enumerate()
-        .map(|(index, song)| {
+        .map(|song| {
             let status = song_row_status(current_song, hovered_song_id, song.id);
-            view_song_row(SongRowProps { song, status, index })
+            view_song_row(song, status)
         })
         .collect();
     let songs_list = Column::with_children(song_rows).width(Length::FillPortion(2));
@@ -553,13 +552,6 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     }
 }
 
-struct SongRowProps<'a> {
-    song: &'a Song,
-    // 0-based index of the song in the album table
-    index: usize,
-    status: SongRowStatus,
-}
-
 #[derive(Debug, Eq, PartialEq)]
 enum SongRowStatus {
     /// currently playing - show pause button
@@ -573,9 +565,7 @@ enum SongRowStatus {
 }
 
 /// A song in the album table
-fn view_song_row(
-    SongRowProps { song, status, index }: SongRowProps<'_>,
-) -> Element<'_, Message> {
+fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
     let button_slot: Element<'_, Message> = match status {
         SongRowStatus::Playing => button(icons::pause())
             .on_press(Message::PauseClicked)
@@ -592,12 +582,14 @@ fn view_song_row(
             .style(no_background())
             .into(),
 
-        SongRowStatus::None => text(index + 1)
-            .width(MAGIC_SVG_SIZE)
-            .height(MAGIC_SVG_SIZE)
-            .horizontal_alignment(alignment::Horizontal::Center)
-            .vertical_alignment(alignment::Vertical::Center)
-            .into(),
+        SongRowStatus::None => {
+            text(song.track_number.map(|n| n.to_string()).unwrap_or_default())
+                .width(MAGIC_SVG_SIZE)
+                .height(MAGIC_SVG_SIZE)
+                .horizontal_alignment(alignment::Horizontal::Center)
+                .vertical_alignment(alignment::Vertical::Center)
+                .into()
+        }
     };
 
     let hoverable = Hoverable::new(
