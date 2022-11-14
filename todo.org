@@ -26,7 +26,9 @@
 - [ ] in player, if audio output is present,
   then spec and duration should still be validated
 
-- [ ] in ui, current_song and progress should be in one optional
+- [-] in ui, current_song and progress should be in one optional
+  this makes updating the current song awkward,
+  because only one of them comes from the cache
 
 - [ ] make a custom slider / player progress widget
   style it differently

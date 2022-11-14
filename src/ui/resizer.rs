@@ -15,9 +15,6 @@ use super::config::Config;
 #[derive(Clone, Debug)]
 pub enum ResizerMessage {
     ResizedImage(ResizedImage),
-    // either the thread disconnected,
-    // or there is no local data dir
-    NonActionableError,
 }
 
 #[derive(Clone, Debug)]
@@ -68,14 +65,11 @@ async fn step(
                     return (None, ResizerState::Working);
                 }
                 Err(TryRecvError::Disconnected) => {
-                    return (
-                        Some(ResizerMessage::NonActionableError),
-                        ResizerState::Stopped,
-                    );
+                    return (None, ResizerState::Stopped);
                 }
             };
 
-            let message = match resize(&request, images_directory, db.clone()).await {
+            let message = match resize(&request, images_directory, db.clone()) {
                 Ok(resized_image) => Some(ResizerMessage::ResizedImage(resized_image)),
                 Err(e) => {
                     error!("error resizing image: {request:#?} {e}");
@@ -90,7 +84,7 @@ async fn step(
     }
 }
 
-async fn resize(
+fn resize(
     request: &ResizeRequest,
     images_directory: &Utf8Path,
     db: SqlitePool,

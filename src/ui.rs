@@ -318,7 +318,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 .load_album_art(resized.album_id, resized.bytes);
             Effect::none()
         }
-        Message::FromResizer(ResizerMessage::NonActionableError) => Effect::none(),
 
         Message::PlayClicked => {
             let audio_action = match &mut ui.current_song {
