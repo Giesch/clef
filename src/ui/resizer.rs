@@ -102,7 +102,8 @@ async fn resize(
         .chars()
         .filter(|&c| c != '\\' && c != '/')
         .collect();
-    let file_name = format!("{title}_{IMAGE_SIZE}.bmp");
+    let album_id = request.album_id.unpack();
+    let file_name = format!("{title}_{album_id}_{IMAGE_SIZE}.bmp");
     let file_name: Utf8PathBuf = file_name.try_into()?;
     let path = images_directory.join(file_name);
 

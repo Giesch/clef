@@ -291,23 +291,22 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
         Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
-            let resize = if crawled.cached_art.is_none() {
-                crawled
-                    .album
-                    .original_art
-                    .as_ref()
-                    .map(|cover_art| ResizeRequest {
-                        album_id: crawled.album.id,
-                        album_title: crawled
-                            .album
-                            .display_title()
-                            .unwrap_or_default()
-                            .to_string(),
-                        source_path: cover_art.clone(),
+            let resize =
+                if crawled.cached_art.is_none() {
+                    crawled.album.original_art.as_ref().map(|original_art| {
+                        ResizeRequest {
+                            album_id: crawled.album.id,
+                            album_title: crawled
+                                .album
+                                .display_title()
+                                .unwrap_or_default()
+                                .to_string(),
+                            source_path: original_art.clone(),
+                        }
                     })
-            } else {
-                None
-            };
+                } else {
+                    None
+                };
 
             ui.music_cache.add_crawled_album(*crawled);
 
@@ -426,14 +425,15 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 }
                 Some(ProgressDisplay::Optimistic(_, _)) if !display.playing => {
                     // this is after dragging while paused
-                    // ignore update to preserve dropped state
+                    // ignore update to preserve the dropped state until next play
                 }
                 Some(ProgressDisplay::Optimistic(proportion, skips))
                     if display.playing
                         && *skips < ProgressDisplay::OPTIMISTIC_THRESHOLD =>
                 {
-                    // this is after dragging while playing
-                    // ignores first updates after releasing to avoid flicker
+                    // this is after dragging & releasing while playing,
+                    // or when pressing play after a drop
+                    // ignores the first updates to avoid flicker
                     ui.progress =
                         Some(ProgressDisplay::Optimistic(*proportion, skips + 1));
                 }
@@ -741,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn crawled_album_with_uncached_resized_art_sends_resize_request() {
+    fn crawled_album_with_no_cached_resized_art_sends_resize_request() {
         let mut ui = Ui::new();
         let mut crawled = fake_album();
         crawled.cached_art = None;

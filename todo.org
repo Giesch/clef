@@ -1,20 +1,9 @@
 * Now
-- [X] make a helper on music cache for getting song/album combo (it wants both always)
-  should also do it's own error handling, if possible
-  ie; mark items as invalid, or return an error requesting refresh from disk
-  for now, just a get_current_song helper is enough
-  could even be in ui module
-
 - [ ] add some vimmy commands (scroll)
   how to go up/down one album?
 
 - [ ] add a way to search
   - modal? keyboard-based
-
-- [X] unit tests for update
-  - [X] make an inner type for the non-thready ui state
-  - [X] only pass the inner type to inner update
-  - [X] test the limited inner update
 
 * Next
 - [ ] replace icons with slightly darker color
@@ -25,7 +14,7 @@
   - [ ] for currently playing song
   - [ ] in the album song list
 
-- [ ] add a hash or id to resized image names
+- [X] add a hash or id to resized image names
   two missing album titles results in duplicated names
 
 - [ ] load a nice startup ui quickly
@@ -98,6 +87,10 @@
   - [ ] tab navigation
 
 - [ ] drag and drop import
+- [ ] easy bandcamp import?
+  drag/drop zip files?
+  open web view?
+  script for importing collection?
 
 - [ ] non-latin text (use cosmic's stuff early?)
   https://github.com/iced-rs/iced/issues/1454
@@ -113,3 +106,5 @@
 
 - [ ] need a way to add/edit tags
   maybe just in the db, maybe also on the audio file
+
+- [ ] property testing

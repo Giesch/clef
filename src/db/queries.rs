@@ -12,6 +12,10 @@ impl AlbumId {
     pub fn new(id: i32) -> Self {
         Self(id)
     }
+
+    pub fn unpack(&self) -> i32 {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
