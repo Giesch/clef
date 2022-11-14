@@ -1,14 +1,4 @@
 * Now
-- [ ] embed migrations, run on startup
-  diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
-  - [ ] create db if it doesn't exist
-  - [ ] add module and call fn in main
-  - [ ] add build.rs for rebuilding migrations on change to those files
-  - [ ] add a script for wiping cache & db for testing
-
-- [ ] replace platform module with a config struct
-  this will be necessary for integration tests
-  subscriptions will have to take an Arc<Config> or something
 
 * Next
 - [ ] replace icons with slightly darker color
@@ -55,6 +45,11 @@
   or a way for the ui to join audio instead of disconnecting
 
 - [ ] make a full custom app theme
+
+- [ ] think about a way to type-enforce using immediate transaction for writes
+  like a custom pool wrapper or something
+  might need a delegate macro for that to not be super annoying
+  does sqlite have read-only connections?
 
 - [ ] handle the audio thread errors gracefully
   restart the audio thread?

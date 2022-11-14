@@ -224,7 +224,7 @@ fn collect_single_album(
     let cached_art = saved_album.resized_art.as_ref().and_then(|path| {
         load_cached_rgba_bmp(path)
             .map_err(|e| {
-                error!("error loading cached resized image: {e}");
+                info!("error loading cached resized image: {e}");
                 e
             })
             .ok()

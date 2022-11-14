@@ -56,11 +56,9 @@ impl MusicCache {
             .sort_by(|a, b| artist_then_title_with_nones_last(&a.1, &b.1));
 
         let album_id = crawled.album.id;
-        let album = crawled.album;
-        let songs = crawled.songs;
         let cached_album = CachedAlbum {
-            album,
-            songs,
+            album: crawled.album,
+            songs: crawled.songs,
             art: crawled.cached_art,
         };
 

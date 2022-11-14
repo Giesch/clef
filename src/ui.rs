@@ -207,7 +207,7 @@ impl Application for Ui {
                 Command::none()
             }
             Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
-                if crawled.album.resized_art.is_none() {
+                if crawled.cached_art.is_none() {
                     if let Some(cover_art) = crawled.covers.first() {
                         self.send_to_resizer(ResizeRequest {
                             album_id: crawled.album.id,

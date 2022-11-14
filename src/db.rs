@@ -3,6 +3,7 @@ use std::time::Duration;
 use camino::Utf8Path;
 use diesel::r2d2::ConnectionManager;
 use diesel::sqlite::SqliteConnection;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use r2d2::{Pool, PooledConnection};
 
 pub mod models;
@@ -68,4 +69,15 @@ impl diesel::r2d2::CustomizeConnection<SqliteConnection, diesel::r2d2::Error>
         })()
         .map_err(diesel::r2d2::Error::QueryError)
     }
+}
+
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+
+pub fn run_migrations(
+    pool: &SqlitePool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let mut conn = pool.get()?;
+    conn.immediate_transaction(|tx| tx.run_pending_migrations(MIGRATIONS).map(|_| ()))?;
+
+    Ok(())
 }
