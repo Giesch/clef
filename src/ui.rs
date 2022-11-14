@@ -31,24 +31,27 @@ mod music_cache;
 use music_cache::*;
 mod resizer;
 use resizer::*;
+mod effect;
 
 use self::config::Config;
+use self::effect::Effect;
 pub mod config;
 
 #[derive(Debug)]
 pub struct Ui {
-    config: Arc<Config>,
     inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
     to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
+    to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
+    resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
     db: SqlitePool,
+
+    config: Arc<Config>,
     should_exit: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
     hovered_song_id: Option<SongId>,
     crawling_music: bool,
     music_cache: MusicCache,
-    to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
-    resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
 }
 
 impl Ui {
@@ -71,24 +74,35 @@ impl Ui {
         }
     }
 
-    fn send_to_audio(&mut self, to_audio: AudioAction) {
-        self.to_audio
-            .lock()
-            .send(to_audio)
-            .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
-    }
+    fn execute(&mut self, effect: Effect<Message>) -> Command<Message> {
+        match effect {
+            Effect::Command(cmd) => cmd,
 
-    fn send_to_resizer(&mut self, to_resizer: ResizeRequest) {
-        self.to_resizer
-            .lock()
-            .send(to_resizer)
-            .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
+            Effect::ToAudio(audio_action) => {
+                self.to_audio
+                    .lock()
+                    .send(audio_action)
+                    .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
+
+                Command::none()
+            }
+
+            Effect::ToResizer(resize_request) => {
+                self.to_resizer
+                    .lock()
+                    .send(resize_request)
+                    .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
+
+                Command::none()
+            }
+        }
     }
 }
 
 #[derive(Debug)]
 struct CurrentSong {
     id: SongId,
+    album_id: AlbumId,
     title: String,
     album: Option<String>,
     artist: Option<String>,
@@ -96,15 +110,12 @@ struct CurrentSong {
 }
 
 impl CurrentSong {
-    pub fn playing(song: &Song) -> Self {
-        Self::from_song(song, true)
-    }
-
-    pub fn from_song(song: &Song, playing: bool) -> Self {
+    pub fn new(song: &Song, album: &Album, playing: bool) -> Self {
         Self {
             id: song.id,
+            album_id: album.id,
             title: song.display_title().unwrap_or_default().to_owned(),
-            album: song.title.clone(),
+            album: album.title.clone(),
             artist: song.artist.clone(),
             playing,
         }
@@ -191,196 +202,8 @@ impl Application for Ui {
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
-        match message {
-            Message::FromCrawler(CrawlerMessage::NoAudioDirectory) => {
-                error!("failed to crawl audio directory");
-                self.crawling_music = false;
-                Command::none()
-            }
-            Message::FromCrawler(CrawlerMessage::DbError) => {
-                error!("crawler database error");
-                self.crawling_music = false;
-                Command::none()
-            }
-            Message::FromCrawler(CrawlerMessage::Done) => {
-                self.crawling_music = false;
-                Command::none()
-            }
-            Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
-                if crawled.cached_art.is_none() {
-                    if let Some(cover_art) = crawled.covers.first() {
-                        self.send_to_resizer(ResizeRequest {
-                            album_id: crawled.album.id,
-                            album_title: crawled
-                                .album
-                                .display_title()
-                                .unwrap_or_default()
-                                .to_string(),
-                            source_path: cover_art.clone(),
-                        })
-                    }
-                }
-
-                self.music_cache.add_crawled_album(*crawled);
-
-                Command::none()
-            }
-
-            Message::FromResizer(ResizerMessage::ResizedImage(resized)) => {
-                self.music_cache
-                    .load_album_art(resized.album_id, resized.bytes);
-                Command::none()
-            }
-            Message::FromResizer(ResizerMessage::NonActionableError) => Command::none(),
-
-            Message::PlayClicked => {
-                match &mut self.current_song {
-                    None => {}
-                    Some(CurrentSong { playing, .. }) if *playing => {}
-                    Some(current_song) => {
-                        current_song.playing = true;
-                        self.send_to_audio(AudioAction::PlayPaused);
-                    }
-                }
-
-                Command::none()
-            }
-
-            Message::PlaySongClicked(song_id) => {
-                let Some(song) = self.music_cache.get_song(&song_id) else {
-                    error!("unexpected song id: {song_id:?}");
-                    return Command::none();
-                };
-                self.current_song = Some(CurrentSong::playing(song));
-                let queue = match self.music_cache.get_album_queue(song) {
-                    Some(queue) => queue,
-                    None => {
-                        error!("unable to build album queue");
-                        return Command::none();
-                    }
-                };
-
-                self.send_to_audio(AudioAction::PlayQueue(queue));
-
-                Command::none()
-            }
-
-            Message::PauseClicked => {
-                if let Some(current_song) = &mut self.current_song {
-                    current_song.playing = false;
-                }
-
-                self.send_to_audio(AudioAction::Pause);
-
-                Command::none()
-            }
-
-            Message::ForwardClicked => {
-                self.send_to_audio(AudioAction::Forward);
-                Command::none()
-            }
-
-            Message::BackClicked => {
-                self.progress = Some(ProgressDisplay::Optimistic(
-                    0.0,
-                    ProgressDisplay::OPTIMISTIC_THRESHOLD,
-                ));
-                self.send_to_audio(AudioAction::Back);
-                Command::none()
-            }
-
-            Message::SeekDrag(proportion) => {
-                self.progress = Some(ProgressDisplay::Dragging(proportion));
-                Command::none()
-            }
-
-            Message::SeekRelease => {
-                let proportion = match &self.progress {
-                    Some(ProgressDisplay::Dragging(proportion)) => *proportion,
-                    _ => {
-                        error!("seek release without drag");
-                        return Command::none();
-                    }
-                };
-
-                self.progress = Some(ProgressDisplay::Optimistic(proportion, 0));
-                self.send_to_audio(AudioAction::Seek(proportion));
-
-                Command::none()
-            }
-
-            Message::SeekWithoutSong(_) => Command::none(),
-
-            Message::HoveredSong(song_id) => {
-                self.hovered_song_id = Some(song_id);
-                Command::none()
-            }
-
-            Message::UnhoveredSong(song_id) => {
-                if self.hovered_song_id == Some(song_id) {
-                    self.hovered_song_id = None;
-                }
-                Command::none()
-            }
-
-            Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
-                // update current song
-                match &mut self.current_song {
-                    Some(current_song) if current_song.id == display.song_id => {
-                        current_song.playing = display.playing;
-                    }
-
-                    _ => {
-                        match self.music_cache.get_song(&display.song_id) {
-                            Some(song) => {
-                                self.current_song =
-                                    Some(CurrentSong::from_song(song, display.playing));
-                            }
-                            None => {
-                                let song_id = display.song_id;
-                                error!("unexpected song_id: {song_id:?}")
-                            }
-                        };
-                    }
-                }
-
-                // update progress bar if necessary
-                match &self.progress {
-                    Some(ProgressDisplay::Dragging(_)) => {
-                        // ignore update to preserve drag state
-                    }
-                    Some(ProgressDisplay::Optimistic(_, _)) if !display.playing => {
-                        // this is after dragging while paused
-                        // ignore update to preserve dropped state
-                    }
-                    Some(ProgressDisplay::Optimistic(proportion, skips))
-                        if display.playing
-                            && *skips < ProgressDisplay::OPTIMISTIC_THRESHOLD =>
-                    {
-                        // this is after dragging while playing
-                        // ignores first updates after releasing to avoid flicker
-                        self.progress =
-                            Some(ProgressDisplay::Optimistic(*proportion, skips + 1));
-                    }
-                    _ => {
-                        self.progress = Some(ProgressDisplay::FromAudio(display.times));
-                    }
-                }
-
-                Command::none()
-            }
-
-            Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {
-                self.current_song = None;
-                self.progress = None;
-                Command::none()
-            }
-
-            Message::FromAudio(AudioMessage::AudioDied) => {
-                self.should_exit = true;
-                Command::none()
-            }
-        }
+        let effect = update(self, message);
+        self.execute(effect)
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
@@ -435,6 +258,204 @@ impl Application for Ui {
 
         main_column.into()
     }
+}
+
+fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
+    match message {
+        Message::FromCrawler(CrawlerMessage::NoAudioDirectory) => {
+            error!("failed to crawl audio directory");
+            ui.crawling_music = false;
+            Effect::none()
+        }
+        Message::FromCrawler(CrawlerMessage::DbError) => {
+            error!("crawler database error");
+            ui.crawling_music = false;
+            Effect::none()
+        }
+        Message::FromCrawler(CrawlerMessage::Done) => {
+            ui.crawling_music = false;
+            Effect::none()
+        }
+        Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled)) => {
+            let resize = if crawled.cached_art.is_none() {
+                crawled.covers.first().map(|cover_art| ResizeRequest {
+                    album_id: crawled.album.id,
+                    album_title: crawled
+                        .album
+                        .display_title()
+                        .unwrap_or_default()
+                        .to_string(),
+                    source_path: cover_art.clone(),
+                })
+            } else {
+                None
+            };
+
+            ui.music_cache.add_crawled_album(*crawled);
+
+            resize.into()
+        }
+
+        Message::FromResizer(ResizerMessage::ResizedImage(resized)) => {
+            ui.music_cache
+                .load_album_art(resized.album_id, resized.bytes);
+            Effect::none()
+        }
+        Message::FromResizer(ResizerMessage::NonActionableError) => Effect::none(),
+
+        Message::PlayClicked => {
+            let audio_action = match &mut ui.current_song {
+                None => None,
+                Some(CurrentSong { playing, .. }) if *playing => None,
+                Some(current_song) => {
+                    current_song.playing = true;
+                    Some(AudioAction::PlayPaused)
+                }
+            };
+
+            audio_action.into()
+        }
+
+        Message::PlaySongClicked(song_id) => {
+            let Some(current) = get_current_song(&ui.music_cache, song_id, true) else {
+                return Effect::none();
+            };
+
+            let queue = ui.music_cache.get_album_queue(current.id, current.album_id);
+            let Some(queue) = queue else {
+                error!("unable to build album queue");
+                return Effect::none();
+            };
+
+            ui.current_song = Some(current);
+
+            AudioAction::PlayQueue(queue).into()
+        }
+
+        Message::PauseClicked => {
+            if let Some(current_song) = &mut ui.current_song {
+                current_song.playing = false;
+            }
+
+            AudioAction::Pause.into()
+        }
+
+        Message::ForwardClicked => AudioAction::Forward.into(),
+
+        Message::BackClicked => {
+            ui.progress = Some(ProgressDisplay::Optimistic(
+                0.0,
+                ProgressDisplay::OPTIMISTIC_THRESHOLD,
+            ));
+
+            AudioAction::Back.into()
+        }
+
+        Message::SeekDrag(proportion) => {
+            ui.progress = Some(ProgressDisplay::Dragging(proportion));
+            Effect::none()
+        }
+
+        Message::SeekRelease => {
+            let proportion = match &ui.progress {
+                Some(ProgressDisplay::Dragging(proportion)) => *proportion,
+                _ => {
+                    error!("seek release without drag");
+                    return Effect::none();
+                }
+            };
+
+            ui.progress = Some(ProgressDisplay::Optimistic(proportion, 0));
+
+            AudioAction::Seek(proportion).into()
+        }
+
+        Message::SeekWithoutSong(_) => Effect::none(),
+
+        Message::HoveredSong(song_id) => {
+            ui.hovered_song_id = Some(song_id);
+            Effect::none()
+        }
+
+        Message::UnhoveredSong(song_id) => {
+            if ui.hovered_song_id == Some(song_id) {
+                ui.hovered_song_id = None;
+            }
+            Effect::none()
+        }
+
+        Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
+            // update current song
+            match &mut ui.current_song {
+                Some(current_song) if current_song.id == display.song_id => {
+                    current_song.playing = display.playing;
+                }
+
+                _ => {
+                    if let Some(current_song) = get_current_song(
+                        &ui.music_cache,
+                        display.song_id,
+                        display.playing,
+                    ) {
+                        ui.current_song = Some(current_song);
+                    }
+                }
+            }
+
+            // update progress bar if necessary
+            match &ui.progress {
+                Some(ProgressDisplay::Dragging(_)) => {
+                    // ignore update to preserve drag state
+                }
+                Some(ProgressDisplay::Optimistic(_, _)) if !display.playing => {
+                    // this is after dragging while paused
+                    // ignore update to preserve dropped state
+                }
+                Some(ProgressDisplay::Optimistic(proportion, skips))
+                    if display.playing
+                        && *skips < ProgressDisplay::OPTIMISTIC_THRESHOLD =>
+                {
+                    // this is after dragging while playing
+                    // ignores first updates after releasing to avoid flicker
+                    ui.progress =
+                        Some(ProgressDisplay::Optimistic(*proportion, skips + 1));
+                }
+                _ => {
+                    ui.progress = Some(ProgressDisplay::FromAudio(display.times));
+                }
+            }
+
+            Effect::none()
+        }
+
+        Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {
+            ui.current_song = None;
+            ui.progress = None;
+            Effect::none()
+        }
+
+        Message::FromAudio(AudioMessage::AudioDied) => {
+            ui.should_exit = true;
+            Effect::none()
+        }
+    }
+}
+
+fn get_current_song(
+    music_cache: &MusicCache,
+    song_id: SongId,
+    playing: bool,
+) -> Option<CurrentSong> {
+    let Some(song) = music_cache.get_song(&song_id) else {
+        error!("unexpected song id: {song_id:?}");
+        return None;
+    };
+    let Some(album) = music_cache.get_album(&song.album_id) else {
+        error!("unexpected album id: {:?}", &song.album_id);
+        return None;
+    };
+
+    Some(CurrentSong::new(song, album, playing))
 }
 
 fn fill_container<'a>(

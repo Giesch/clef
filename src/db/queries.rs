@@ -7,6 +7,13 @@ use super::models::{AlbumRow, NewAlbumRow, NewSongRow, SongRow};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AlbumId(i32);
 
+impl AlbumId {
+    #[cfg(test)]
+    pub fn new(id: i32) -> Self {
+        Self(id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SongId(i32);
 

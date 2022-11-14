@@ -1,10 +1,26 @@
 * Now
+- [ ] make a helper on music cache for getting song/album combo (it wants both always)
+  should also do it's own error handling, if possible
+  ie; mark items as invalid, or return an error requesting refresh from disk
+  for now, just a get_current_song helper is enough
+  could even be in ui module
+
 - [ ] add some vimmy commands (scroll)
+  how to go up/down one album?
+
 - [ ] add a way to search
   - modal? keyboard-based
+
 - [ ] change column size
   more space for song titles / data - 2/3 or 3/4
   do a golden/silver ratio thing?
+
+- [ ] unit tests for music cache
+  build album queue was broken in a dumb way
+
+- [ ] unit tests for update
+  make an inner type for the non-thready ui state
+  only pass the inner type to inner update
 
 * Next
 - [ ] replace icons with slightly darker color

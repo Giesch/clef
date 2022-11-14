@@ -77,11 +77,16 @@ impl MusicCache {
         self.songs_by_id.get(song_id)
     }
 
+    pub fn get_album(&self, album_id: &AlbumId) -> Option<&Album> {
+        self.albums_by_id.get(album_id).map(|ca| &ca.album)
+    }
+
     pub fn get_album_queue(
         &self,
-        clicked_song: &Song,
+        clicked_song_id: SongId,
+        clicked_album_id: AlbumId,
     ) -> Option<Queue<(SongId, Utf8PathBuf)>> {
-        let album = self.albums_by_id.get(&clicked_song.album_id)?;
+        let album = self.albums_by_id.get(&clicked_album_id)?;
 
         let mut previous = Vec::new();
         let mut next = VecDeque::new();
@@ -91,7 +96,7 @@ impl MusicCache {
             let id_path = (album_song.id, album_song.file.clone());
 
             if current.is_none() {
-                if album_song.id == clicked_song.id {
+                if album_song.id == clicked_song_id {
                     current = Some(id_path);
                 } else {
                     previous.push(id_path);
@@ -124,5 +129,72 @@ fn with_nones_last<T: Ord>(a: &Option<T>, b: &Option<T>) -> Ordering {
         (None, Some(_)) => Ordering::Greater,
         (Some(_), None) => Ordering::Less,
         (Some(a), Some(b)) => a.cmp(b),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn get_album_queue_smoke() {
+        let mut music_cache = MusicCache::default();
+        let album = fake_album();
+        music_cache.add_crawled_album(album.clone());
+
+        let clicked = &album.songs[2];
+        let queue = music_cache
+            .get_album_queue(clicked.id, clicked.album_id)
+            .unwrap();
+
+        assert_eq!(queue.current.0, SongId::new(3));
+
+        let previous_ids: Vec<SongId> =
+            queue.previous.into_iter().map(|pair| pair.0).collect();
+        assert_eq!(previous_ids, vec![SongId::new(1), SongId::new(2)]);
+
+        let next_ids: Vec<SongId> = queue.next.into_iter().map(|pair| pair.0).collect();
+        assert_eq!(next_ids, vec![SongId::new(4), SongId::new(5)]);
+    }
+
+    fn fake_album() -> CrawledAlbum {
+        let album_id = AlbumId::new(1);
+        let album = Album {
+            id: album_id,
+            directory: Utf8PathBuf::from_str("Album Dir").unwrap(),
+            title: Some("Album Title".to_string()),
+            artist: Some("Fake Artist".to_string()),
+            release_date: None,
+            original_art: None,
+            resized_art: None,
+        };
+
+        let songs = vec![
+            fake_song(1, "First", album_id),
+            fake_song(2, "Second", album_id),
+            fake_song(3, "Third", album_id),
+            fake_song(4, "Fourth", album_id),
+            fake_song(5, "Fifth", album_id),
+        ];
+
+        CrawledAlbum {
+            album,
+            songs,
+            cached_art: None,
+            covers: Default::default(),
+        }
+    }
+
+    fn fake_song(number: i32, title: &str, album_id: AlbumId) -> Song {
+        Song {
+            id: SongId::new(number),
+            album_id,
+            file: Utf8PathBuf::from_str(title).unwrap(),
+            title: Some(title.to_string()),
+            artist: Some("Fake Artist".to_string()),
+            track_number: Some(number),
+        }
     }
 }
