@@ -32,8 +32,12 @@ use music_cache::*;
 mod resizer;
 use resizer::*;
 
+use self::config::Config;
+pub mod config;
+
 #[derive(Debug)]
 pub struct Ui {
+    config: Arc<Config>,
     inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
     to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
     db: SqlitePool,
@@ -52,6 +56,7 @@ impl Ui {
         let (to_resizer_tx, to_resizer_rx) = flume::unbounded::<ResizeRequest>();
 
         Self {
+            config: Arc::new(flags.config),
             inbox: flags.inbox,
             to_audio: flags.to_audio,
             db: flags.db_pool,
@@ -137,6 +142,7 @@ pub struct Flags {
     pub inbox: Arc<Mutex<Receiver<channels::AudioMessage>>>,
     pub to_audio: Arc<Mutex<Sender<channels::AudioAction>>>,
     pub db_pool: SqlitePool,
+    pub config: Config,
 }
 
 #[derive(Debug, Clone)]
@@ -382,13 +388,18 @@ impl Application for Ui {
 
     fn subscription(&self) -> Subscription<Self::Message> {
         let crawler = if self.crawling_music {
-            crawler_subcription(self.db.clone()).map(Message::FromCrawler)
+            crawler_subcription(self.config.clone(), self.db.clone())
+                .map(Message::FromCrawler)
         } else {
             Subscription::none()
         };
 
-        let resizer = resizer_subscription(self.db.clone(), self.resizer_inbox.clone())
-            .map(Message::FromResizer);
+        let resizer = resizer_subscription(
+            self.config.clone(),
+            self.db.clone(),
+            self.resizer_inbox.clone(),
+        )
+        .map(Message::FromResizer);
 
         let audio = audio_subscription(self.inbox.clone()).map(Message::FromAudio);
 

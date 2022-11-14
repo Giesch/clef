@@ -1,16 +1,4 @@
 * Now
-- [X] clean shutdown for audio thread - no noisy logs
-- [X] change display_title methods to return option
-- [X] sort dependencies again
-- [X] double check all writes happen with immediate_transaction
-- [X] audit all unwraps and expects
-  even if it's fine now, it won't be in the future
-- [X] move more into 'platform' module, maybe rename it
-  all paths and path extensions - db name, cache dir name
-- [X] resolve all TODO tags
-- [ ] pull request for sqlite branch
-
-* Next
 - [ ] embed migrations, run on startup
   diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
   - [ ] create db if it doesn't exist
@@ -18,6 +6,11 @@
   - [ ] add build.rs for rebuilding migrations on change to those files
   - [ ] add a script for wiping cache & db for testing
 
+- [ ] replace platform module with a config struct
+  this will be necessary for integration tests
+  subscriptions will have to take an Arc<Config> or something
+
+* Next
 - [ ] replace icons with slightly darker color
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
@@ -64,6 +57,10 @@
 - [ ] make a full custom app theme
 
 - [ ] handle the audio thread errors gracefully
+  restart the audio thread?
+  go through the possible errors to see what could be done
+  ie; missing/bad file = tell the ui about it and stop
+    can test this by deleting the file after startup
 
 * Someday
 - [ ] playlists
@@ -97,3 +94,7 @@
 - [ ] select the config directory based on platform
 
 - [ ] add a subtle play button to album art
+
+- [ ] reconsider assumptions re: audio directory
+  - the crawler only goes one layer deep
+  - songs get their album id based on directory instead of tag

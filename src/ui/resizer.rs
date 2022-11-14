@@ -8,8 +8,9 @@ use parking_lot::Mutex;
 
 use crate::db::queries::{add_resized_image_location, AlbumId};
 use crate::db::SqlitePool;
-use crate::platform::local_data_dir;
 use crate::ui::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
+
+use super::config::Config;
 
 #[derive(Clone, Debug)]
 pub enum ResizerMessage {
@@ -34,6 +35,7 @@ pub struct ResizeRequest {
 }
 
 pub fn resizer_subscription(
+    config: Arc<Config>,
     db: SqlitePool,
     inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
 ) -> iced::Subscription<ResizerMessage> {
@@ -41,44 +43,34 @@ pub fn resizer_subscription(
 
     iced::subscription::unfold(
         std::any::TypeId::of::<ResizerSub>(),
-        ResizerState::Initial,
-        move |state| step(state, db.clone(), inbox.clone()),
+        ResizerState::Working,
+        move |state| step(state, config.clone(), db.clone(), inbox.clone()),
     )
 }
 
 enum ResizerState {
-    Initial,
-    Working(Utf8PathBuf),
-    Final,
+    Working,
+    Stopped,
 }
 
 async fn step(
     state: ResizerState,
+    config: Arc<Config>,
     db: SqlitePool,
     inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
 ) -> (Option<ResizerMessage>, ResizerState) {
     match state {
-        ResizerState::Initial => {
-            if let Some(images_directory) = get_images_directory() {
-                (None, ResizerState::Working(images_directory))
-            } else {
-                (
-                    Some(ResizerMessage::NonActionableError),
-                    ResizerState::Final,
-                )
-            }
-        }
-
-        ResizerState::Working(images_directory) => {
+        ResizerState::Working => {
+            let images_directory = &config.resized_images_directory;
             let request = match inbox.lock().try_recv() {
                 Ok(request) => request,
                 Err(TryRecvError::Empty) => {
-                    return (None, ResizerState::Working(images_directory));
+                    return (None, ResizerState::Working);
                 }
                 Err(TryRecvError::Disconnected) => {
                     return (
                         Some(ResizerMessage::NonActionableError),
-                        ResizerState::Final,
+                        ResizerState::Stopped,
                     );
                 }
             };
@@ -91,30 +83,11 @@ async fn step(
                 }
             };
 
-            (message, ResizerState::Working(images_directory))
+            (message, ResizerState::Working)
         }
 
-        ResizerState::Final => (None, ResizerState::Final),
+        ResizerState::Stopped => (None, ResizerState::Stopped),
     }
-}
-
-const IMAGES_DIR_NAME: &str = "resized_images";
-
-fn get_images_directory() -> Option<Utf8PathBuf> {
-    let local_data = match local_data_dir() {
-        Ok(path) => path,
-        Err(e) => {
-            error!("no local data dir: {e}");
-            return None;
-        }
-    };
-
-    let resized_images_dir = local_data.join(IMAGES_DIR_NAME);
-
-    // ensure the directory is created
-    std::fs::create_dir(&resized_images_dir).ok();
-
-    Some(resized_images_dir)
 }
 
 async fn resize(

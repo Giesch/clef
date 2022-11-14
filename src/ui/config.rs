@@ -2,7 +2,35 @@ use anyhow::Context;
 use camino::{Utf8Path, Utf8PathBuf};
 use directories::{ProjectDirs, UserDirs};
 
-pub fn local_data_dir() -> anyhow::Result<Utf8PathBuf> {
+#[derive(Debug)]
+pub struct Config {
+    pub local_data_directory: Utf8PathBuf,
+    pub audio_directory: Utf8PathBuf,
+    pub db_path: Utf8PathBuf,
+    pub resized_images_directory: Utf8PathBuf,
+}
+
+impl Config {
+    pub fn init() -> anyhow::Result<Self> {
+        let local_data_directory = local_data_dir()?;
+        let audio_directory = audio_dir()?;
+        let db_path = db_path()?;
+
+        let resized_images_directory = local_data_directory.join(IMAGES_DIR_NAME);
+        std::fs::create_dir(&resized_images_directory).ok();
+
+        Ok(Self {
+            local_data_directory,
+            audio_directory,
+            db_path,
+            resized_images_directory,
+        })
+    }
+}
+
+const IMAGES_DIR_NAME: &str = "resized_images";
+
+fn local_data_dir() -> anyhow::Result<Utf8PathBuf> {
     let project_dirs =
         project_dirs().context("no project directory path for app found")?;
     let local_data = project_dirs.data_local_dir();
@@ -13,7 +41,7 @@ pub fn local_data_dir() -> anyhow::Result<Utf8PathBuf> {
     Ok(local_data.to_owned())
 }
 
-pub fn db_path() -> anyhow::Result<Utf8PathBuf> {
+fn db_path() -> anyhow::Result<Utf8PathBuf> {
     let project_dirs =
         project_dirs().context("no project directory path for app found")?;
     let db_path = project_dirs.data_local_dir().join("db.sqlite");
@@ -24,7 +52,7 @@ pub fn db_path() -> anyhow::Result<Utf8PathBuf> {
     Ok(db_path)
 }
 
-pub fn audio_dir() -> anyhow::Result<Utf8PathBuf> {
+fn audio_dir() -> anyhow::Result<Utf8PathBuf> {
     let user_dirs = UserDirs::new().context("no user directories")?;
     let audio_dir = user_dirs.audio_dir().context("no audio directory")?;
     let audio_dir: &Utf8Path = audio_dir.try_into().context("invalid utf8")?;

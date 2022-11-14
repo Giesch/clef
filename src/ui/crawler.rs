@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
@@ -13,12 +14,12 @@ use symphonia::core::{
 };
 use symphonia::default::get_probe;
 
+use super::config::Config;
 use super::rgba::{load_cached_rgba_bmp, RgbaBytes};
 use crate::db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
 };
-use crate::platform::audio_dir;
 
 #[derive(Clone, Debug)]
 pub enum CrawlerMessage {
@@ -42,13 +43,16 @@ pub struct CrawledSong {
     pub tags: HashMap<TagKey, String>,
 }
 
-pub fn crawler_subcription(db: SqlitePool) -> iced::Subscription<CrawlerMessage> {
+pub fn crawler_subcription(
+    config: Arc<Config>,
+    db: SqlitePool,
+) -> iced::Subscription<CrawlerMessage> {
     struct CrawlerSub;
 
     iced::subscription::unfold(
         std::any::TypeId::of::<CrawlerSub>(),
         CrawlerState::Initial,
-        move |state| step(state, db.clone()),
+        move |state| step(state, config.clone(), db.clone()),
     )
 }
 
@@ -60,10 +64,11 @@ enum CrawlerState {
 
 async fn step(
     state: CrawlerState,
+    config: Arc<Config>,
     db: SqlitePool,
 ) -> (Option<CrawlerMessage>, CrawlerState) {
     match state {
-        CrawlerState::Initial => match collect_album_dirs() {
+        CrawlerState::Initial => match collect_album_dirs(&config.audio_directory) {
             Err(message) => (Some(message), CrawlerState::Final),
             Ok(mut album_dirs) => {
                 let conn = match db.get() {
@@ -106,15 +111,7 @@ async fn step(
     }
 }
 
-fn collect_album_dirs() -> Result<Vec<Utf8PathBuf>, CrawlerMessage> {
-    let audio_dir = match audio_dir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            error!("no audio directory: {e}");
-            return Err(CrawlerMessage::NoAudioDirectory);
-        }
-    };
-
+fn collect_album_dirs(audio_dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>, CrawlerMessage> {
     let mut album_dirs = Vec::new();
     let entries = audio_dir.read_dir().map_err(|e| {
         error!("error reading audio directory entries: {e}");
