@@ -359,10 +359,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::ForwardClicked => AudioAction::Forward.into(),
 
         Message::BackClicked => {
-            ui.progress = Some(ProgressDisplay::Optimistic(
-                0.0,
-                ProgressDisplay::OPTIMISTIC_THRESHOLD,
-            ));
+            ui.progress = Some(ProgressDisplay::Optimistic(0.0, 0));
 
             AudioAction::Back.into()
         }
@@ -715,8 +712,7 @@ mod tests {
         crawled.cached_art = None;
         crawled.album.original_art = None;
 
-        let message =
-            Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())));
+        let message = crawled_album_message(&crawled);
 
         let effect = update(&mut ui, message);
 
@@ -731,8 +727,7 @@ mod tests {
         crawled.cached_art = Some(RgbaBytes::empty());
         crawled.album.original_art = Some(Utf8PathBuf::from_str("original").unwrap());
 
-        let message =
-            Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())));
+        let message = crawled_album_message(&crawled);
 
         let effect = update(&mut ui, message);
 
@@ -746,8 +741,7 @@ mod tests {
         crawled.cached_art = None;
         crawled.album.original_art = Some(Utf8PathBuf::from_str("original").unwrap());
 
-        let message =
-            Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())));
+        let message = crawled_album_message(&crawled);
 
         let effect = update(&mut ui, message);
 
@@ -757,5 +751,9 @@ mod tests {
                 if album_id == crawled.album.id &&
                    source_path == crawled.album.original_art.unwrap()
         ))
+    }
+
+    fn crawled_album_message(crawled: &CrawledAlbum) -> Message {
+        Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())))
     }
 }

@@ -1,6 +1,15 @@
 * Now
+- [ ] keyboard support
+  - [ ] space for play/pause current song
+  - [ ] support media keys
+  - [ ] tab navigation - need to make the buttons focusable
+    so the track numbers will also have to be wrapped in button
+    is it better to not mimic the web for this?
+
 - [ ] add some vimmy commands (scroll)
-  how to go up/down one album?
+  C-e and C-y are easier
+  snap to top/bottom is easy
+  could have C-d and C-u just move by some predefined chunk
 
 - [ ] add a way to search
   - modal? keyboard-based
@@ -13,9 +22,6 @@
 - [ ] add song durations to view
   - [ ] for currently playing song
   - [ ] in the album song list
-
-- [X] add a hash or id to resized image names
-  two missing album titles results in duplicated names
 
 - [ ] load a nice startup ui quickly
   - [ ] last played song - progress and scroll?
@@ -83,11 +89,6 @@
 - [ ] help improve iced's image handling
 - [ ] Address scrolling lag when necessary
 
-- [ ] keyboard support
-  - [ ] space for play/pause
-  - [ ] support media keys
-  - [ ] tab navigation
-
 - [ ] drag and drop import
 - [ ] easy bandcamp import?
   drag/drop zip files?
@@ -96,6 +97,8 @@
 
 - [ ] non-latin text (use cosmic's stuff early?)
   https://github.com/iced-rs/iced/issues/1454
+  for now, they're still using a patched version of iced for the demo
+  https://github.com/pop-os/cosmic-text/issues/33#issuecomment-1305809078
 
 - [ ] select the music directory with a menu/modal, and cache it
 - [ ] select the config directory based on platform
