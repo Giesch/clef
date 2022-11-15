@@ -740,17 +740,17 @@ fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {
 
     children.push(horizontal_space(Length::Fill).into());
 
+    let mut label = String::new();
     if let Some(album) = &current.album {
-        children.push(text(album).into());
+        label.push_str(album);
     }
-
     if current.album.is_some() && current.artist.is_some() {
-        children.push(text(" - ").into());
+        label.push_str(" - ");
     }
-
     if let Some(artist) = &current.artist {
-        children.push(text(artist).into());
+        label.push_str(artist);
     }
+    children.push(text(label).into());
 
     children.push(horizontal_space(Length::Fill).into());
 
