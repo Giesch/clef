@@ -608,10 +608,14 @@ fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
         }
     };
 
+    let duration = format_seconds(song.total_seconds as f64);
+
     let hoverable = Hoverable::new(
         row![
             button_slot,
-            text(song.display_title().unwrap_or_default()).width(Length::Fill)
+            text(song.display_title().unwrap_or_default()).width(Length::Fill),
+            text(duration),
+            horizontal_space(Length::Units(10))
         ]
         .width(Length::Fill)
         .align_items(Alignment::Center)
@@ -696,6 +700,15 @@ fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {
     children.push(horizontal_space(Length::Fill).into());
 
     Row::with_children(children).spacing(10)
+}
+
+fn format_seconds(seconds: f64) -> String {
+    let minutes = seconds / 60.0;
+    let whole_minutes = minutes.floor();
+    let seconds = (minutes - whole_minutes) * 60.0;
+    let seconds = seconds.round();
+
+    format!("{whole_minutes}:{seconds:02}")
 }
 
 #[cfg(test)]

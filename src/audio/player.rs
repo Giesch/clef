@@ -4,17 +4,19 @@ use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
-use symphonia::core::codecs::{CodecParameters, Decoder, CODEC_TYPE_NULL};
+use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, Track};
+use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
-use symphonia::core::units::{Time, TimeBase};
+use symphonia::core::units::Time;
 
 use crate::audio::output::{self, AudioOutput};
 use crate::channels::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes, Queue};
 use crate::db::queries::SongId;
+
+use super::track_info::{first_supported_track, TrackInfo};
 
 #[derive(Debug)]
 pub struct Player {
@@ -25,8 +27,8 @@ pub struct Player {
 
 struct PlayerState {
     reader: Box<dyn FormatReader>,
-    audio_output: Option<Box<dyn output::AudioOutput>>,
     decoder: Box<dyn Decoder>,
+    audio_output: Option<Box<dyn output::AudioOutput>>,
     playing: bool, // false = paused
     seek_ts: Option<u64>,
     track_info: TrackInfo,
@@ -66,41 +68,6 @@ impl From<&PlayerState> for PlayerDisplay {
             });
 
         Self { song_id, playing, times }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct TrackInfo {
-    id: u32,
-    time_base: Option<TimeBase>,
-    duration: Option<u64>,
-}
-
-impl TrackInfo {
-    /// Given a packet timestamp, returns the progress times to display for the track
-    /// None = either time base or duration is missing from the track info
-    fn progress_times(&self, timestamp: u64) -> Option<ProgressTimes> {
-        match (self.time_base, self.duration) {
-            (Some(time_base), Some(duration)) => Some(ProgressTimes {
-                elapsed: time_base.calc_time(timestamp),
-                remaining: time_base.calc_time(duration.saturating_sub(timestamp)),
-                total: time_base.calc_time(duration),
-            }),
-
-            _ => None,
-        }
-    }
-}
-
-impl From<&Track> for TrackInfo {
-    fn from(track: &Track) -> Self {
-        let CodecParameters { time_base, n_frames, start_ts, .. } = track.codec_params;
-
-        Self {
-            id: track.id,
-            time_base,
-            duration: n_frames.map(|frames| start_ts + frames),
-        }
     }
 }
 
@@ -145,28 +112,26 @@ impl Player {
 
     fn step(state: Option<PlayerState>, msg: Option<AudioAction>) -> StepResult {
         use AudioAction::*;
+        use AudioMessage::DisplayUpdate;
 
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
                 // NOTE keep this in sync with the EOF section of continue_playing below
                 let player_state = PlayerState::play_queue(queue)?;
-                let ui_message =
-                    AudioMessage::DisplayUpdate(Some((&player_state).into()));
+                let ui_message = DisplayUpdate(Some((&player_state).into()));
                 Ok((Some(player_state), Some(ui_message)))
             }
 
             (Some(Pause), Some(mut player_state)) if player_state.playing => {
                 player_state.playing = false;
-                let ui_message =
-                    AudioMessage::DisplayUpdate(Some((&player_state).into()));
+                let ui_message = DisplayUpdate(Some((&player_state).into()));
                 Ok((Some(player_state), Some(ui_message)))
             }
             (Some(Pause), state) => Ok((state, None)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
-                let ui_message =
-                    AudioMessage::DisplayUpdate(Some((&player_state).into()));
+                let ui_message = DisplayUpdate(Some((&player_state).into()));
                 Ok((Some(player_state), Some(ui_message)))
             }
             (Some(PlayPaused), state) => Ok((state, None)),
@@ -187,13 +152,11 @@ impl Player {
                     seek_seconds += total.frac as f32 * proportion;
 
                     let player_state = player_state.seek_to(seek_seconds);
-                    let ui_message =
-                        AudioMessage::DisplayUpdate(Some((&player_state).into()));
+                    let ui_message = DisplayUpdate(Some((&player_state).into()));
                     Ok((Some(player_state), Some(ui_message)))
                 } else {
                     error!("missing track info: {:#?}", player_state.track_info);
-                    let ui_message =
-                        AudioMessage::DisplayUpdate(Some((&player_state).into()));
+                    let ui_message = DisplayUpdate(Some((&player_state).into()));
                     Ok((Some(player_state), Some(ui_message)))
                 }
             }
@@ -421,12 +384,6 @@ impl PlayerState {
 
         Ok((Some(player_state), Some(ui_message)))
     }
-}
-
-fn first_supported_track(tracks: &[Track]) -> Option<&Track> {
-    tracks
-        .iter()
-        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
 }
 
 #[cfg(test)]

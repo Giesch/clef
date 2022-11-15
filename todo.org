@@ -114,3 +114,5 @@
   maybe just in the db, maybe also on the audio file
 
 - [ ] property testing
+
+- [ ] use TryFrom instead of as for crawling total_seconds

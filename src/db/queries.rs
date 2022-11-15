@@ -71,6 +71,7 @@ pub struct Song {
     pub id: SongId,
     pub album_id: AlbumId,
     pub file: Utf8PathBuf,
+    pub total_seconds: i64,
 
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -83,6 +84,7 @@ impl From<SongRow> for Song {
             id: SongId(row.id),
             album_id: AlbumId(row.album_id),
             file: row.file.into(),
+            total_seconds: row.total_seconds,
             title: row.title,
             artist: row.artist,
             track_number: row.track_number,
@@ -129,6 +131,7 @@ impl From<NewAlbum> for NewAlbumRow {
 pub struct NewSong {
     pub album_id: AlbumId,
     pub file: Utf8PathBuf,
+    pub total_seconds: i64,
 
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -140,6 +143,7 @@ impl From<NewSong> for NewSongRow {
         Self {
             album_id: song.album_id.0,
             file: song.file.into(),
+            total_seconds: song.total_seconds,
             title: song.title,
             artist: song.artist,
             track_number: song.track_number,

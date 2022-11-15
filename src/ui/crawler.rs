@@ -16,6 +16,7 @@ use symphonia::default::get_probe;
 
 use super::config::Config;
 use super::rgba::{load_cached_rgba_bmp, RgbaBytes};
+use crate::audio::track_info::{first_supported_track, TrackInfo};
 use crate::db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
@@ -40,6 +41,7 @@ pub struct CrawledAlbum {
 pub struct CrawledSong {
     pub path: Utf8PathBuf,
     pub tags: HashMap<TagKey, String>,
+    pub total_seconds: u64,
 }
 
 pub fn crawler_subcription(
@@ -158,8 +160,12 @@ fn collect_single_album(
         };
 
         if is_music(&path) {
-            if let Some(tags) = decode_tags(&path) {
-                songs.push(CrawledSong { path, tags });
+            if let Some(decoded) = decode_tags(&path) {
+                songs.push(CrawledSong {
+                    path,
+                    tags: decoded.tags,
+                    total_seconds: decoded.total_seconds,
+                });
             } else {
                 continue;
             }
@@ -195,13 +201,14 @@ fn collect_single_album(
             };
 
             let mut saved_songs = Vec::new();
-            for song in &songs {
+            for crawled in &songs {
                 let new_song = NewSong {
                     album_id: saved_album.id,
-                    file: song.path.clone(),
-                    title: song.tags.get(&TagKey::TrackTitle).cloned(),
-                    artist: song.tags.get(&TagKey::Artist).cloned(),
-                    track_number: song
+                    file: crawled.path.clone(),
+                    total_seconds: crawled.total_seconds as i64,
+                    title: crawled.tags.get(&TagKey::TrackTitle).cloned(),
+                    artist: crawled.tags.get(&TagKey::Artist).cloned(),
+                    track_number: crawled
                         .tags
                         .get(&TagKey::TrackNumber)
                         .and_then(|s| s.parse().ok()),
@@ -252,9 +259,14 @@ fn is_cover_art(path: &Utf8Path) -> bool {
         .unwrap_or_default()
 }
 
+struct DecodedStuff {
+    tags: HashMap<TagKey, String>,
+    total_seconds: u64,
+}
+
 /// NOTE This returns an empty tag map if they're missing,
 /// and None for file not found or unsupported format
-fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
+fn decode_tags(path: &Utf8Path) -> Option<DecodedStuff> {
     let mut hint = Hint::new();
     let source = {
         // Provide the file extension as a hint.
@@ -288,6 +300,18 @@ fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
         }
     };
 
+    // TODO move player types and helpers to a shared module
+    // then add duration to
+    //
+    let Some(track) = first_supported_track(probed.format.tracks()) else {
+        error!("no supported track");
+        return None;
+    };
+    let track_info: TrackInfo = track.into();
+    let total = track_info.progress_times(0).unwrap().total;
+    // TODO what floats does sqlite support?
+    let total_seconds = total.seconds;
+
     let tags = if let Some(metadata_rev) = probed.format.metadata().current() {
         Some(gather_tags(metadata_rev))
     } else {
@@ -298,8 +322,9 @@ fn decode_tags(path: &Utf8Path) -> Option<HashMap<TagKey, String>> {
             .and_then(|m| m.current())
             .map(gather_tags)
     };
+    let tags = tags.unwrap_or_default();
 
-    Some(tags.unwrap_or_default())
+    Some(DecodedStuff { tags, total_seconds })
 }
 
 fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {

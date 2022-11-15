@@ -32,6 +32,7 @@ pub(super) struct SongRow {
     pub id: i32,
     pub album_id: i32,
     pub file: String,
+    pub total_seconds: i64,
 
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -43,6 +44,7 @@ pub(super) struct SongRow {
 pub(super) struct NewSongRow {
     pub album_id: i32,
     pub file: String,
+    pub total_seconds: i64,
 
     pub title: Option<String>,
     pub artist: Option<String>,

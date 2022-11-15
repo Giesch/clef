@@ -17,6 +17,7 @@ diesel::table! {
         id -> Integer,
         album_id -> Integer,
         file -> Text,
+        total_seconds -> BigInt,
         title -> Nullable<Text>,
         artist -> Nullable<Text>,
         track_number -> Nullable<Integer>,
