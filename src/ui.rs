@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use flume::{Receiver, Sender};
+use iced::keyboard::KeyCode;
 use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text, Column,
     Container, Image, Row, Space,
 };
 use iced::{
-    alignment, executor, Alignment, Application, Command, ContentFit, Element, Length,
-    Subscription, Theme,
+    alignment, executor, Alignment, Application, Command, ContentFit, Element, Event,
+    Length, Subscription, Theme,
 };
+use iced_native::keyboard::Event as KeyboardEvent;
 use log::error;
 use parking_lot::Mutex;
 
@@ -173,6 +175,7 @@ pub enum Message {
     FromCrawler(CrawlerMessage),
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
+    Native(Event),
     PlayClicked,
     PlaySongClicked(SongId),
     PauseClicked,
@@ -235,42 +238,13 @@ impl Application for App {
 
         let audio = audio_subscription(self.inbox.clone()).map(Message::FromAudio);
 
-        Subscription::batch([crawler, resizer, audio])
+        let native = iced_native::subscription::events().map(Message::Native);
+
+        Subscription::batch([crawler, resizer, audio, native])
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
-        const MAX: f32 = 1.0;
-        const STEP: f32 = 0.01;
-
-        let ui = &self.ui;
-
-        let progress_slider = match &ui.progress {
-            Some(progress) => {
-                let proportion = progress.display_proportion();
-
-                slider(0.0..=MAX, proportion, Message::SeekDrag)
-                    .step(STEP)
-                    .on_release(Message::SeekRelease)
-            }
-
-            // disabled
-            None => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
-        };
-
-        let content =
-            view_album_list(&ui.music_cache, &ui.hovered_song_id, &ui.current_song);
-
-        let content = fill_container(scrollable(content));
-        let bottom_row = view_bottom_row(&ui.current_song);
-
-        let main_column = column![content, bottom_row, progress_slider]
-            .spacing(10)
-            .padding(20)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_items(Alignment::Center);
-
-        main_column.into()
+        view(&self.ui)
     }
 }
 
@@ -318,6 +292,16 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 .load_album_art(resized.album_id, resized.bytes);
             Effect::none()
         }
+
+        Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
+            key_code, ..
+        })) if key_code == KeyCode::Space => match &ui.current_song {
+            Some(current) if current.playing => AudioAction::Pause.into(),
+            Some(_paused) => AudioAction::PlayPaused.into(),
+            None => Effect::none(),
+        },
+
+        Message::Native(_) => Effect::none(),
 
         Message::PlayClicked => {
             let audio_action = match &mut ui.current_song {
@@ -452,6 +436,38 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
     }
+}
+
+fn view(ui: &Ui) -> Element<'_, Message> {
+    const MAX: f32 = 1.0;
+    const STEP: f32 = 0.01;
+
+    let progress_slider = match &ui.progress {
+        Some(progress) => {
+            let proportion = progress.display_proportion();
+
+            slider(0.0..=MAX, proportion, Message::SeekDrag)
+                .step(STEP)
+                .on_release(Message::SeekRelease)
+        }
+
+        // disabled
+        None => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
+    };
+
+    let content = view_album_list(&ui.music_cache, &ui.hovered_song_id, &ui.current_song);
+
+    let content = fill_container(scrollable(content));
+    let bottom_row = view_bottom_row(&ui.current_song);
+
+    let main_column = column![content, bottom_row, progress_slider]
+        .spacing(10)
+        .padding(20)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_items(Alignment::Center);
+
+    main_column.into()
 }
 
 fn get_current_song(

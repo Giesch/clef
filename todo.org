@@ -1,10 +1,11 @@
 * Now
-- [ ] keyboard support
-  - [ ] space for play/pause current song
+- [-] keyboard support
+  - [X] space for play/pause current song
   - [ ] support media keys
   - [ ] tab navigation - need to make the buttons focusable
     so the track numbers will also have to be wrapped in button
     is it better to not mimic the web for this?
+      what would the alternative look like?
 
 - [ ] add some vimmy commands (scroll)
   C-e and C-y are easier
