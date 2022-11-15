@@ -121,6 +121,7 @@ struct CurrentSong {
     album: Option<String>,
     artist: Option<String>,
     playing: bool,
+    total_seconds: i64,
 }
 
 impl CurrentSong {
@@ -131,6 +132,7 @@ impl CurrentSong {
             title: song.display_title().unwrap_or_default().to_owned(),
             album: album.title.clone(),
             artist: song.artist.clone(),
+            total_seconds: song.total_seconds,
             playing,
         }
     }
@@ -259,6 +261,8 @@ impl Application for App {
         view(&self.ui)
     }
 }
+
+// Update
 
 fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
     match message {
@@ -444,6 +448,25 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
     }
 }
 
+fn get_current_song(
+    music_cache: &MusicCache,
+    song_id: SongId,
+    playing: bool,
+) -> Option<CurrentSong> {
+    let Some(song) = music_cache.get_song(&song_id) else {
+        error!("unexpected song id: {song_id:?}");
+        return None;
+    };
+    let Some(album) = music_cache.get_album(&song.album_id) else {
+        error!("unexpected album id: {:?}", &song.album_id);
+        return None;
+    };
+
+    Some(CurrentSong::new(song, album, playing))
+}
+
+// View
+
 fn view(ui: &Ui) -> Element<'_, Message> {
     const MAX: f32 = 1.0;
     const STEP: f32 = 0.01;
@@ -464,7 +487,7 @@ fn view(ui: &Ui) -> Element<'_, Message> {
     let content = view_album_list(&ui.music_cache, &ui.hovered_song_id, &ui.current_song);
 
     let content = fill_container(scrollable(content));
-    let bottom_row = view_bottom_row(&ui.current_song);
+    let bottom_row = view_bottom_row(&ui.current_song, &ui.progress);
 
     let main_column = column![content, bottom_row, progress_slider]
         .spacing(10)
@@ -474,23 +497,6 @@ fn view(ui: &Ui) -> Element<'_, Message> {
         .align_items(Alignment::Center);
 
     main_column.into()
-}
-
-fn get_current_song(
-    music_cache: &MusicCache,
-    song_id: SongId,
-    playing: bool,
-) -> Option<CurrentSong> {
-    let Some(song) = music_cache.get_song(&song_id) else {
-        error!("unexpected song id: {song_id:?}");
-        return None;
-    };
-    let Some(album) = music_cache.get_album(&song.album_id) else {
-        error!("unexpected album id: {:?}", &song.album_id);
-        return None;
-    };
-
-    Some(CurrentSong::new(song, album, playing))
 }
 
 fn fill_container<'a>(
@@ -652,9 +658,12 @@ fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
 const MAGIC_SVG_SIZE: Length = Length::Units(34);
 
 /// The bottom row with the play/pause button and current song info
-fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
-    let row_content = match current_song {
-        Some(current_song) => {
+fn view_bottom_row<'a>(
+    current_song: &'a Option<CurrentSong>,
+    progress: &'a Option<ProgressDisplay>,
+) -> Element<'a, Message> {
+    let row_content = match (current_song, progress) {
+        (Some(current_song), Some(progress)) => {
             let play_pause_button = if current_song.playing {
                 button(icons::pause())
                     .on_press(Message::PauseClicked)
@@ -665,33 +674,60 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
                     .style(no_background())
             };
 
-            row![
+            let elapsed = match progress {
+                ProgressDisplay::Dragging(proportion) => {
+                    *proportion as f64 * current_song.total_seconds as f64
+                }
+
+                ProgressDisplay::Optimistic(OptimisticTime { proportion, .. }) => {
+                    *proportion as f64 * current_song.total_seconds as f64
+                }
+
+                ProgressDisplay::FromAudio(times) => times.elapsed.seconds as f64,
+            };
+
+            let elapsed = format_seconds(elapsed);
+            let total = format_seconds(current_song.total_seconds as f64);
+            let duration = format!("{elapsed} / {total}");
+
+            let left_side = row![
                 text(&current_song.title)
                     .width(Length::Fill)
-                    .height(MAGIC_SVG_SIZE)
+                    .height(Length::Fill)
                     .horizontal_alignment(alignment::Horizontal::Center)
                     .vertical_alignment(alignment::Vertical::Center),
                 button(icons::back())
                     .on_press(Message::BackClicked)
                     .style(no_background()),
-                play_pause_button,
+            ]
+            .height(MAGIC_SVG_SIZE)
+            .width(Length::FillPortion(1));
+
+            let right_side = row![
                 button(icons::forward())
                     .on_press(Message::ForwardClicked)
                     .style(no_background()),
                 view_current_album_artist(current_song)
                     .width(Length::Fill)
-                    .height(MAGIC_SVG_SIZE)
+                    .height(Length::Fill)
                     .align_items(Alignment::Center),
+                text(duration)
+                    .height(Length::Fill)
+                    .horizontal_alignment(alignment::Horizontal::Center)
+                    .vertical_alignment(alignment::Vertical::Center),
             ]
+            .height(MAGIC_SVG_SIZE)
+            .width(Length::FillPortion(1));
+
+            row![left_side, play_pause_button, right_side,].height(MAGIC_SVG_SIZE)
         }
 
-        None => {
-            row![
-                Space::new(Length::Fill, MAGIC_SVG_SIZE),
-                button(icons::play()).style(no_background()),
-                Space::new(Length::Fill, MAGIC_SVG_SIZE),
-            ]
-        }
+        _ => row![
+            Space::new(Length::Fill, MAGIC_SVG_SIZE),
+            button(icons::play()).style(no_background()),
+            Space::new(Length::Fill, MAGIC_SVG_SIZE),
+        ]
+        .height(MAGIC_SVG_SIZE),
     };
 
     let bottom_row = row_content.width(Length::Fill).spacing(10);
