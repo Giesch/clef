@@ -6,9 +6,9 @@ use flume::{Receiver, TryRecvError};
 use log::error;
 use parking_lot::Mutex;
 
+use crate::app::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 use crate::db::queries::{add_resized_image_location, AlbumId};
 use crate::db::SqlitePool;
-use crate::ui::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 
 use super::config::Config;
 

@@ -1,7 +1,7 @@
 use iced::Command;
 
+use crate::app::resizer::ResizeRequest;
 use crate::channels::AudioAction;
-use crate::ui::resizer::ResizeRequest;
 
 #[derive(Debug)]
 pub enum Effect<Message> {
