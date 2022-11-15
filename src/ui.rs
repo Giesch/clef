@@ -139,20 +139,32 @@ impl CurrentSong {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgressDisplay {
     Dragging(f32),
-    Optimistic(f32, usize),
+    Optimistic(OptimisticTime),
     FromAudio(ProgressTimes),
 }
 
-impl ProgressDisplay {
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimisticTime {
+    proportion: f32,
+    updates_skipped: usize,
+}
+
+impl OptimisticTime {
     /// The number of audio thread updates to skip after the user
     /// releases the mouse while seeking. This prevents a flicker of
     /// displaying the old play position.
-    const OPTIMISTIC_THRESHOLD: usize = 2;
+    const THRESHOLD: usize = 2;
 
+    fn under_threshold(&self) -> bool {
+        self.updates_skipped < Self::THRESHOLD
+    }
+}
+
+impl ProgressDisplay {
     fn display_proportion(&self) -> f32 {
         match self {
             ProgressDisplay::Dragging(proportion) => *proportion,
-            ProgressDisplay::Optimistic(proportion, _) => *proportion,
+            ProgressDisplay::Optimistic(optimistic) => optimistic.proportion,
             ProgressDisplay::FromAudio(times) => {
                 let elapsed = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
                 let total = times.total.seconds as f32 + times.total.frac as f32;
@@ -330,7 +342,8 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::ForwardClicked => AudioAction::Forward.into(),
 
         Message::BackClicked => {
-            ui.progress = Some(ProgressDisplay::Optimistic(0.0, 0));
+            let optimistic = OptimisticTime { proportion: 0.0, updates_skipped: 0 };
+            ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
             AudioAction::Back.into()
         }
@@ -349,7 +362,8 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 }
             };
 
-            ui.progress = Some(ProgressDisplay::Optimistic(proportion, 0));
+            let optimistic = OptimisticTime { proportion, updates_skipped: 0 };
+            ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
             AudioAction::Seek(proportion).into()
         }
@@ -390,20 +404,25 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 Some(ProgressDisplay::Dragging(_)) => {
                     // ignore update to preserve drag state
                 }
-                Some(ProgressDisplay::Optimistic(_, _)) if !display.playing => {
+
+                Some(ProgressDisplay::Optimistic(_)) if !display.playing => {
                     // this is after dragging while paused
                     // ignore update to preserve the dropped state until next play
                 }
-                Some(ProgressDisplay::Optimistic(proportion, skips))
-                    if display.playing
-                        && *skips < ProgressDisplay::OPTIMISTIC_THRESHOLD =>
+
+                Some(ProgressDisplay::Optimistic(optimistic))
+                    if display.playing && optimistic.under_threshold() =>
                 {
                     // this is after dragging & releasing while playing,
                     // or when pressing play after a drop
                     // ignores the first updates to avoid flicker
-                    ui.progress =
-                        Some(ProgressDisplay::Optimistic(*proportion, skips + 1));
+                    let optimistic = OptimisticTime {
+                        proportion: optimistic.proportion,
+                        updates_skipped: optimistic.updates_skipped + 1,
+                    };
+                    ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
                 }
+
                 _ => {
                     ui.progress = Some(ProgressDisplay::FromAudio(display.times));
                 }
@@ -572,7 +591,7 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
 enum SongRowStatus {
     /// currently playing - show pause button
     Playing,
-    /// currently paused - show play/pause button
+    /// currently paused - show play_paused button
     Paused,
     /// Both hovered and not currently playing - show play from start button
     Hovered,
