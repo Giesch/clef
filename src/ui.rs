@@ -176,7 +176,7 @@ pub enum Message {
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
     Native(Event),
-    PlayClicked,
+    PlayPausedClicked,
     PlaySongClicked(SongId),
     PauseClicked,
     ForwardClicked,
@@ -295,26 +295,19 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
-        })) if key_code == KeyCode::Space => match &ui.current_song {
-            Some(current) if current.playing => AudioAction::Pause.into(),
-            Some(_paused) => AudioAction::PlayPaused.into(),
-            None => Effect::none(),
-        },
+        })) if key_code == KeyCode::Space || key_code == KeyCode::PlayPause => {
+            let playing = ui.current_song.as_ref().map(|c| c.playing);
+
+            match playing {
+                Some(true) => AudioAction::Pause.into(),
+                Some(false) => AudioAction::PlayPaused.into(),
+                None => Effect::none(),
+            }
+        }
 
         Message::Native(_) => Effect::none(),
 
-        Message::PlayClicked => {
-            let audio_action = match &mut ui.current_song {
-                None => None,
-                Some(CurrentSong { playing, .. }) if *playing => None,
-                Some(current_song) => {
-                    current_song.playing = true;
-                    Some(AudioAction::PlayPaused)
-                }
-            };
-
-            audio_action.into()
-        }
+        Message::PlayPausedClicked => AudioAction::PlayPaused.into(),
 
         Message::PlaySongClicked(song_id) => {
             let Some(current) = get_current_song(&ui.music_cache, song_id, true) else {
@@ -332,13 +325,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             AudioAction::PlayQueue(queue).into()
         }
 
-        Message::PauseClicked => {
-            if let Some(current_song) = &mut ui.current_song {
-                current_song.playing = false;
-            }
-
-            AudioAction::Pause.into()
-        }
+        Message::PauseClicked => AudioAction::Pause.into(),
 
         Message::ForwardClicked => AudioAction::Forward.into(),
 
@@ -602,7 +589,7 @@ fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
             .into(),
 
         SongRowStatus::Paused => button(icons::play())
-            .on_press(Message::PlayClicked)
+            .on_press(Message::PlayPausedClicked)
             .style(no_background())
             .into(),
 
@@ -651,7 +638,7 @@ fn view_bottom_row(current_song: &Option<CurrentSong>) -> Element<'_, Message> {
                     .style(no_background())
             } else {
                 button(icons::play())
-                    .on_press(Message::PlayClicked)
+                    .on_press(Message::PlayPausedClicked)
                     .style(no_background())
             };
 

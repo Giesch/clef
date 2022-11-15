@@ -69,7 +69,7 @@ async fn step(
                 }
             };
 
-            let message = match resize(&request, images_directory, db.clone()) {
+            let message = match resize(&request, images_directory, db) {
                 Ok(resized_image) => Some(ResizerMessage::ResizedImage(resized_image)),
                 Err(e) => {
                     error!("error resizing image: {request:#?} {e}");
