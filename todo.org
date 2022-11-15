@@ -1,4 +1,8 @@
 * Now
+- [-] add song durations to view
+  - [ ] for currently playing song
+  - [X] in the album song list
+
 - [-] keyboard support
   - [X] space for play/pause current song
   - [ ] support media keys
@@ -20,9 +24,12 @@
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
 
-- [ ] add song durations to view
-  - [ ] for currently playing song
-  - [ ] in the album song list
+- [ ] do the 'display_title' based on file system on import
+  then allow updating it later
+  this is less confusing for the user and avoids unnecessary optionals
+
+- [ ] find a better way to avoid flicker
+  skipping a magic number of audio updates sucks
 
 - [ ] load a nice startup ui quickly
   - [ ] last played song - progress and scroll?
@@ -71,6 +78,8 @@
   go through the possible errors to see what could be done
   ie; missing/bad file = tell the ui about it and stop
     can test this by deleting the file after startup
+
+- [ ] listen to media keys while backgrounded
 
 * Someday
 - [ ] playlists
