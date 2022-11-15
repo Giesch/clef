@@ -1,6 +1,6 @@
 * Now
-- [-] add song durations to view
-  - [ ] for currently playing song
+- [X] add song durations to view
+  - [X] for currently playing song
   - [X] in the album song list
 
 - [-] keyboard support
@@ -80,6 +80,9 @@
     can test this by deleting the file after startup
 
 - [ ] listen to media keys while backgrounded
+
+- [ ] make it more responsive
+  text wrapping in bottom row is bad
 
 * Someday
 - [ ] playlists
