@@ -5,7 +5,7 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use diesel::result::Error as DieselError;
 use log::{error, info};
-use symphonia::core::meta::StandardTagKey;
+use symphonia::core::meta::{Metadata, StandardTagKey};
 use symphonia::core::{
     formats::FormatOptions,
     io::MediaSourceStream,
@@ -92,7 +92,7 @@ async fn step(
                 return (Some(CrawlerMessage::Done), CrawlerState::Final);
             };
 
-            let crawled_album = match collect_single_album(album_dir, &mut conn) {
+            let crawled_album = match collect_single_album(&album_dir, &mut conn) {
                 Ok(crawled_album) => Box::new(crawled_album),
                 Err(maybe_message) => {
                     return (
@@ -123,7 +123,7 @@ fn collect_album_dirs(audio_dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>, CrawlerM
         let Ok(entry) = entry else {
             continue;
         };
-        let path: Utf8PathBuf = match entry.path().to_owned().try_into() {
+        let path: Utf8PathBuf = match entry.path().clone().try_into() {
             Ok(utf8) => utf8,
             Err(_) => {
                 continue;
@@ -139,7 +139,7 @@ fn collect_album_dirs(audio_dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>, CrawlerM
 }
 
 fn collect_single_album(
-    album_dir: Utf8PathBuf,
+    album_dir: &Utf8Path,
     conn: &mut SqlitePoolConn,
 ) -> Result<CrawledAlbum, Option<CrawlerMessage>> {
     let mut songs = Vec::new();
@@ -170,7 +170,7 @@ fn collect_single_album(
                 continue;
             }
         } else if is_cover_art(&path) {
-            covers.push(path.to_owned());
+            covers.push(path.clone());
         }
     }
 
@@ -189,7 +189,7 @@ fn collect_single_album(
                     .unwrap_or_default();
 
                 let new_album = NewAlbum {
-                    directory: album_dir.clone(),
+                    directory: album_dir.to_owned(),
                     title: album_title.cloned(),
                     artist: album_artist.cloned(),
                     release_date: album_date.cloned(),
@@ -300,17 +300,16 @@ fn decode_tags(path: &Utf8Path) -> Option<DecodedStuff> {
         }
     };
 
-    // TODO move player types and helpers to a shared module
-    // then add duration to
-    //
     let Some(track) = first_supported_track(probed.format.tracks()) else {
         error!("no supported track");
         return None;
     };
     let track_info: TrackInfo = track.into();
-    let total = track_info.progress_times(0).unwrap().total;
-    // TODO what floats does sqlite support?
-    let total_seconds = total.seconds;
+
+    let Some(times) = track_info.progress_times(0) else {
+        error!("missing time information for audio file: {path}");
+        return None;
+    };
 
     let tags = if let Some(metadata_rev) = probed.format.metadata().current() {
         Some(gather_tags(metadata_rev))
@@ -319,12 +318,15 @@ fn decode_tags(path: &Utf8Path) -> Option<DecodedStuff> {
             .metadata
             .get()
             .as_ref()
-            .and_then(|m| m.current())
+            .and_then(Metadata::current)
             .map(gather_tags)
     };
     let tags = tags.unwrap_or_default();
 
-    Some(DecodedStuff { tags, total_seconds })
+    Some(DecodedStuff {
+        tags,
+        total_seconds: times.total.seconds,
+    })
 }
 
 fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {

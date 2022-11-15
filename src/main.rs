@@ -4,10 +4,10 @@ use clef::db::run_migrations;
 use iced::{Application, Settings};
 use parking_lot::Mutex;
 
+use clef::app::config::Config;
+use clef::app::{App, Flags};
 use clef::channels::*;
 use clef::db;
-use clef::ui::config::Config;
-use clef::ui::{App, Flags};
 
 fn main() -> iced::Result {
     pretty_env_logger::init();

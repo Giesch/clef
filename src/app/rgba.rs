@@ -45,7 +45,11 @@ pub const IMAGE_SIZE: u16 = 256;
 /// NOTE this is slow
 pub fn load_rgba(path: &Utf8PathBuf) -> anyhow::Result<RgbaBytes> {
     let img = image_rs::open(path)?;
-    let img = img.resize(IMAGE_SIZE as u32, IMAGE_SIZE as u32, FilterType::Lanczos3);
+    let img = img.resize(
+        u32::from(IMAGE_SIZE),
+        u32::from(IMAGE_SIZE),
+        FilterType::Lanczos3,
+    );
 
     let rgba = img.to_rgba8();
 

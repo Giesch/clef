@@ -484,7 +484,7 @@ fn view(ui: &Ui) -> Element<'_, Message> {
         None => slider(0.0..=MAX, 0.0, Message::SeekWithoutSong).step(STEP),
     };
 
-    let content = view_album_list(&ui.music_cache, &ui.hovered_song_id, &ui.current_song);
+    let content = view_album_list(&ui.music_cache, ui.hovered_song_id, &ui.current_song);
 
     let content = fill_container(scrollable(content));
     let bottom_row = view_bottom_row(&ui.current_song, &ui.progress);
@@ -511,7 +511,7 @@ fn fill_container<'a>(
 
 fn view_album_list<'a>(
     music: &'a MusicCache,
-    hovered_song_id: &'a Option<SongId>,
+    hovered_song_id: Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Column<'a, Message> {
     let rows: Vec<_> = music
@@ -528,7 +528,7 @@ fn view_album_list<'a>(
 
 fn view_album<'a>(
     album: &'a CachedAlbum,
-    hovered_song_id: &'a Option<SongId>,
+    hovered_song_id: Option<SongId>,
     current_song: &'a Option<CurrentSong>,
 ) -> Element<'a, Message> {
     let album_image = view_album_image(album.art.as_ref());
@@ -557,7 +557,7 @@ fn view_album<'a>(
 
 fn song_row_status(
     current_song: &Option<CurrentSong>,
-    hovered_song_id: &Option<SongId>,
+    hovered_song_id: Option<SongId>,
     song_row_id: SongId,
 ) -> SongRowStatus {
     match current_song {
@@ -570,7 +570,7 @@ fn song_row_status(
         }
 
         _ => {
-            if *hovered_song_id == Some(song_row_id) {
+            if hovered_song_id == Some(song_row_id) {
                 SongRowStatus::Hovered
             } else {
                 SongRowStatus::None
@@ -675,12 +675,9 @@ fn view_bottom_row<'a>(
             };
 
             let elapsed = match progress {
-                ProgressDisplay::Dragging(proportion) => {
-                    *proportion as f64 * current_song.total_seconds as f64
-                }
-
-                ProgressDisplay::Optimistic(OptimisticTime { proportion, .. }) => {
-                    *proportion as f64 * current_song.total_seconds as f64
+                ProgressDisplay::Dragging(proportion)
+                | ProgressDisplay::Optimistic(OptimisticTime { proportion, .. }) => {
+                    f64::from(*proportion) * current_song.total_seconds as f64
                 }
 
                 ProgressDisplay::FromAudio(times) => times.elapsed.seconds as f64,
