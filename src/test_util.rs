@@ -36,5 +36,6 @@ pub fn fake_song(number: i32, title: &str, album_id: AlbumId) -> Song {
         title: Some(title.to_string()),
         artist: Some("Fake Artist".to_string()),
         track_number: Some(number),
+        total_seconds: 100,
     }
 }

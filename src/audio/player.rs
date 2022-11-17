@@ -393,6 +393,7 @@ mod tests {
     use super::*;
     use crate::audio::output::AudioOutput;
     use mockall::mock;
+    use symphonia::core::formats::Track;
 
     #[test]
     fn continue_playing_doesnt_crash_for_eof() {
