@@ -397,8 +397,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             AudioAction::PlayPaused.into()
         }
 
-        // TODO update media controls here
-        // find a way to make it harder to miss places; pull out functions
         Message::PlaySongClicked(song_id) => {
             let Some(current) = get_current_song(&ui.music_cache, song_id, true) else {
                 return Effect::none();
@@ -412,9 +410,10 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
             let metadata: ControlsMetadata = (&current).into();
 
+            // TODO is this necessary? should be updated on next audio message
             ui.current_song = Some(current);
 
-            Effect::batch([AudioAction::PlayQueue(queue).into(), metadata.into()])
+            Effect::batch(vec![AudioAction::PlayQueue(queue).into(), metadata.into()])
         }
 
         Message::PauseClicked | Message::FromMediaControls(MediaControlEvent::Pause) => {
@@ -430,10 +429,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             let optimistic = OptimisticTime { proportion: 0.0, updates_skipped: 0 };
             ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
-            // TODO
-            // for forward/back, this can't publish the metadata unless we also
-            // have the queue duplicated here
-            // it'll need that anyways for other ui features, though
             AudioAction::Back.into()
         }
 
@@ -472,10 +467,10 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
         Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
             // update current song
-            // TODO get optional metadata publish here
-            match &mut ui.current_song {
+            let metadata = match &mut ui.current_song {
                 Some(current_song) if current_song.id == display.song_id => {
                     current_song.playing = display.playing;
+                    None
                 }
 
                 _ => {
@@ -484,10 +479,14 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                         display.song_id,
                         display.playing,
                     ) {
+                        let metadata: ControlsMetadata = (&current_song).into();
                         ui.current_song = Some(current_song);
+                        Some(metadata)
+                    } else {
+                        None
                     }
                 }
-            }
+            };
 
             // update progress bar if necessary
             // TODO get playback publish here
@@ -519,7 +518,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 }
             }
 
-            Effect::none()
+            Effect::batch(vec![metadata.into()])
         }
 
         Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {

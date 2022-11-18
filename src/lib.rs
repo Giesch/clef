@@ -1,5 +1,4 @@
 #![warn(rust_2018_idioms)]
-#![warn(clippy::pedantic)]
 #![deny(missing_debug_implementations)]
 #![forbid(unsafe_code)]
 
