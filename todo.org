@@ -1,9 +1,17 @@
 * Now
+- [ ] keep track of the queue on the ui side
+  this one will need the actual metadata, like Queue<Song> or something
+
 - [ ] support media keys
   https://docs.rs/souvlaki/latest/souvlaki/
   FIXME the media controls don't work if backgrounded on a specific monitor
   the media keys handling needs to be off the ui thread?
     it needs the consolidated data, though
+  - think about handling the publish to media controls in 'execute'
+    no, still need to handle messages from audio as well
+    maybe both? still easier to just use functions in update
+    having the controls in the Ui struct makes testing a PITA
+      have another effect for publishing to media controls?
 
 - [-] keyboard support
   - [X] space for play/pause current song
