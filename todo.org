@@ -1,13 +1,19 @@
 * Now
-- [ ] fix media controls while app is backgrounded
-  - [ ] first, check if listening for controls on audio thread even works
+- [-] fix media controls while app is backgrounded
+  - [X] first, check if listening for controls on audio thread even works
     can it avoid having another thread for listening for controls?
       like have the player hold a vec of entered commands
-  - [ ] then, figure out how to handle moving the logic over
+      directly clone the flume sender (the library has a separate thread)
+  - [X] then, figure out how to handle moving the logic over
     the optimistic update on back will be weird
-    could it just not do that? would it be noticable?
-    will publishing metadata also have to happen off-ui-thread for the same reason?
+      could it just not do that? would it be noticable?
+      seems fine
+  - [ ] will publishing metadata also have to happen off-ui-thread for the same reason?
       like would they just not be updated if the problem is that ui update isn't running
+      yeah, it's delayed until the app is foregrounded again
+  - [ ] does the window requirement on windows mean that it has to be on ui thread?
+      how does that work? does update actually get called when backgrounded on windows?
+      do we just have to get the window handle earlier somehow?
 
 - [-] keyboard support
   - [X] space for play/pause current song
