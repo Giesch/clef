@@ -189,27 +189,22 @@ impl Player {
 
     fn step(state: Option<PlayerState>, msg: Option<AudioAction>) -> StepResult {
         use AudioAction::*;
-        use AudioMessage::DisplayUpdate;
 
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
-                // NOTE keep this in sync with the EOF section of continue_playing below
                 let player_state = PlayerState::play_queue(queue)?;
-                let ui_message = DisplayUpdate(Some((&player_state).into()));
-                Ok((Some(player_state), Some(ui_message)))
+                Ok(publish_display_update(player_state))
             }
 
             (Some(Pause), Some(mut player_state)) if player_state.playing => {
                 player_state.playing = false;
-                let ui_message = DisplayUpdate(Some((&player_state).into()));
-                Ok((Some(player_state), Some(ui_message)))
+                Ok(publish_display_update(player_state))
             }
             (Some(Pause), state) => Ok((state, None)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
-                let ui_message = DisplayUpdate(Some((&player_state).into()));
-                Ok((Some(player_state), Some(ui_message)))
+                Ok(publish_display_update(player_state))
             }
             (Some(PlayPaused), state) => Ok((state, None)),
 
@@ -229,12 +224,12 @@ impl Player {
                     seek_seconds += total.frac as f32 * proportion;
 
                     let player_state = player_state.seek_to(seek_seconds);
-                    let ui_message = DisplayUpdate(Some((&player_state).into()));
-                    Ok((Some(player_state), Some(ui_message)))
+
+                    Ok(publish_display_update(player_state))
                 } else {
                     error!("missing track info: {:#?}", player_state.track_info);
-                    let ui_message = DisplayUpdate(Some((&player_state).into()));
-                    Ok((Some(player_state), Some(ui_message)))
+
+                    Ok(publish_display_update(player_state))
                 }
             }
             (Some(Seek(_)), None) => Ok((None, None)),
@@ -321,9 +316,7 @@ impl PlayerState {
                 let mut new_state = Self::play_queue(new_queue)?;
                 new_state.playing = self.playing;
 
-                let ui_message = AudioMessage::DisplayUpdate(Some((&new_state).into()));
-
-                Ok((Some(new_state), Some(ui_message)))
+                Ok(publish_display_update(new_state))
             }
 
             Err(_old_queue) => Ok((None, Some(AudioMessage::DisplayUpdate(None)))),
@@ -343,10 +336,7 @@ impl PlayerState {
                     let mut new_state = Self::play_queue(new_queue)?;
                     new_state.playing = self.playing;
 
-                    let ui_message =
-                        AudioMessage::DisplayUpdate(Some((&new_state).into()));
-
-                    return Ok((Some(new_state), Some(ui_message)));
+                    return Ok(publish_display_update(new_state));
                 }
                 Err(old_queue) => {
                     self.queue = old_queue;
@@ -356,12 +346,8 @@ impl PlayerState {
 
         let mut new_state = self.seek_to(0.0);
         new_state.timestamp = 0;
-        let display: PlayerDisplay = (&new_state).into();
 
-        Ok((
-            Some(new_state),
-            Some(AudioMessage::DisplayUpdate(Some(display))),
-        ))
+        Ok(publish_display_update(new_state))
     }
 
     // This is based on the main loop in the symphonia-play example
@@ -444,11 +430,19 @@ impl PlayerState {
 
         audio_output.write(decoded).context("writing audio")?;
 
-        let display: PlayerDisplay = (&player_state).into();
-        let ui_message = AudioMessage::DisplayUpdate(Some(display));
-
-        Ok((Some(player_state), Some(ui_message)))
+        Ok(publish_display_update(player_state))
     }
+}
+
+fn publish_display_update(
+    new_state: PlayerState,
+) -> (Option<PlayerState>, Option<AudioMessage>) {
+    let display: PlayerDisplay = (&new_state).into();
+
+    (
+        Some(new_state),
+        Some(AudioMessage::DisplayUpdate(Some(display))),
+    )
 }
 
 #[cfg(test)]
