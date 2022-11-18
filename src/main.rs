@@ -21,12 +21,13 @@ fn main() -> iced::Result {
         hwnd: None, // required for windows support
     };
 
-    let mut controls =
+    let mut media_controls =
         MediaControls::new(config).expect("failed to create media controls");
 
     let (from_controls_tx, from_controls_rx) = flume::unbounded::<MediaControlEvent>();
 
-    controls
+    // FIXME does just creating them here add the 'unknown song'?
+    media_controls
         .attach(move |e: MediaControlEvent| {
             from_controls_tx
                 .send(e)
@@ -35,7 +36,7 @@ fn main() -> iced::Result {
         })
         .expect("failed to set up listening to media controls");
 
-    let controls = Arc::new(Mutex::new(controls));
+    let media_controls = Arc::new(Mutex::new(media_controls));
 
     //////
 
@@ -58,7 +59,7 @@ fn main() -> iced::Result {
         to_audio,
         db_pool,
         config,
-        controls,
+        media_controls,
         from_controls,
     };
 
