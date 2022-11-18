@@ -1,11 +1,12 @@
 * Now
-- [X] add song durations to view
-  - [X] for currently playing song
-  - [X] in the album song list
+- [ ] support media keys
+  https://docs.rs/souvlaki/latest/souvlaki/
+  FIXME the media controls don't work if backgrounded on a specific monitor
+  the media keys handling needs to be off the ui thread?
+    it needs the consolidated data, though
 
 - [-] keyboard support
   - [X] space for play/pause current song
-  - [ ] support media keys
   - [ ] tab navigation - need to make the buttons focusable
     so the track numbers will also have to be wrapped in button
     is it better to not mimic the web for this?
@@ -18,11 +19,23 @@
 
 - [ ] add a way to search
   - modal? keyboard-based
+    command pallete look
 
 * Next
 - [ ] replace icons with slightly darker color
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
+
+- [ ] add a justfile instead of using dev scripts
+
+- [ ] implement debug for MediaControls upstream
+
+- [ ] avoid using ProgressTimes::ZERO as a sentinel value
+  use an optional, try to catch bad files on import
+
+- [ ] ability to view tags
+- [ ] ability to fuzzy search by tags
+- [ ] ability to edit tags
 
 - [ ] do the 'display_title' based on file system on import
   then allow updating it later
@@ -30,6 +43,10 @@
 
 - [ ] find a better way to avoid flicker
   skipping a magic number of audio updates sucks
+  need a 'seek completed' response from audio thread
+    or just a flag on the normal update? separate message seems better
+    does it have to care about multiple seeks in flight? like while paused
+      could have request ids or something, but hopefully that's unnecessary
 
 - [ ] load a nice startup ui quickly
   - [ ] last played song - progress and scroll?
@@ -82,6 +99,11 @@
 - [ ] listen to media keys while backgrounded
 
 - [ ] make it more responsive
+  text wrapping in bottom row is bad
+
+- [ ] listen to media keys while backgrounded
+
+- [ ] make the layout more responsive
   text wrapping in bottom row is bad
 
 * Someday

@@ -1,6 +1,8 @@
 use std::sync::Arc;
+use std::time::Duration;
 
-use flume::{Receiver, Sender};
+use camino::Utf8PathBuf;
+use flume::{Receiver, Sender, TryRecvError};
 use iced::keyboard::KeyCode;
 use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text, Column,
@@ -11,8 +13,9 @@ use iced::{
     Length, Subscription, Theme,
 };
 use iced_native::keyboard::Event as KeyboardEvent;
-use log::error;
-use parking_lot::Mutex;
+use log::{error, info};
+use parking_lot::{Mutex, MutexGuard};
+use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback};
 
 use crate::channels::{audio_subscription, AudioAction, AudioMessage, ProgressTimes};
 use crate::db::queries::*;
@@ -45,10 +48,10 @@ pub struct App {
     to_audio: Arc<Mutex<Sender<AudioAction>>>,
     to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
     resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
+    from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
     ui: Ui,
 }
 
-#[derive(Debug)]
 struct Ui {
     should_exit: bool,
     crawling_music: bool,
@@ -56,10 +59,11 @@ struct Ui {
     progress: Option<ProgressDisplay>,
     hovered_song_id: Option<SongId>,
     music_cache: MusicCache,
+    controls: Arc<Mutex<MediaControls>>,
 }
 
 impl Ui {
-    fn new() -> Self {
+    fn new(controls: Arc<Mutex<MediaControls>>) -> Self {
         Self {
             should_exit: false,
             current_song: None,
@@ -67,7 +71,21 @@ impl Ui {
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
+            controls,
         }
+    }
+}
+
+impl std::fmt::Debug for Ui {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ui")
+            .field("should_exit", &self.should_exit)
+            .field("crawling_music", &self.crawling_music)
+            .field("current_song", &self.current_song)
+            .field("progress", &self.progress)
+            .field("hovered_song_id", &self.hovered_song_id)
+            .field("music_cache", &self.music_cache)
+            .finish()
     }
 }
 
@@ -82,7 +100,8 @@ impl App {
             db: flags.db_pool,
             to_resizer: Arc::new(Mutex::new(to_resizer_tx)),
             resizer_inbox: Arc::new(Mutex::new(to_resizer_rx)),
-            ui: Ui::new(),
+            from_controls: flags.from_controls,
+            ui: Ui::new(flags.controls),
         }
     }
 
@@ -122,6 +141,7 @@ struct CurrentSong {
     artist: Option<String>,
     playing: bool,
     total_seconds: i64,
+    resized_art: Option<Utf8PathBuf>,
 }
 
 impl CurrentSong {
@@ -133,6 +153,7 @@ impl CurrentSong {
             album: album.title.clone(),
             artist: song.artist.clone(),
             total_seconds: song.total_seconds,
+            resized_art: album.resized_art.clone(),
             playing,
         }
     }
@@ -176,12 +197,24 @@ impl ProgressDisplay {
     }
 }
 
-#[derive(Debug)]
 pub struct Flags {
     pub inbox: Arc<Mutex<Receiver<AudioMessage>>>,
     pub to_audio: Arc<Mutex<Sender<AudioAction>>>,
     pub db_pool: SqlitePool,
     pub config: Config,
+    pub controls: Arc<Mutex<MediaControls>>,
+    pub from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
+}
+
+impl std::fmt::Debug for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Flags")
+            .field("inbox", &self.inbox)
+            .field("to_audio", &self.to_audio)
+            .field("db_pool", &self.db_pool)
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -189,6 +222,7 @@ pub enum Message {
     FromCrawler(CrawlerMessage),
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
+    FromMediaControls(MediaControlEvent),
     Native(Event),
     PlayPausedClicked,
     PlaySongClicked(SongId),
@@ -254,11 +288,53 @@ impl Application for App {
 
         let native = iced_native::subscription::events().map(Message::Native);
 
-        Subscription::batch([crawler, resizer, audio, native])
+        let media_controls = media_controls_subscription(self.from_controls.clone())
+            .map(Message::FromMediaControls);
+
+        Subscription::batch([crawler, resizer, audio, native, media_controls])
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
         view(&self.ui)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum MediaControlsState {
+    Ready,
+    Disconnected,
+}
+
+fn media_controls_subscription(
+    from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
+) -> iced::Subscription<MediaControlEvent> {
+    struct MediaControlsSub;
+
+    iced::subscription::unfold(
+        std::any::TypeId::of::<MediaControlsSub>(),
+        MediaControlsState::Ready,
+        move |state| listen_for_media_controls(state, from_controls.clone()),
+    )
+}
+
+async fn listen_for_media_controls(
+    state: MediaControlsState,
+    from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
+) -> (Option<MediaControlEvent>, MediaControlsState) {
+    // TODO
+    if state == MediaControlsState::Disconnected {
+        return (None, MediaControlsState::Disconnected);
+    }
+
+    match from_controls.lock().try_recv() {
+        Ok(msg) => (Some(msg), MediaControlsState::Ready),
+
+        Err(TryRecvError::Empty) => (None, MediaControlsState::Ready),
+
+        Err(TryRecvError::Disconnected) => {
+            // TODO message here?
+            (None, MediaControlsState::Disconnected)
+        }
     }
 }
 
@@ -309,22 +385,20 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
 
+        Message::FromMediaControls(MediaControlEvent::Toggle) => toggle(ui),
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
-        })) if key_code == KeyCode::Space || key_code == KeyCode::PlayPause => {
-            let playing = ui.current_song.as_ref().map(|c| c.playing);
-
-            match playing {
-                Some(true) => AudioAction::Pause.into(),
-                Some(false) => AudioAction::PlayPaused.into(),
-                None => Effect::none(),
-            }
-        }
+        })) if key_code == KeyCode::Space || key_code == KeyCode::PlayPause => toggle(ui),
 
         Message::Native(_) => Effect::none(),
 
-        Message::PlayPausedClicked => AudioAction::PlayPaused.into(),
+        Message::PlayPausedClicked
+        | Message::FromMediaControls(MediaControlEvent::Play) => {
+            AudioAction::PlayPaused.into()
+        }
 
+        // TODO update media controls here
+        // find a way to make it harder to miss places; pull out functions
         Message::PlaySongClicked(song_id) => {
             let Some(current) = get_current_song(&ui.music_cache, song_id, true) else {
                 return Effect::none();
@@ -336,16 +410,27 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 return Effect::none();
             };
 
+            // TODO make sure getting rid of this doesn't break anything
+            // FIXME why does this not result in the controls being updatedo
+            //   on the next audio event?
+            let controls = ui.controls.lock();
+            publish_to_media_controls(controls, &current);
+
             ui.current_song = Some(current);
 
             AudioAction::PlayQueue(queue).into()
         }
 
-        Message::PauseClicked => AudioAction::Pause.into(),
+        Message::PauseClicked | Message::FromMediaControls(MediaControlEvent::Pause) => {
+            AudioAction::Pause.into()
+        }
 
-        Message::ForwardClicked => AudioAction::Forward.into(),
+        Message::FromMediaControls(MediaControlEvent::Next) | Message::ForwardClicked => {
+            AudioAction::Forward.into()
+        }
 
-        Message::BackClicked => {
+        Message::FromMediaControls(MediaControlEvent::Previous)
+        | Message::BackClicked => {
             let optimistic = OptimisticTime { proportion: 0.0, updates_skipped: 0 };
             ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
@@ -390,6 +475,22 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             match &mut ui.current_song {
                 Some(current_song) if current_song.id == display.song_id => {
                     current_song.playing = display.playing;
+
+                    let mut controls = ui.controls.lock();
+                    let playback = if current_song.playing {
+                        MediaPlayback::Playing { progress: None }
+                    } else {
+                        MediaPlayback::Paused { progress: None }
+                    };
+                    controls
+                        .set_playback(playback)
+                        .map_err(|e| {
+                            error!("error setting media controls playback: {e:?}");
+                        })
+                        .ok();
+
+                    // TODO
+                    // publish_to_media_controls(controls, &current_song);
                 }
 
                 _ => {
@@ -398,6 +499,8 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                         display.song_id,
                         display.playing,
                     ) {
+                        let controls = ui.controls.lock();
+                        publish_to_media_controls(controls, &current_song);
                         ui.current_song = Some(current_song);
                     }
                 }
@@ -445,6 +548,63 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             ui.should_exit = true;
             Effect::none()
         }
+
+        Message::FromMediaControls(event) => {
+            info!("unsupported media control event: {event:?}");
+            Effect::none()
+        }
+    }
+}
+
+// TODO this is causing a deadlock
+fn publish_to_media_controls(
+    mut controls: MutexGuard<'_, MediaControls>,
+    current_song: &CurrentSong,
+) {
+    let cover_url = current_song
+        .resized_art
+        .as_ref()
+        .map(|path| format!("file://{}", path));
+
+    let duration = Some(Duration::from_secs(
+        current_song.total_seconds.try_into().unwrap_or_default(),
+    ));
+
+    let metadata = MediaMetadata {
+        title: Some(&current_song.title),
+        album: current_song.album.as_deref(),
+        artist: current_song.artist.as_deref(),
+        cover_url: None,
+        // cover_url: cover_url.as_deref(),
+        duration,
+    };
+
+    // let playback = if current_song.playing {
+    //     MediaPlayback::Playing { progress: None }
+    // } else {
+    //     MediaPlayback::Paused { progress: None }
+    // };
+
+    controls
+        .set_metadata(metadata)
+        .map_err(|e| error!("error setting media controls metadata: {e:?}"))
+        .ok();
+
+    // controls
+    //     .set_playback(playback)
+    //     .map_err(|e| {
+    //         error!("error setting media controls playback: {e:?}");
+    //     })
+    //     .ok();
+}
+
+fn toggle(ui: &Ui) -> Effect<Message> {
+    let playing = ui.current_song.as_ref().map(|c| c.playing);
+
+    match playing {
+        Some(true) => AudioAction::Pause.into(),
+        Some(false) => AudioAction::PlayPaused.into(),
+        None => Effect::none(),
     }
 }
 
