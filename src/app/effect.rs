@@ -1,7 +1,7 @@
 use iced::Command;
 
 use crate::app::resizer::ResizeRequest;
-use crate::channels::AudioAction;
+use crate::audio::player::AudioAction;
 
 use super::media_controls::ControlsMetadata;
 

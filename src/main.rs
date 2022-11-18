@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
+use clef::audio::player::{AudioAction, AudioMessage, Player};
 use clef::db::run_migrations;
 use iced::{Application, Settings};
 use parking_lot::Mutex;
 
 use clef::app::config::Config;
 use clef::app::{App, Flags};
-use clef::channels::*;
 use clef::db;
 use souvlaki::{MediaControlEvent, MediaControls, PlatformConfig};
 
@@ -49,7 +49,7 @@ fn main() -> iced::Result {
     let (to_ui_tx, to_ui_rx) = flume::bounded::<AudioMessage>(10);
 
     let audio_handle =
-        spawn_player(to_audio_rx, to_ui_tx).expect("failed to start audio thread");
+        Player::spawn(to_audio_rx, to_ui_tx).expect("failed to start audio thread");
 
     let inbox = Arc::new(Mutex::new(to_ui_rx));
     let to_audio = Arc::new(Mutex::new(to_audio_tx));
