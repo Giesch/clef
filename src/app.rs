@@ -410,9 +410,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
             let metadata: ControlsMetadata = (&current).into();
 
-            // TODO is this necessary? should be updated on next audio message
-            ui.current_song = Some(current);
-
             Effect::batch(vec![AudioAction::PlayQueue(queue).into(), metadata.into()])
         }
 

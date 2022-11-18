@@ -1,7 +1,4 @@
 * Now
-- [ ] keep track of the queue on the ui side
-  this one will need the actual metadata, like Queue<Song> or something
-
 - [ ] support media keys
   https://docs.rs/souvlaki/latest/souvlaki/
   FIXME the media controls don't work if backgrounded on a specific monitor
@@ -12,6 +9,10 @@
     maybe both? still easier to just use functions in update
     having the controls in the Ui struct makes testing a PITA
       have another effect for publishing to media controls?
+
+- [ ] keep track of the queue on the ui side
+  necessary for displaying the queue
+  this one will need the actual metadata, like Queue<Song> or something
 
 - [-] keyboard support
   - [X] space for play/pause current song
@@ -33,6 +34,9 @@
 - [ ] replace icons with slightly darker color
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
+
+- [ ] either get the bus changes merged upstream, or vendor the library
+  switch to a workspace
 
 - [ ] add a justfile instead of using dev scripts
 

@@ -16,12 +16,6 @@ pub enum Effect<Message> {
     Batch(Vec<Effect<Message>>),
 }
 
-impl<Message> Default for Effect<Message> {
-    fn default() -> Self {
-        Self::none()
-    }
-}
-
 impl<Message> Effect<Message> {
     pub fn none() -> Self {
         Self::None
@@ -29,6 +23,12 @@ impl<Message> Effect<Message> {
 
     pub fn batch(effects: Vec<Self>) -> Self {
         Self::Batch(effects)
+    }
+}
+
+impl<Message> Default for Effect<Message> {
+    fn default() -> Self {
+        Self::none()
     }
 }
 
