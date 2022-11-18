@@ -27,8 +27,8 @@ impl<Message> Effect<Message> {
         Self::None
     }
 
-    pub fn batch(effects: impl IntoIterator<Item = Self>) -> Self {
-        Self::Batch(effects.into_iter().collect())
+    pub fn batch(effects: Vec<Self>) -> Self {
+        Self::Batch(effects)
     }
 }
 
@@ -59,5 +59,11 @@ impl<Message> From<Option<AudioAction>> for Effect<Message> {
 impl<Message> From<ControlsMetadata> for Effect<Message> {
     fn from(metadata: ControlsMetadata) -> Self {
         Self::ControlsMetadata(metadata)
+    }
+}
+
+impl<Message> From<Option<ControlsMetadata>> for Effect<Message> {
+    fn from(metadata: Option<ControlsMetadata>) -> Self {
+        metadata.map(Self::ControlsMetadata).unwrap_or_default()
     }
 }
