@@ -4,8 +4,8 @@
 
 pub mod app;
 pub mod audio;
-pub mod channels;
 pub mod db;
+pub mod queue;
 
 #[cfg(test)]
 pub mod test_util;

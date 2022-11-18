@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::thread::JoinHandle;
 
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
@@ -13,10 +14,62 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 
 use crate::audio::output::{self, AudioOutput};
-use crate::channels::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes, Queue};
 use crate::db::queries::SongId;
+use crate::queue::Queue;
 
 use super::track_info::{first_supported_track, TrackInfo};
+
+/// An mpsc message to the audio thread from the ui
+#[derive(Debug, Clone, PartialEq)]
+pub enum AudioAction {
+    /// Begin playing the file (0) immediately,
+    /// and continue playing files from the queue (1) when it ends
+    PlayQueue(Queue<(SongId, Utf8PathBuf)>),
+    /// Pause the currently playing song, if any
+    Pause,
+    /// Play the currently paused song, if any
+    PlayPaused,
+    /// Seek to position (0) of the current song, if any
+    /// Expected to be a proportion in range 0.0..=1.0
+    Seek(f32),
+    /// Play the next track, if any, or transition to stopped
+    Forward,
+    /// Seek to the beginning of the current song,
+    /// or if near it already, go back a track in the queue, if possible
+    Back,
+}
+
+/// An mpsc message to the main/ui thread from audio
+#[derive(Debug, Clone, PartialEq)]
+pub enum AudioMessage {
+    /// A change that affects ui state; None = player stopped
+    DisplayUpdate(Option<PlayerDisplay>),
+
+    /// The audio thread died
+    AudioDied,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerDisplay {
+    pub song_id: SongId,
+    pub playing: bool,
+    pub times: ProgressTimes,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProgressTimes {
+    pub elapsed: Time,
+    pub remaining: Time,
+    pub total: Time,
+}
+
+impl ProgressTimes {
+    pub const ZERO: Self = Self {
+        elapsed: Time { seconds: 0, frac: 0.0 },
+        remaining: Time { seconds: 0, frac: 0.0 },
+        total: Time { seconds: 0, frac: 0.0 },
+    };
+}
 
 #[derive(Debug)]
 pub struct Player {
@@ -81,6 +134,30 @@ pub enum AudioThreadError {
 }
 
 impl Player {
+    pub fn spawn(
+        inbox: Receiver<AudioAction>,
+        to_ui: Sender<AudioMessage>,
+    ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
+        std::thread::Builder::new()
+            .name("ClefAudioPlayer".to_string())
+            .spawn(move || {
+                let player = Player::new(inbox, to_ui.clone());
+                if let Err(err) = player.run_loop() {
+                    to_ui.send(AudioMessage::AudioDied).ok();
+
+                    match err {
+                        AudioThreadError::Disconnected => {
+                            // wait for graceful shutdown
+                        }
+
+                        AudioThreadError::Other(e) => {
+                            panic!("unrecovered error: {e}");
+                        }
+                    }
+                }
+            })
+    }
+
     pub fn new(inbox: Receiver<AudioAction>, to_ui: Sender<AudioMessage>) -> Self {
         Self { state: None, inbox, to_ui }
     }
@@ -91,8 +168,8 @@ impl Player {
         let mut state = state;
 
         loop {
-            let msg = match inbox.try_recv() {
-                Ok(msg) => Some(msg),
+            let action = match inbox.try_recv() {
+                Ok(action) => Some(action),
                 Err(TryRecvError::Empty) => None,
                 Err(TryRecvError::Disconnected) => {
                     return Err(AudioThreadError::Disconnected);
@@ -100,12 +177,12 @@ impl Player {
             };
 
             let (new_state, to_send) =
-                Self::step(state, msg).context("error during player step")?;
+                Self::step(state, action).context("error during player step")?;
 
             state = new_state;
 
-            if let Some(msg) = to_send {
-                to_ui.send(msg).ok();
+            if let Some(message) = to_send {
+                to_ui.send(message).ok();
             }
         }
     }
@@ -238,18 +315,9 @@ impl PlayerState {
         self
     }
 
-    fn forward(mut self) -> StepResult {
-        match self.queue.next.pop_front() {
-            Some(new_current) => {
-                let new_queue = Queue {
-                    previous: {
-                        self.queue.previous.push(self.queue.current);
-                        self.queue.previous
-                    },
-                    current: new_current,
-                    next: self.queue.next,
-                };
-
+    fn forward(self) -> StepResult {
+        match self.queue.try_forward() {
+            Ok(new_queue) => {
                 let mut new_state = Self::play_queue(new_queue)?;
                 new_state.playing = self.playing;
 
@@ -258,7 +326,7 @@ impl PlayerState {
                 Ok((Some(new_state), Some(ui_message)))
             }
 
-            None => Ok((None, Some(AudioMessage::DisplayUpdate(None)))),
+            Err(_old_queue) => Ok((None, Some(AudioMessage::DisplayUpdate(None)))),
         }
     }
 
@@ -270,22 +338,19 @@ impl PlayerState {
             .unwrap_or_default();
 
         if !past_two_seconds {
-            if let Some(new_current) = self.queue.previous.pop() {
-                let new_queue = Queue {
-                    previous: self.queue.previous,
-                    current: new_current,
-                    next: {
-                        self.queue.next.push_front(self.queue.current);
-                        self.queue.next
-                    },
-                };
+            match self.queue.try_back() {
+                Ok(new_queue) => {
+                    let mut new_state = Self::play_queue(new_queue)?;
+                    new_state.playing = self.playing;
 
-                let mut new_state = Self::play_queue(new_queue)?;
-                new_state.playing = self.playing;
+                    let ui_message =
+                        AudioMessage::DisplayUpdate(Some((&new_state).into()));
 
-                let ui_message = AudioMessage::DisplayUpdate(Some((&new_state).into()));
-
-                return Ok((Some(new_state), Some(ui_message)));
+                    return Ok((Some(new_state), Some(ui_message)));
+                }
+                Err(old_queue) => {
+                    self.queue = old_queue;
+                }
             }
         }
 

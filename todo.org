@@ -1,18 +1,13 @@
 * Now
-- [ ] support media keys
-  https://docs.rs/souvlaki/latest/souvlaki/
-  FIXME the media controls don't work if backgrounded on a specific monitor
-  the media keys handling needs to be off the ui thread?
-    it needs the consolidated data, though
-  - think about handling the publish to media controls in 'execute'
-    no, still need to handle messages from audio as well
-    maybe both? still easier to just use functions in update
-    having the controls in the Ui struct makes testing a PITA
-      have another effect for publishing to media controls?
-
-- [ ] keep track of the queue on the ui side
-  necessary for displaying the queue
-  this one will need the actual metadata, like Queue<Song> or something
+- [ ] fix media controls while app is backgrounded
+  - [ ] first, check if listening for controls on audio thread even works
+    can it avoid having another thread for listening for controls?
+      like have the player hold a vec of entered commands
+  - [ ] then, figure out how to handle moving the logic over
+    the optimistic update on back will be weird
+    could it just not do that? would it be noticable?
+    will publishing metadata also have to happen off-ui-thread for the same reason?
+      like would they just not be updated if the problem is that ui update isn't running
 
 - [-] keyboard support
   - [X] space for play/pause current song
@@ -31,6 +26,10 @@
     command pallete look
 
 * Next
+- [ ] keep track of the queue on the ui side
+  necessary for displaying the queue
+  this one will need the actual metadata, like Queue<Song> or something
+
 - [ ] replace icons with slightly darker color
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?

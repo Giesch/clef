@@ -17,10 +17,11 @@ use log::{error, info};
 use parking_lot::Mutex;
 use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata};
 
-use crate::channels::{audio_subscription, AudioAction, AudioMessage, ProgressTimes};
+use crate::audio::player::{AudioAction, AudioMessage, ProgressTimes};
 use crate::db::queries::*;
 use crate::db::SqlitePool;
 
+mod audio_subscription;
 pub mod config;
 pub mod crawler;
 mod custom_style;
@@ -32,6 +33,7 @@ mod music_cache;
 mod resizer;
 mod rgba;
 
+use audio_subscription::audio_subscription;
 use config::Config;
 use crawler::*;
 use custom_style::no_background;
