@@ -29,6 +29,8 @@ pub enum AudioAction {
     Pause,
     /// Play the currently paused song, if any
     PlayPaused,
+    /// Swap between play/pause based on current state
+    Toggle,
     /// Seek to position (0) of the current song, if any
     /// Expected to be a proportion in range 0.0..=1.0
     Seek(f32),
@@ -207,6 +209,12 @@ impl Player {
                 Ok(publish_display_update(player_state))
             }
             (Some(PlayPaused), state) => Ok((state, None)),
+
+            (Some(Toggle), Some(mut player_state)) => {
+                player_state.playing = !player_state.playing;
+                Ok(publish_display_update(player_state))
+            }
+            (Some(Toggle), None) => Ok((None, None)),
 
             (Some(Forward), Some(player_state)) => player_state.forward(),
             (Some(Forward), None) => Ok((None, None)),
