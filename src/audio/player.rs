@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
@@ -24,7 +25,7 @@ use super::track_info::{first_supported_track, TrackInfo};
 pub enum AudioAction {
     /// Begin playing the file (0) immediately,
     /// and continue playing files from the queue (1) when it ends
-    PlayQueue(Queue<(SongId, Utf8PathBuf)>),
+    PlayQueue(Queue<QueuedSong>),
     /// Pause the currently playing song, if any
     Pause,
     /// Play the currently paused song, if any
@@ -39,6 +40,17 @@ pub enum AudioAction {
     /// Seek to the beginning of the current song,
     /// or if near it already, go back a track in the queue, if possible
     Back,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedSong {
+    pub id: SongId,
+    pub path: Utf8PathBuf,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album_title: Option<String>,
+    pub resized_art: Option<Utf8PathBuf>,
+    pub duration: Option<Duration>,
 }
 
 /// An mpsc message to the main/ui thread from audio
@@ -87,14 +99,14 @@ struct PlayerState {
     playing: bool, // false = paused
     seek_ts: Option<u64>,
     track_info: TrackInfo,
-    queue: Queue<(SongId, Utf8PathBuf)>,
+    queue: Queue<QueuedSong>,
     timestamp: u64,
 }
 
 impl std::fmt::Debug for PlayerState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let audio_output = match self.audio_output {
-            Some(_) => "Some",
+            Some(_) => "Some(..)",
             None => "None",
         };
 
@@ -111,7 +123,7 @@ impl std::fmt::Debug for PlayerState {
 
 impl From<&PlayerState> for PlayerDisplay {
     fn from(player_state: &PlayerState) -> Self {
-        let song_id = player_state.queue.current.0;
+        let song_id = player_state.queue.current.id;
         let playing = player_state.playing;
 
         let times = player_state
@@ -254,16 +266,16 @@ type StepResult = anyhow::Result<(Option<PlayerState>, Option<AudioMessage>)>;
 
 impl PlayerState {
     // This is based on the main loop in the symphonia-play example
-    fn play_queue(queue: Queue<(SongId, Utf8PathBuf)>) -> anyhow::Result<Self> {
+    fn play_queue(queue: Queue<QueuedSong>) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
 
         // Provide the file extension as a hint.
-        if let Some(extension) = queue.current.1.extension() {
+        if let Some(extension) = queue.current.path.extension() {
             hint.with_extension(extension);
         }
 
-        let file = File::open(&queue.current.1)
-            .with_context(|| format!("file not found: {}", &queue.current.1))?;
+        let file = File::open(&queue.current.path)
+            .with_context(|| format!("file not found: {}", &queue.current.path))?;
 
         let source = Box::new(file);
 
@@ -480,9 +492,18 @@ mod tests {
             Err(SymphoniaError::IoError(io_error))
         });
 
+        let current = QueuedSong {
+            id: SongId::new(1),
+            path: Utf8PathBuf::from_str("fake").unwrap(),
+            title: Some("current song".to_string()),
+            artist: None,
+            album_title: None,
+            resized_art: None,
+            duration: None,
+        };
         let queue = Queue {
+            current,
             previous: Default::default(),
-            current: (SongId::new(1), Utf8PathBuf::from_str("fake").unwrap()),
             next: Default::default(),
         };
 
