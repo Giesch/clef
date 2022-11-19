@@ -8,12 +8,27 @@
     the optimistic update on back will be weird
       could it just not do that? would it be noticable?
       seems fine
-  - [ ] will publishing metadata also have to happen off-ui-thread for the same reason?
-      like would they just not be updated if the problem is that ui update isn't running
-      yeah, it's delayed until the app is foregrounded again
-  - [ ] does the window requirement on windows mean that it has to be on ui thread?
-      how does that work? does update actually get called when backgrounded on windows?
-      do we just have to get the window handle earlier somehow?
+
+  - [-] publish media controls metadata from the audio thread
+    if published from the main ui thread,
+      it's delayed until the app is foregrounded again
+      what's the nice way to organize this?
+    - [X] duplicate all the song/album info necessary for controls in the player queue
+      need a semi-denormalized 'song with album name' type
+    - [ ] change the StepResult type to be a little more like Effect
+    - [ ] move ControlsMetadata from Effect to the new version of player::StepResult
+      remove all media controls stuff from ui
+  - [ ] add media controls playback publish to player
+  - [ ] add support for more media controls to player (eg 'stop', etc)
+
+  - [ ] use a wrapper type around media controls to avoid 'unknown song' when stopped
+    maybe fork/vendor the library to do this instead of wrapping
+
+  - [ ] what's the right way to handle getting the hwind for windows support?
+    does this interact with doing stuff on the audio thread?
+    if the audio thread spawn has to have a window id, that's weird
+      could send it one from the ui after the ui comes up
+      see what Psst does
 
 - [-] keyboard support
   - [X] space for play/pause current song

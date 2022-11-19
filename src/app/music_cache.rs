@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
 
-use camino::Utf8PathBuf;
 use log::error;
 
 use crate::app::{crawler::CrawledAlbum, rgba::RgbaBytes};
+use crate::audio::player::QueuedSong;
 use crate::db::queries::{Album, AlbumId, Song, SongId};
 use crate::queue::Queue;
 
@@ -85,24 +86,34 @@ impl MusicCache {
         &self,
         clicked_song_id: SongId,
         clicked_album_id: AlbumId,
-    ) -> Option<Queue<(SongId, Utf8PathBuf)>> {
-        let album = self.albums_by_id.get(&clicked_album_id)?;
+    ) -> Option<Queue<QueuedSong>> {
+        let cached_album = self.albums_by_id.get(&clicked_album_id)?;
 
         let mut previous = Vec::new();
         let mut next = VecDeque::new();
         let mut current = None;
 
-        for album_song in &album.songs {
-            let id_path = (album_song.id, album_song.file.clone());
+        for album_song in &cached_album.songs {
+            let total_seconds: Option<u64> = album_song.total_seconds.try_into().ok();
+
+            let queued_song = QueuedSong {
+                id: album_song.id,
+                path: album_song.file.clone(),
+                title: album_song.title.clone(),
+                artist: album_song.artist.clone(),
+                album_title: cached_album.album.title.clone(),
+                resized_art: cached_album.album.resized_art.clone(),
+                duration: total_seconds.map(Duration::from_secs),
+            };
 
             if current.is_none() {
                 if album_song.id == clicked_song_id {
-                    current = Some(id_path);
+                    current = Some(queued_song);
                 } else {
-                    previous.push(id_path);
+                    previous.push(queued_song);
                 }
             } else {
-                next.push_back(id_path);
+                next.push_back(queued_song);
             }
         }
 
@@ -148,13 +159,14 @@ mod tests {
             .get_album_queue(clicked.id, clicked.album_id)
             .unwrap();
 
-        assert_eq!(queue.current.0, SongId::new(3));
+        assert_eq!(queue.current.id, SongId::new(3));
 
         let previous_ids: Vec<SongId> =
-            queue.previous.into_iter().map(|pair| pair.0).collect();
+            queue.previous.into_iter().map(|queued| queued.id).collect();
         assert_eq!(previous_ids, vec![SongId::new(1), SongId::new(2)]);
 
-        let next_ids: Vec<SongId> = queue.next.into_iter().map(|pair| pair.0).collect();
+        let next_ids: Vec<SongId> =
+            queue.next.into_iter().map(|queued| queued.id).collect();
         assert_eq!(next_ids, vec![SongId::new(4), SongId::new(5)]);
     }
 }

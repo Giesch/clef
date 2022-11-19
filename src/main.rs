@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use clef::app::config::Config;
 use clef::app::{App, Flags};
 use clef::db;
-use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata, PlatformConfig};
+use souvlaki::{MediaControlEvent, MediaControls, PlatformConfig};
 
 fn main() -> iced::Result {
     pretty_env_logger::init();
@@ -31,7 +31,6 @@ fn main() -> iced::Result {
 
     let mut media_controls =
         MediaControls::new(controls_config).expect("failed to create media controls");
-    // TODO remove
     let (_from_controls_tx, from_controls_rx) = flume::unbounded::<MediaControlEvent>();
 
     // FIXME does just creating them here add the 'unknown song'?

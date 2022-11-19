@@ -488,7 +488,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             };
 
             // update progress bar if necessary
-            // TODO get playback publish here
             match &ui.progress {
                 Some(ProgressDisplay::Dragging(_)) => {
                     // ignore update to preserve drag state
@@ -523,7 +522,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {
             ui.current_song = None;
             ui.progress = None;
-            // TODO publish stop to media controls
             Effect::none()
         }
 
