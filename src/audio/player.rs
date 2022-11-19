@@ -190,12 +190,12 @@ impl Player {
                 }
             };
 
-            let (new_state, to_send) =
+            let effects =
                 Self::step(state, action).context("error during player step")?;
 
-            state = new_state;
+            state = effects.player_state;
 
-            if let Some(message) = to_send {
+            if let Some(message) = effects.audio_message {
                 to_ui.send(message).ok();
             }
         }
@@ -214,25 +214,25 @@ impl Player {
                 player_state.playing = false;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Pause), state) => Ok((state, None)),
+            (Some(Pause), state) => Ok((state, None).into()),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
                 Ok(publish_display_update(player_state))
             }
-            (Some(PlayPaused), state) => Ok((state, None)),
+            (Some(PlayPaused), state) => Ok((state, None).into()),
 
             (Some(Toggle), Some(mut player_state)) => {
                 player_state.playing = !player_state.playing;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Toggle), None) => Ok((None, None)),
+            (Some(Toggle), None) => Ok((None, None).into()),
 
             (Some(Forward), Some(player_state)) => player_state.forward(),
-            (Some(Forward), None) => Ok((None, None)),
+            (Some(Forward), None) => Ok((None, None).into()),
 
             (Some(Back), Some(player_state)) => player_state.back(),
-            (Some(Back), None) => Ok((None, None)),
+            (Some(Back), None) => Ok((None, None).into()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
                 if let Some(total) = player_state
@@ -252,23 +252,30 @@ impl Player {
                     Ok(publish_display_update(player_state))
                 }
             }
-            (Some(Seek(_)), None) => Ok((None, None)),
+            (Some(Seek(_)), None) => Ok((None, None).into()),
 
             (None, Some(player_state)) if player_state.playing => {
                 player_state.continue_playing()
             }
-            (None, state) => Ok((state, None)),
+            (None, state) => Ok((state, None).into()),
         }
     }
 }
 
-type StepResult = anyhow::Result<(Option<PlayerState>, Option<AudioMessage>)>;
+type StepResult = anyhow::Result<StepEffects>;
 
-// TODO get a better name
 // TODO include optional media metadata (owned type?) and optional playback
-struct StepOutcome {
+struct StepEffects {
     player_state: Option<PlayerState>,
     audio_message: Option<AudioMessage>,
+}
+
+impl From<(Option<PlayerState>, Option<AudioMessage>)> for StepEffects {
+    fn from(
+        (player_state, audio_message): (Option<PlayerState>, Option<AudioMessage>),
+    ) -> Self {
+        Self { player_state, audio_message }
+    }
 }
 
 impl PlayerState {
@@ -346,7 +353,7 @@ impl PlayerState {
                 Ok(publish_display_update(new_state))
             }
 
-            Err(_old_queue) => Ok((None, Some(AudioMessage::DisplayUpdate(None)))),
+            Err(_old_queue) => Ok((None, Some(AudioMessage::DisplayUpdate(None))).into()),
         }
     }
 
@@ -404,7 +411,7 @@ impl PlayerState {
         };
 
         if packet.track_id() != player_state.track_info.id {
-            return Ok((Some(player_state), None));
+            return Ok((Some(player_state), None).into());
         }
 
         let decoded = match player_state.decoder.decode(&packet) {
@@ -414,7 +421,7 @@ impl PlayerState {
                 // Decode errors are not fatal.
                 // Print the error message and try to decode the next packet as usual.
                 warn!("decode error: {}", err);
-                return Ok((Some(player_state), None));
+                return Ok((Some(player_state), None).into());
             }
 
             Err(err) => bail!("failed to read packet: {err}"),
@@ -447,7 +454,7 @@ impl PlayerState {
             .map(|seek_ts| timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
-            return Ok((Some(player_state), None));
+            return Ok((Some(player_state), None).into());
         }
 
         let audio_output: &mut dyn AudioOutput = player_state
@@ -461,15 +468,14 @@ impl PlayerState {
     }
 }
 
-fn publish_display_update(
-    new_state: PlayerState,
-) -> (Option<PlayerState>, Option<AudioMessage>) {
+fn publish_display_update(new_state: PlayerState) -> StepEffects {
     let display: PlayerDisplay = (&new_state).into();
 
     (
         Some(new_state),
         Some(AudioMessage::DisplayUpdate(Some(display))),
     )
+        .into()
 }
 
 #[cfg(test)]
