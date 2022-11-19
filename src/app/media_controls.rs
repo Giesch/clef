@@ -51,7 +51,6 @@ async fn listen_for_media_controls(
     state: MediaControlsState,
     from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
 ) -> (Option<MediaControlEvent>, MediaControlsState) {
-    // TODO
     if state == MediaControlsState::Disconnected {
         return (None, MediaControlsState::Disconnected);
     }
@@ -61,9 +60,6 @@ async fn listen_for_media_controls(
 
         Err(TryRecvError::Empty) => (None, MediaControlsState::Ready),
 
-        Err(TryRecvError::Disconnected) => {
-            // TODO message here?
-            (None, MediaControlsState::Disconnected)
-        }
+        Err(TryRecvError::Disconnected) => (None, MediaControlsState::Disconnected),
     }
 }

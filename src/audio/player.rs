@@ -264,6 +264,13 @@ impl Player {
 
 type StepResult = anyhow::Result<(Option<PlayerState>, Option<AudioMessage>)>;
 
+// TODO get a better name
+// TODO include optional media metadata (owned type?) and optional playback
+struct StepOutcome {
+    player_state: Option<PlayerState>,
+    audio_message: Option<AudioMessage>,
+}
+
 impl PlayerState {
     // This is based on the main loop in the symphonia-play example
     fn play_queue(queue: Queue<QueuedSong>) -> anyhow::Result<Self> {
