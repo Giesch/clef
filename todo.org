@@ -19,7 +19,7 @@
     - [ ] move ControlsMetadata from Effect to the new version of player::StepResult
       remove all media controls stuff from ui and submodules
   - [ ] add media controls playback publish to player
-  - [ ] add support for more media controls to player (eg 'stop', etc)
+  - [-] add support for more media controls to player (eg 'stop', etc)
 
   - [ ] use a wrapper type around media controls to avoid 'unknown song' when stopped
     maybe fork/vendor the library to do this instead of wrapping
