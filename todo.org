@@ -17,7 +17,7 @@
       need a semi-denormalized 'song with album name' type
     - [ ] change the StepResult type to be a little more like Effect
     - [ ] move ControlsMetadata from Effect to the new version of player::StepResult
-      remove all media controls stuff from ui
+      remove all media controls stuff from ui and submodules
   - [ ] add media controls playback publish to player
   - [ ] add support for more media controls to player (eg 'stop', etc)
 

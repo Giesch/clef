@@ -33,7 +33,6 @@ fn main() -> iced::Result {
         MediaControls::new(controls_config).expect("failed to create media controls");
     let (_from_controls_tx, from_controls_rx) = flume::unbounded::<MediaControlEvent>();
 
-    // FIXME does just creating them here add the 'unknown song'?
     let controls_to_audio = to_audio_tx.clone();
     media_controls
         .attach(move |e: MediaControlEvent| {
@@ -44,7 +43,6 @@ fn main() -> iced::Result {
                 MediaControlEvent::Previous => Some(AudioAction::Back),
                 MediaControlEvent::Toggle => Some(AudioAction::Toggle),
 
-                // TODO
                 MediaControlEvent::Stop => None,
                 MediaControlEvent::Seek(_) => None,
                 MediaControlEvent::SeekBy(_, _) => None,
