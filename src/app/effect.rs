@@ -3,8 +3,6 @@ use iced::Command;
 use crate::app::resizer::ResizeRequest;
 use crate::audio::player::AudioAction;
 
-use super::media_controls::ControlsMetadata;
-
 #[derive(Debug)]
 pub enum Effect<Message> {
     None,
@@ -12,17 +10,11 @@ pub enum Effect<Message> {
     Command(Command<Message>),
     ToAudio(AudioAction),
     ToResizer(ResizeRequest),
-    ControlsMetadata(ControlsMetadata),
-    Batch(Vec<Effect<Message>>),
 }
 
 impl<Message> Effect<Message> {
     pub fn none() -> Self {
         Self::None
-    }
-
-    pub fn batch(effects: Vec<Self>) -> Self {
-        Self::Batch(effects)
     }
 }
 
@@ -53,17 +45,5 @@ impl<Message> From<AudioAction> for Effect<Message> {
 impl<Message> From<Option<AudioAction>> for Effect<Message> {
     fn from(to_audio: Option<AudioAction>) -> Self {
         to_audio.map(Self::ToAudio).unwrap_or_default()
-    }
-}
-
-impl<Message> From<ControlsMetadata> for Effect<Message> {
-    fn from(metadata: ControlsMetadata) -> Self {
-        Self::ControlsMetadata(metadata)
-    }
-}
-
-impl<Message> From<Option<ControlsMetadata>> for Effect<Message> {
-    fn from(metadata: Option<ControlsMetadata>) -> Self {
-        metadata.map(Self::ControlsMetadata).unwrap_or_default()
     }
 }

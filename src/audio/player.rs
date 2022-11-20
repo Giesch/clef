@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -6,6 +7,8 @@ use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
+use parking_lot::Mutex;
+use souvlaki::{MediaControls, MediaMetadata};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -85,11 +88,21 @@ impl ProgressTimes {
     };
 }
 
-#[derive(Debug)]
 pub struct Player {
     state: Option<PlayerState>, // None = stopped
     inbox: Receiver<AudioAction>,
     to_ui: Sender<AudioMessage>,
+    media_controls: Arc<Mutex<MediaControls>>,
+}
+
+impl std::fmt::Debug for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Player")
+            .field("state", &self.state)
+            .field("inbox", &self.inbox)
+            .field("to_ui", &self.to_ui)
+            .finish()
+    }
 }
 
 struct PlayerState {
@@ -151,17 +164,18 @@ impl Player {
     pub fn spawn(
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
+        media_controls: Arc<Mutex<MediaControls>>,
     ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
         std::thread::Builder::new()
             .name("ClefAudioPlayer".to_string())
             .spawn(move || {
-                let player = Player::new(inbox, to_ui.clone());
+                let player = Player::new(inbox, to_ui.clone(), media_controls);
                 if let Err(err) = player.run_loop() {
                     to_ui.send(AudioMessage::AudioDied).ok();
 
                     match err {
                         AudioThreadError::Disconnected => {
-                            // wait for graceful shutdown
+                            // wait for graceful shutdown from main
                         }
 
                         AudioThreadError::Other(e) => {
@@ -172,12 +186,21 @@ impl Player {
             })
     }
 
-    pub fn new(inbox: Receiver<AudioAction>, to_ui: Sender<AudioMessage>) -> Self {
-        Self { state: None, inbox, to_ui }
+    pub fn new(
+        inbox: Receiver<AudioAction>,
+        to_ui: Sender<AudioMessage>,
+        media_controls: Arc<Mutex<MediaControls>>,
+    ) -> Self {
+        Self {
+            state: None,
+            inbox,
+            to_ui,
+            media_controls,
+        }
     }
 
     pub fn run_loop(self) -> Result<(), AudioThreadError> {
-        let Player { state, inbox, to_ui } = self;
+        let Player { state, inbox, to_ui, media_controls } = self;
 
         let mut state = state;
 
@@ -198,6 +221,14 @@ impl Player {
             if let Some(message) = effects.audio_message {
                 to_ui.send(message).ok();
             }
+
+            if let Some(metadata) = &effects.metadata {
+                media_controls
+                    .lock()
+                    .set_metadata(metadata.into())
+                    .map_err(|e| error!("error setting media controls metadata: {e:?}"))
+                    .ok();
+            }
         }
     }
 
@@ -214,25 +245,25 @@ impl Player {
                 player_state.playing = false;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Pause), state) => Ok((state, None).into()),
+            (Some(Pause), state) => Ok(Effects::same(state)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
                 Ok(publish_display_update(player_state))
             }
-            (Some(PlayPaused), state) => Ok((state, None).into()),
+            (Some(PlayPaused), state) => Ok(Effects::same(state)),
 
             (Some(Toggle), Some(mut player_state)) => {
                 player_state.playing = !player_state.playing;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Toggle), None) => Ok((None, None).into()),
+            (Some(Toggle), None) => Ok(Effects::none()),
 
             (Some(Forward), Some(player_state)) => player_state.forward(),
-            (Some(Forward), None) => Ok((None, None).into()),
+            (Some(Forward), None) => Ok(Effects::none()),
 
             (Some(Back), Some(player_state)) => player_state.back(),
-            (Some(Back), None) => Ok((None, None).into()),
+            (Some(Back), None) => Ok(Effects::none()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
                 if let Some(total) = player_state
@@ -252,29 +283,77 @@ impl Player {
                     Ok(publish_display_update(player_state))
                 }
             }
-            (Some(Seek(_)), None) => Ok((None, None).into()),
+            (Some(Seek(_)), None) => Ok(Effects::none()),
 
             (None, Some(player_state)) if player_state.playing => {
                 player_state.continue_playing()
             }
-            (None, state) => Ok((state, None).into()),
+            (None, state) => Ok(Effects::same(state)),
         }
     }
 }
 
-type StepResult = anyhow::Result<StepEffects>;
+type StepResult = anyhow::Result<Effects>;
 
 // TODO include optional media metadata (owned type?) and optional playback
-struct StepEffects {
+struct Effects {
+    /// The new player state; this is 'required'; None = stopped
     player_state: Option<PlayerState>,
+    /// ui message to send
     audio_message: Option<AudioMessage>,
+    /// metadata to publish to
+    metadata: Option<ControlsMetadata>,
 }
 
-impl From<(Option<PlayerState>, Option<AudioMessage>)> for StepEffects {
+// an owned version of `souvlaki::MediaMetadata`
+#[derive(Debug)]
+pub struct ControlsMetadata {
+    pub title: Option<String>,
+    pub album: Option<String>,
+    pub artist: Option<String>,
+    pub cover_url: Option<String>,
+    pub duration: Option<Duration>,
+}
+
+impl<'a> From<&'a ControlsMetadata> for MediaMetadata<'a> {
+    fn from(metadata: &'a ControlsMetadata) -> Self {
+        MediaMetadata {
+            title: metadata.title.as_deref(),
+            album: metadata.album.as_deref(),
+            artist: metadata.artist.as_deref(),
+            cover_url: metadata.cover_url.as_deref(),
+            duration: metadata.duration,
+        }
+    }
+}
+
+impl Effects {
+    fn same(player_state: Option<PlayerState>) -> Self {
+        Self {
+            player_state,
+            audio_message: None,
+            metadata: None,
+        }
+    }
+
+    fn none() -> Self {
+        Self {
+            player_state: None,
+            audio_message: None,
+            metadata: None,
+        }
+    }
+}
+
+impl From<(Option<PlayerState>, Option<AudioMessage>)> for Effects {
     fn from(
         (player_state, audio_message): (Option<PlayerState>, Option<AudioMessage>),
     ) -> Self {
-        Self { player_state, audio_message }
+        Self {
+            player_state,
+            audio_message,
+            metadata: None,
+        }
     }
 }
 
@@ -468,14 +547,30 @@ impl PlayerState {
     }
 }
 
-fn publish_display_update(new_state: PlayerState) -> StepEffects {
+// TODO find a way to avoid publishing metadata all the time
+fn publish_display_update(new_state: PlayerState) -> Effects {
+    let current = &new_state.queue.current;
+
+    let cover_url = current
+        .resized_art
+        .as_ref()
+        .map(|path| format!("file://{}", path));
+
+    let metadata = ControlsMetadata {
+        title: current.title.clone(),
+        album: current.album_title.clone(),
+        artist: current.artist.clone(),
+        duration: current.duration,
+        cover_url,
+    };
+
     let display: PlayerDisplay = (&new_state).into();
 
-    (
-        Some(new_state),
-        Some(AudioMessage::DisplayUpdate(Some(display))),
-    )
-        .into()
+    Effects {
+        player_state: Some(new_state),
+        audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
+        metadata: Some(metadata),
+    }
 }
 
 #[cfg(test)]

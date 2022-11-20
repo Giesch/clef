@@ -9,14 +9,14 @@
       could it just not do that? would it be noticable?
       seems fine
 
-  - [-] publish media controls metadata from the audio thread
+  - [X] publish media controls metadata from the audio thread
     if published from the main ui thread,
       it's delayed until the app is foregrounded again
       what's the nice way to organize this?
     - [X] duplicate all the song/album info necessary for controls in the player queue
       need a semi-denormalized 'song with album name' type
-    - [ ] change the StepResult type to be a little more like Effect
-    - [ ] move ControlsMetadata from Effect to the new version of player::StepResult
+    - [X] change the StepResult type to be a little more like Effect
+    - [X] move ControlsMetadata from Effect to the new version of player::StepResult
       remove all media controls stuff from ui and submodules
   - [ ] add media controls playback publish to player
   - [-] add support for more media controls to player (eg 'stop', etc)
