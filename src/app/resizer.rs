@@ -34,7 +34,7 @@ pub struct ResizeRequest {
 pub fn resizer_subscription(
     config: Arc<Config>,
     db: SqlitePool,
-    inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
+    inbox: Receiver<ResizeRequest>,
 ) -> iced::Subscription<ResizerMessage> {
     struct ResizerSub;
 
@@ -54,12 +54,12 @@ async fn step(
     state: ResizerState,
     config: Arc<Config>,
     db: SqlitePool,
-    inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
+    inbox: Receiver<ResizeRequest>,
 ) -> (Option<ResizerMessage>, ResizerState) {
     match state {
         ResizerState::Working => {
             let images_directory = &config.resized_images_directory;
-            let request = match inbox.lock().try_recv() {
+            let request = match inbox.try_recv() {
                 Ok(request) => request,
                 Err(TryRecvError::Empty) => {
                     return (None, ResizerState::Working);

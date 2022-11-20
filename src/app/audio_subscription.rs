@@ -12,7 +12,7 @@ enum AudioSubState {
 }
 
 pub fn audio_subscription(
-    inbox: Arc<Mutex<Receiver<AudioMessage>>>,
+    inbox: Receiver<AudioMessage>,
 ) -> iced::Subscription<AudioMessage> {
     struct AudioSub;
 
@@ -25,13 +25,13 @@ pub fn audio_subscription(
 
 async fn listen(
     state: AudioSubState,
-    inbox: Arc<Mutex<Receiver<AudioMessage>>>,
+    inbox: Receiver<AudioMessage>,
 ) -> (Option<AudioMessage>, AudioSubState) {
     if state == AudioSubState::Disconnected {
         return (None, AudioSubState::Disconnected);
     }
 
-    match inbox.lock().try_recv() {
+    match inbox.try_recv() {
         Ok(msg) => (Some(msg), AudioSubState::Ready),
 
         Err(TryRecvError::Empty) => (None, AudioSubState::Ready),

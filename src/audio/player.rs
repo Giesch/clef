@@ -1,5 +1,4 @@
 use std::fs::File;
-use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -7,8 +6,9 @@ use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
-use parking_lot::Mutex;
-use souvlaki::{MediaControls, MediaMetadata, MediaPlayback};
+use souvlaki::{
+    MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig,
+};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -92,9 +92,10 @@ pub struct Player {
     state: Option<PlayerState>, // None = stopped
     inbox: Receiver<AudioAction>,
     to_ui: Sender<AudioMessage>,
-    media_controls: Arc<Mutex<MediaControls>>,
+    media_controls: WrappedControls,
 }
 
+// TODO derive
 impl std::fmt::Debug for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Player")
@@ -164,12 +165,13 @@ impl Player {
     pub fn spawn(
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
-        media_controls: Arc<Mutex<MediaControls>>,
+        to_self: Sender<AudioAction>,
     ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
         std::thread::Builder::new()
             .name("ClefAudioPlayer".to_string())
             .spawn(move || {
-                let player = Player::new(inbox, to_ui.clone(), media_controls);
+                let player = Player::new(inbox, to_ui.clone(), to_self);
+
                 if let Err(err) = player.run_loop() {
                     to_ui.send(AudioMessage::AudioDied).ok();
 
@@ -189,8 +191,10 @@ impl Player {
     pub fn new(
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
-        media_controls: Arc<Mutex<MediaControls>>,
+        to_self: Sender<AudioAction>,
     ) -> Self {
+        let media_controls = WrappedControls::new(to_self);
+
         Self {
             state: None,
             inbox,
@@ -200,7 +204,12 @@ impl Player {
     }
 
     pub fn run_loop(self) -> Result<(), AudioThreadError> {
-        let Player { state, inbox, to_ui, media_controls } = self;
+        let Player {
+            state,
+            inbox,
+            to_ui,
+            mut media_controls,
+        } = self;
 
         let mut state = state;
 
@@ -218,24 +227,20 @@ impl Player {
 
             state = effects.player_state;
 
+            if state.is_none() {
+                media_controls.deinit();
+            }
+
             if let Some(message) = effects.audio_message {
                 to_ui.send(message).ok();
             }
 
-            let mut controls = media_controls.lock();
-
             if let Some(metadata) = &effects.metadata {
-                controls
-                    .set_metadata(metadata.into())
-                    .map_err(|e| error!("error setting media controls metadata: {e:?}"))
-                    .ok();
+                media_controls.set_metadata(metadata.into());
             }
 
             if let Some(playback) = effects.playback {
-                controls
-                    .set_playback(playback)
-                    .map_err(|e| error!("error setting media controls playback: {e:?}"))
-                    .ok();
+                media_controls.set_playback(playback);
             }
         }
     }
@@ -590,6 +595,108 @@ fn publish_display_update(new_state: PlayerState) -> Effects {
         audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
         metadata: Some(metadata),
         playback: Some(playback),
+    }
+}
+
+struct WrappedControls {
+    media_controls: Option<MediaControls>,
+    controls_to_audio: Sender<AudioAction>,
+}
+
+impl std::fmt::Debug for WrappedControls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WrappedControls")
+            .field("media_controls", &"MediaControls")
+            .field("controls_to_audio", &self.controls_to_audio)
+            .finish()
+    }
+}
+
+impl WrappedControls {
+    fn new(controls_to_audio: Sender<AudioAction>) -> Self {
+        Self {
+            controls_to_audio,
+            media_controls: None,
+        }
+    }
+
+    fn set_metadata(&mut self, metadata: MediaMetadata<'_>) {
+        self.ensure_init();
+
+        if let Some(ref mut media_controls) = self.media_controls {
+            media_controls
+                .set_metadata(metadata)
+                .map_err(|e| log::error!("failed to set media controls metadata: {e:?}"))
+                .ok();
+        }
+    }
+
+    fn set_playback(&mut self, playback: MediaPlayback) {
+        self.ensure_init();
+
+        if let Some(ref mut media_controls) = self.media_controls {
+            media_controls
+                .set_playback(playback)
+                .map_err(|e| log::error!("failed to set media controls playback: {e:?}"))
+                .ok();
+        }
+    }
+
+    fn ensure_init(&mut self) {
+        if self.media_controls.is_none() {
+            self.init();
+        }
+    }
+
+    // TODO remove expects
+    fn init(&mut self) {
+        let platform_config = PlatformConfig {
+            dbus_name: "clef.player",
+            display_name: "Clef",
+            hwnd: None, // required for windows support
+        };
+
+        let mut media_controls =
+            MediaControls::new(platform_config).expect("failed to create media controls");
+
+        let controls_to_audio = self.controls_to_audio.clone();
+
+        media_controls
+            .attach(move |e: MediaControlEvent| {
+                let action: Option<AudioAction> = match &e {
+                    MediaControlEvent::Play => Some(AudioAction::PlayPaused),
+                    MediaControlEvent::Pause => Some(AudioAction::Pause),
+                    MediaControlEvent::Next => Some(AudioAction::Forward),
+                    MediaControlEvent::Previous => Some(AudioAction::Back),
+                    MediaControlEvent::Toggle => Some(AudioAction::Toggle),
+
+                    MediaControlEvent::Stop => None,
+                    MediaControlEvent::Seek(_) => None,
+                    MediaControlEvent::SeekBy(_, _) => None,
+                    MediaControlEvent::SetPosition(_) => None,
+                    MediaControlEvent::OpenUri(_) => None,
+                    MediaControlEvent::Raise => None,
+                    MediaControlEvent::Quit => None,
+                };
+
+                if let Some(action) = action {
+                    controls_to_audio
+                        .send(action)
+                        .map_err(|e| {
+                            log::error!("failed to send from controls to audio: {e:?}")
+                        })
+                        .ok();
+                } else {
+                    log::info!("unsupported media controls action: {e:?}");
+                }
+            })
+            .expect("failed to set up listening to media controls");
+
+        self.media_controls = Some(media_controls);
+    }
+
+    fn deinit(&mut self) {
+        self.media_controls = None;
     }
 }
 
