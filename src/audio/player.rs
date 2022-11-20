@@ -2,7 +2,7 @@ use std::fs::File;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
@@ -28,7 +28,7 @@ use super::track_info::{first_supported_track, TrackInfo};
 pub enum AudioAction {
     /// Begin playing the file (0) immediately,
     /// and continue playing files from the queue (1) when it ends
-    PlayQueue(Queue<QueuedSong>),
+    PlayQueue(Box<Queue<QueuedSong>>),
     /// Pause the currently playing song, if any
     Pause,
     /// Play the currently paused song, if any
@@ -88,22 +88,12 @@ impl ProgressTimes {
     };
 }
 
+#[derive(Debug)]
 pub struct Player {
     state: Option<PlayerState>, // None = stopped
     inbox: Receiver<AudioAction>,
     to_ui: Sender<AudioMessage>,
     media_controls: WrappedControls,
-}
-
-// TODO derive
-impl std::fmt::Debug for Player {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Player")
-            .field("state", &self.state)
-            .field("inbox", &self.inbox)
-            .field("to_ui", &self.to_ui)
-            .finish()
-    }
 }
 
 struct PlayerState {
@@ -222,14 +212,10 @@ impl Player {
                 }
             };
 
+            let was_playing = state.is_some();
+
             let effects =
                 Self::step(state, action).context("error during player step")?;
-
-            state = effects.player_state;
-
-            if state.is_none() {
-                media_controls.deinit();
-            }
 
             if let Some(message) = effects.audio_message {
                 to_ui.send(message).ok();
@@ -242,6 +228,12 @@ impl Player {
             if let Some(playback) = effects.playback {
                 media_controls.set_playback(playback);
             }
+
+            if effects.player_state.is_none() && was_playing {
+                media_controls.deinit();
+            }
+
+            state = effects.player_state;
         }
     }
 
@@ -250,7 +242,7 @@ impl Player {
 
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
-                let player_state = PlayerState::play_queue(queue)?;
+                let player_state = PlayerState::play_queue(*queue)?;
                 Ok(publish_display_update(player_state))
             }
 
@@ -308,7 +300,7 @@ impl Player {
 
 type StepResult = anyhow::Result<Effects>;
 
-// TODO include optional media metadata (owned type?) and optional playback
+#[derive(Debug)]
 struct Effects {
     /// The new player state; this is 'required'; None = stopped
     player_state: Option<PlayerState>,
@@ -565,7 +557,6 @@ impl PlayerState {
     }
 }
 
-// TODO find a way to avoid publishing metadata/playback all the time
 fn publish_display_update(new_state: PlayerState) -> Effects {
     let current = &new_state.queue.current;
 
@@ -644,20 +635,33 @@ impl WrappedControls {
 
     fn ensure_init(&mut self) {
         if self.media_controls.is_none() {
-            self.init();
+            self.init().ok();
         }
     }
 
-    // TODO remove expects
-    fn init(&mut self) {
+    fn deinit(&mut self) {
+        if let Some(mut media_controls) = self.media_controls.take() {
+            media_controls
+                .set_playback(MediaPlayback::Stopped)
+                .map_err(|e| error!("failed to set media controls playback: {e:?}"))
+                .ok();
+
+            media_controls
+                .detach()
+                .map_err(|e| error!("failed to detach media controls: {e:?}"))
+                .ok();
+        }
+    }
+
+    fn init(&mut self) -> anyhow::Result<()> {
         let platform_config = PlatformConfig {
             dbus_name: "clef.player",
             display_name: "Clef",
             hwnd: None, // required for windows support
         };
 
-        let mut media_controls =
-            MediaControls::new(platform_config).expect("failed to create media controls");
+        let mut media_controls = MediaControls::new(platform_config)
+            .map_err(|_| anyhow!("failed to create media controls"))?;
 
         let controls_to_audio = self.controls_to_audio.clone();
 
@@ -690,13 +694,11 @@ impl WrappedControls {
                     log::info!("unsupported media controls action: {e:?}");
                 }
             })
-            .expect("failed to set up listening to media controls");
+            .map_err(|_| anyhow!("failed to set up listening to media controls"))?;
 
         self.media_controls = Some(media_controls);
-    }
 
-    fn deinit(&mut self) {
-        self.media_controls = None;
+        Ok(())
     }
 }
 

@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use flume::{Receiver, TryRecvError};
-use parking_lot::Mutex;
 
 use crate::audio::player::AudioMessage;
 
