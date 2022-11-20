@@ -626,10 +626,13 @@ mod tests {
             queue,
         };
 
-        let (new_state, to_ui) = player_state.continue_playing().unwrap();
+        let effects = player_state.continue_playing().unwrap();
 
-        assert!(matches!(new_state, None));
-        assert!(matches!(to_ui, Some(AudioMessage::DisplayUpdate(None))));
+        assert!(matches!(effects.player_state, None));
+        assert!(matches!(
+            effects.audio_message,
+            Some(AudioMessage::DisplayUpdate(None))
+        ));
     }
 
     mock! {
