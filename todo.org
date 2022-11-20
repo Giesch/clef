@@ -19,16 +19,10 @@
     - [X] move ControlsMetadata from Effect to the new version of player::StepResult
       remove all media controls stuff from ui and submodules
   - [ ] add media controls playback publish to player
-  - [-] add support for more media controls to player (eg 'stop', etc)
-
+  - [ ] cache media controls metadata to avoid unnecessary dbus updates
+    see if the library is already doing this
   - [ ] use a wrapper type around media controls to avoid 'unknown song' when stopped
     maybe fork/vendor the library to do this instead of wrapping
-
-  - [ ] what's the right way to handle getting the hwind for windows support?
-    does this interact with doing stuff on the audio thread?
-    if the audio thread spawn has to have a window id, that's weird
-      could send it one from the ui after the ui comes up
-      see what Psst does
 
 - [-] keyboard support
   - [X] space for play/pause current song
@@ -36,6 +30,7 @@
     so the track numbers will also have to be wrapped in button
     is it better to not mimic the web for this?
       what would the alternative look like?
+      do everything by fuzzy search instead of tab-focus
 
 - [ ] add some vimmy commands (scroll)
   C-e and C-y are easier
@@ -50,6 +45,11 @@
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
   this one will need the actual metadata, like Queue<Song> or something
+
+- [ ] test app on windows
+- [ ] add media controls support on windows
+  see if this could require having a window handle on the audio thread
+  maybe find a workaround for that - see what Psst does
 
 - [ ] replace icons with slightly darker color
   - convert to pngs?
