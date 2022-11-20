@@ -12,7 +12,6 @@ use iced::{
 };
 use iced_native::keyboard::Event as KeyboardEvent;
 use log::error;
-use parking_lot::Mutex;
 
 use crate::audio::player::{AudioAction, AudioMessage, ProgressTimes};
 use crate::db::queries::*;
@@ -311,7 +310,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
-        })) if key_code == KeyCode::Space || key_code == KeyCode::PlayPause => toggle(ui),
+        })) if key_code == KeyCode::Space => toggle(ui),
 
         Message::Native(_) => Effect::none(),
 
@@ -328,7 +327,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 return Effect::none();
             };
 
-            AudioAction::PlayQueue(queue).into()
+            AudioAction::PlayQueue(Box::new(queue)).into()
         }
 
         Message::PauseClicked => AudioAction::Pause.into(),

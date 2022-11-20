@@ -4,7 +4,6 @@ use anyhow::Context;
 use camino::{Utf8Path, Utf8PathBuf};
 use flume::{Receiver, TryRecvError};
 use log::error;
-use parking_lot::Mutex;
 
 use crate::app::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 use crate::db::queries::{add_resized_image_location, AlbumId};

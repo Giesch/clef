@@ -1,5 +1,5 @@
 * Now
-- [-] fix media controls while app is backgrounded
+- [X] fix media controls while app is backgrounded
   - [X] first, check if listening for controls on audio thread even works
     can it avoid having another thread for listening for controls?
       like have the player hold a vec of entered commands
@@ -22,8 +22,11 @@
   - [X] use a wrapper type around media controls to avoid 'unknown song' when stopped
     maybe fork/vendor the library to do this instead of wrapping
 
-  - [ ] detach media controls correctly when reaching end of queue
+  - [X] detach media controls correctly when reaching end of queue
+    souvlaki doesn't close the controls until the program closes? deinit/detach doesn't work
+    needed to release the dbus name on kill
 
+* Next
 - [-] keyboard support
   - [X] space for play/pause current song
   - [ ] tab navigation - need to make the buttons focusable
@@ -41,7 +44,7 @@
   - modal? keyboard-based
     command pallete look
 
-* Next
+
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
   this one will need the actual metadata, like Queue<Song> or something
@@ -144,8 +147,8 @@
 - [ ] other views
 
 - [ ] cache media controls metadata to avoid unnecessary dbus updates
-  see if the library is already doing this
-    there's a todo for it
+  consider implementing this upstream
+- [ ] make souvlaki error respect std error required by anyhow
 
 - [ ] handle missing time data on track info
   currently it just logs and uses zero
