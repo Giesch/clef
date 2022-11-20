@@ -31,7 +31,6 @@ fn main() -> iced::Result {
 
     let mut media_controls =
         MediaControls::new(controls_config).expect("failed to create media controls");
-    let (_from_controls_tx, from_controls_rx) = flume::unbounded::<MediaControlEvent>();
 
     let controls_to_audio = to_audio_tx.clone();
     media_controls
@@ -69,20 +68,12 @@ fn main() -> iced::Result {
 
     //////
 
-    let audio_handle =
-        Player::spawn(to_audio_rx, to_ui_tx).expect("failed to start audio thread");
+    let audio_handle = Player::spawn(to_audio_rx, to_ui_tx, media_controls.clone())
+        .expect("failed to start audio thread");
 
     let inbox = Arc::new(Mutex::new(to_ui_rx));
     let to_audio = Arc::new(Mutex::new(to_audio_tx));
-    let from_controls = Arc::new(Mutex::new(from_controls_rx));
-    let flags = Flags {
-        inbox,
-        to_audio,
-        db_pool,
-        config,
-        media_controls,
-        from_controls,
-    };
+    let flags = Flags { inbox, to_audio, db_pool, config };
 
     App::run(Settings::with_flags(flags)).map_err(|e| {
         audio_handle.join().ok();

@@ -1,7 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
 
-use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
 use iced::keyboard::KeyCode;
 use iced::widget::{
@@ -13,9 +11,8 @@ use iced::{
     Length, Subscription, Theme,
 };
 use iced_native::keyboard::Event as KeyboardEvent;
-use log::{error, info};
+use log::error;
 use parking_lot::Mutex;
-use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata};
 
 use crate::audio::player::{AudioAction, AudioMessage, ProgressTimes};
 use crate::db::queries::*;
@@ -28,7 +25,6 @@ mod custom_style;
 mod effect;
 mod hoverable;
 mod icons;
-mod media_controls;
 mod music_cache;
 mod resizer;
 mod rgba;
@@ -39,11 +35,11 @@ use crawler::*;
 use custom_style::no_background;
 use effect::Effect;
 use hoverable::*;
-use media_controls::*;
 use music_cache::*;
 use resizer::*;
 use rgba::*;
 
+#[derive(Debug)]
 pub struct App {
     config: Arc<Config>,
     db: SqlitePool,
@@ -51,26 +47,10 @@ pub struct App {
     to_audio: Arc<Mutex<Sender<AudioAction>>>,
     to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
     resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
-    from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
-    media_controls: Arc<Mutex<MediaControls>>,
     ui: Ui,
 }
 
-impl std::fmt::Debug for App {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("App")
-            .field("config", &self.config)
-            .field("db", &self.db)
-            .field("inbox", &self.inbox)
-            .field("to_audio", &self.to_audio)
-            .field("to_resizer", &self.to_resizer)
-            .field("resizer_inbox", &self.resizer_inbox)
-            .field("from_controls", &self.from_controls)
-            .field("ui", &self.ui)
-            .finish()
-    }
-}
-
+#[derive(Debug)]
 struct Ui {
     should_exit: bool,
     crawling_music: bool,
@@ -93,19 +73,6 @@ impl Ui {
     }
 }
 
-impl std::fmt::Debug for Ui {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Ui")
-            .field("should_exit", &self.should_exit)
-            .field("crawling_music", &self.crawling_music)
-            .field("current_song", &self.current_song)
-            .field("progress", &self.progress)
-            .field("hovered_song_id", &self.hovered_song_id)
-            .field("music_cache", &self.music_cache)
-            .finish()
-    }
-}
-
 impl App {
     fn new(flags: Flags) -> Self {
         let (to_resizer_tx, to_resizer_rx) = flume::unbounded::<ResizeRequest>();
@@ -117,8 +84,6 @@ impl App {
             db: flags.db_pool,
             to_resizer: Arc::new(Mutex::new(to_resizer_tx)),
             resizer_inbox: Arc::new(Mutex::new(to_resizer_rx)),
-            from_controls: flags.from_controls,
-            media_controls: flags.media_controls,
             ui: Ui::new(),
         }
     }
@@ -146,28 +111,6 @@ impl App {
 
                 Command::none()
             }
-
-            Effect::ControlsMetadata(metadata) => {
-                let mut controls = self.media_controls.lock();
-                let metadata: MediaMetadata<'_> = (&metadata).into();
-
-                controls
-                    .set_metadata(metadata)
-                    .map_err(|e| error!("failed to set media controls metadata: {e:?}"))
-                    .ok();
-
-                Command::none()
-            }
-
-            Effect::Batch(effects) => {
-                let mut commands = Vec::new();
-                for effect in effects {
-                    let command = self.execute(effect);
-                    commands.push(command);
-                }
-
-                Command::batch(commands)
-            }
         }
     }
 }
@@ -181,7 +124,6 @@ struct CurrentSong {
     artist: Option<String>,
     playing: bool,
     total_seconds: i64,
-    resized_art: Option<Utf8PathBuf>,
 }
 
 impl CurrentSong {
@@ -193,7 +135,6 @@ impl CurrentSong {
             album: album.title.clone(),
             artist: song.artist.clone(),
             total_seconds: song.total_seconds,
-            resized_art: album.resized_art.clone(),
             playing,
         }
     }
@@ -237,25 +178,12 @@ impl ProgressDisplay {
     }
 }
 
+#[derive(Debug)]
 pub struct Flags {
     pub inbox: Arc<Mutex<Receiver<AudioMessage>>>,
     pub to_audio: Arc<Mutex<Sender<AudioAction>>>,
     pub db_pool: SqlitePool,
     pub config: Config,
-    pub media_controls: Arc<Mutex<MediaControls>>,
-    pub from_controls: Arc<Mutex<Receiver<MediaControlEvent>>>,
-}
-
-impl std::fmt::Debug for Flags {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Flags")
-            .field("inbox", &self.inbox)
-            .field("to_audio", &self.to_audio)
-            .field("db_pool", &self.db_pool)
-            .field("config", &self.config)
-            .field("from_controls", &self.from_controls)
-            .finish()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -263,7 +191,6 @@ pub enum Message {
     FromCrawler(CrawlerMessage),
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
-    FromMediaControls(MediaControlEvent),
     Native(Event),
     PlayPausedClicked,
     PlaySongClicked(SongId),
@@ -329,10 +256,7 @@ impl Application for App {
 
         let native = iced_native::subscription::events().map(Message::Native);
 
-        let media_controls = media_controls_subscription(self.from_controls.clone())
-            .map(Message::FromMediaControls);
-
-        Subscription::batch([crawler, resizer, audio, native, media_controls])
+        Subscription::batch([crawler, resizer, audio, native])
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
@@ -387,17 +311,13 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
 
-        Message::FromMediaControls(MediaControlEvent::Toggle) => toggle(ui),
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
         })) if key_code == KeyCode::Space || key_code == KeyCode::PlayPause => toggle(ui),
 
         Message::Native(_) => Effect::none(),
 
-        Message::PlayPausedClicked
-        | Message::FromMediaControls(MediaControlEvent::Play) => {
-            AudioAction::PlayPaused.into()
-        }
+        Message::PlayPausedClicked => AudioAction::PlayPaused.into(),
 
         Message::PlaySongClicked(song_id) => {
             let Some(current) = get_current_song(&ui.music_cache, song_id, true) else {
@@ -410,21 +330,14 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 return Effect::none();
             };
 
-            let metadata: ControlsMetadata = (&current).into();
-
-            Effect::batch(vec![AudioAction::PlayQueue(queue).into(), metadata.into()])
+            AudioAction::PlayQueue(queue).into()
         }
 
-        Message::PauseClicked | Message::FromMediaControls(MediaControlEvent::Pause) => {
-            AudioAction::Pause.into()
-        }
+        Message::PauseClicked => AudioAction::Pause.into(),
 
-        Message::FromMediaControls(MediaControlEvent::Next) | Message::ForwardClicked => {
-            AudioAction::Forward.into()
-        }
+        Message::ForwardClicked => AudioAction::Forward.into(),
 
-        Message::FromMediaControls(MediaControlEvent::Previous)
-        | Message::BackClicked => {
+        Message::BackClicked => {
             let optimistic = OptimisticTime { proportion: 0.0, updates_skipped: 0 };
             ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
@@ -466,10 +379,9 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
         Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
             // update current song
-            let metadata = match &mut ui.current_song {
+            match &mut ui.current_song {
                 Some(current_song) if current_song.id == display.song_id => {
                     current_song.playing = display.playing;
-                    None
                 }
 
                 _ => {
@@ -478,11 +390,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                         display.song_id,
                         display.playing,
                     ) {
-                        let metadata: ControlsMetadata = (&current_song).into();
                         ui.current_song = Some(current_song);
-                        Some(metadata)
-                    } else {
-                        None
                     }
                 }
             };
@@ -516,7 +424,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 }
             }
 
-            Effect::batch(vec![metadata.into()])
+            Effect::none()
         }
 
         Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {
@@ -528,31 +436,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::FromAudio(AudioMessage::AudioDied) => {
             ui.should_exit = true;
             Effect::none()
-        }
-
-        Message::FromMediaControls(event) => {
-            info!("unsupported media control event: {event:?}");
-            Effect::none()
-        }
-    }
-}
-
-impl From<&CurrentSong> for ControlsMetadata {
-    fn from(current_song: &CurrentSong) -> Self {
-        let cover_url = current_song
-            .resized_art
-            .as_ref()
-            .map(|path| format!("file://{}", path));
-
-        let secs: Option<u64> = current_song.total_seconds.try_into().ok();
-        let duration = secs.map(Duration::from_secs);
-
-        Self {
-            title: Some(current_song.title.clone()),
-            album: current_song.album.clone(),
-            artist: current_song.artist.clone(),
-            cover_url,
-            duration,
         }
     }
 }
