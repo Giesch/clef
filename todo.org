@@ -35,6 +35,9 @@
       what would the alternative look like?
       do everything by fuzzy search instead of tab-focus
 
+- [ ] get a nicer 'stopped' state
+  the do-nothing play button and progress slider are bad
+
 - [ ] add some vimmy commands (scroll)
   C-e and C-y are easier
   snap to top/bottom is easy

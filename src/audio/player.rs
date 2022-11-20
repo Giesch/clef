@@ -640,17 +640,8 @@ impl WrappedControls {
     }
 
     fn deinit(&mut self) {
-        if let Some(mut media_controls) = self.media_controls.take() {
-            media_controls
-                .set_playback(MediaPlayback::Stopped)
-                .map_err(|e| error!("failed to set media controls playback: {e:?}"))
-                .ok();
-
-            media_controls
-                .detach()
-                .map_err(|e| error!("failed to detach media controls: {e:?}"))
-                .ok();
-        }
+        // NOTE this relies on the controls releasing the dbus name on drop
+        self.media_controls = None;
     }
 
     fn init(&mut self) -> anyhow::Result<()> {
