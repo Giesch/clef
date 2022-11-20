@@ -8,7 +8,7 @@ use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
 use parking_lot::Mutex;
-use souvlaki::{MediaControls, MediaMetadata};
+use souvlaki::{MediaControls, MediaMetadata, MediaPlayback};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -222,11 +222,19 @@ impl Player {
                 to_ui.send(message).ok();
             }
 
+            let mut controls = media_controls.lock();
+
             if let Some(metadata) = &effects.metadata {
-                media_controls
-                    .lock()
+                controls
                     .set_metadata(metadata.into())
                     .map_err(|e| error!("error setting media controls metadata: {e:?}"))
+                    .ok();
+            }
+
+            if let Some(playback) = effects.playback {
+                controls
+                    .set_playback(playback)
+                    .map_err(|e| error!("error setting media controls playback: {e:?}"))
                     .ok();
             }
         }
@@ -301,8 +309,10 @@ struct Effects {
     player_state: Option<PlayerState>,
     /// ui message to send
     audio_message: Option<AudioMessage>,
-    /// metadata to publish to
+    /// metadata to publish to media controls
     metadata: Option<ControlsMetadata>,
+    /// playback & progress to publish to media controls
+    playback: Option<MediaPlayback>,
 }
 
 // an owned version of `souvlaki::MediaMetadata`
@@ -333,6 +343,7 @@ impl Effects {
             player_state,
             audio_message: None,
             metadata: None,
+            playback: None,
         }
     }
 
@@ -341,6 +352,7 @@ impl Effects {
             player_state: None,
             audio_message: None,
             metadata: None,
+            playback: None,
         }
     }
 }
@@ -353,6 +365,7 @@ impl From<(Option<PlayerState>, Option<AudioMessage>)> for Effects {
             player_state,
             audio_message,
             metadata: None,
+            playback: None,
         }
     }
 }
@@ -440,7 +453,7 @@ impl PlayerState {
         let past_two_seconds = self
             .track_info
             .progress_times(self.timestamp)
-            .map(|p| p.elapsed.seconds > 1)
+            .map(|p| p.elapsed.seconds >= 2)
             .unwrap_or_default();
 
         if !past_two_seconds {
@@ -547,7 +560,7 @@ impl PlayerState {
     }
 }
 
-// TODO find a way to avoid publishing metadata all the time
+// TODO find a way to avoid publishing metadata/playback all the time
 fn publish_display_update(new_state: PlayerState) -> Effects {
     let current = &new_state.queue.current;
 
@@ -564,12 +577,19 @@ fn publish_display_update(new_state: PlayerState) -> Effects {
         cover_url,
     };
 
+    let playback = if new_state.playing {
+        MediaPlayback::Playing { progress: None }
+    } else {
+        MediaPlayback::Paused { progress: None }
+    };
+
     let display: PlayerDisplay = (&new_state).into();
 
     Effects {
         player_state: Some(new_state),
         audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
         metadata: Some(metadata),
+        playback: Some(playback),
     }
 }
 
