@@ -43,10 +43,10 @@ use rgba::*;
 pub struct App {
     config: Arc<Config>,
     db: SqlitePool,
-    inbox: Arc<Mutex<Receiver<AudioMessage>>>,
-    to_audio: Arc<Mutex<Sender<AudioAction>>>,
-    to_resizer: Arc<Mutex<Sender<ResizeRequest>>>,
-    resizer_inbox: Arc<Mutex<Receiver<ResizeRequest>>>,
+    inbox: Receiver<AudioMessage>,
+    to_audio: Sender<AudioAction>,
+    to_resizer: Sender<ResizeRequest>,
+    resizer_inbox: Receiver<ResizeRequest>,
     ui: Ui,
 }
 
@@ -82,8 +82,8 @@ impl App {
             inbox: flags.inbox,
             to_audio: flags.to_audio,
             db: flags.db_pool,
-            to_resizer: Arc::new(Mutex::new(to_resizer_tx)),
-            resizer_inbox: Arc::new(Mutex::new(to_resizer_rx)),
+            to_resizer: to_resizer_tx,
+            resizer_inbox: to_resizer_rx,
             ui: Ui::new(),
         }
     }
@@ -96,7 +96,6 @@ impl App {
 
             Effect::ToAudio(audio_action) => {
                 self.to_audio
-                    .lock()
                     .send(audio_action)
                     .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
 
@@ -105,7 +104,6 @@ impl App {
 
             Effect::ToResizer(resize_request) => {
                 self.to_resizer
-                    .lock()
                     .send(resize_request)
                     .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
 
@@ -180,8 +178,8 @@ impl ProgressDisplay {
 
 #[derive(Debug)]
 pub struct Flags {
-    pub inbox: Arc<Mutex<Receiver<AudioMessage>>>,
-    pub to_audio: Arc<Mutex<Sender<AudioAction>>>,
+    pub inbox: Receiver<AudioMessage>,
+    pub to_audio: Sender<AudioAction>,
     pub db_pool: SqlitePool,
     pub config: Config,
 }

@@ -18,11 +18,11 @@
     - [X] change the StepResult type to be a little more like Effect
     - [X] move ControlsMetadata from Effect to the new version of player::StepResult
       remove all media controls stuff from ui and submodules
-  - [ ] add media controls playback publish to player
-  - [ ] cache media controls metadata to avoid unnecessary dbus updates
-    see if the library is already doing this
-  - [ ] use a wrapper type around media controls to avoid 'unknown song' when stopped
+  - [X] add media controls playback publish to player
+  - [X] use a wrapper type around media controls to avoid 'unknown song' when stopped
     maybe fork/vendor the library to do this instead of wrapping
+
+  - [ ] detach media controls correctly when reaching end of queue
 
 - [-] keyboard support
   - [X] space for play/pause current song
@@ -142,6 +142,10 @@
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)
 - [ ] other views
+
+- [ ] cache media controls metadata to avoid unnecessary dbus updates
+  see if the library is already doing this
+    there's a todo for it
 
 - [ ] handle missing time data on track info
   currently it just logs and uses zero
