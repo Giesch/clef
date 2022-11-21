@@ -1,32 +1,16 @@
 * Now
-- [X] fix media controls while app is backgrounded
-  - [X] first, check if listening for controls on audio thread even works
-    can it avoid having another thread for listening for controls?
-      like have the player hold a vec of entered commands
-      directly clone the flume sender (the library has a separate thread)
-  - [X] then, figure out how to handle moving the logic over
-    the optimistic update on back will be weird
-      could it just not do that? would it be noticable?
-      seems fine
-
-  - [X] publish media controls metadata from the audio thread
-    if published from the main ui thread,
-      it's delayed until the app is foregrounded again
-      what's the nice way to organize this?
-    - [X] duplicate all the song/album info necessary for controls in the player queue
-      need a semi-denormalized 'song with album name' type
-    - [X] change the StepResult type to be a little more like Effect
-    - [X] move ControlsMetadata from Effect to the new version of player::StepResult
-      remove all media controls stuff from ui and submodules
-  - [X] add media controls playback publish to player
-  - [X] use a wrapper type around media controls to avoid 'unknown song' when stopped
-    maybe fork/vendor the library to do this instead of wrapping
-
-  - [X] detach media controls correctly when reaching end of queue
-    souvlaki doesn't close the controls until the program closes? deinit/detach doesn't work
-    needed to release the dbus name on kill
+- [ ] try eyre and/or miette for more readable stack traces
+- [ ] add a justfile instead of using dev scripts
+- [ ] try replacing flume with std or crossbeam
+- [ ] write about hoverable
+- [ ] test app on windows
+  at least make sure nothing panics - disable media controls if necessary
 
 * Next
+- [ ] add a way to search
+  - modal? keyboard-based
+    command pallete look
+
 - [-] keyboard support
   - [X] space for play/pause current song
   - [ ] tab navigation - need to make the buttons focusable
@@ -34,6 +18,8 @@
     is it better to not mimic the web for this?
       what would the alternative look like?
       do everything by fuzzy search instead of tab-focus
+
+- [ ] volume controls
 
 - [ ] get a nicer 'stopped' state
   the do-nothing play button and progress slider are bad
@@ -43,16 +29,9 @@
   snap to top/bottom is easy
   could have C-d and C-u just move by some predefined chunk
 
-- [ ] add a way to search
-  - modal? keyboard-based
-    command pallete look
-
-
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
-  this one will need the actual metadata, like Queue<Song> or something
 
-- [ ] test app on windows
 - [ ] add media controls support on windows
   see if this could require having a window handle on the audio thread
   maybe find a workaround for that - see what Psst does
@@ -61,11 +40,8 @@
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
 
-- [ ] either get the bus changes merged upstream, or vendor the library
-  switch to a workspace
-
-- [ ] add a justfile instead of using dev scripts
-
+- [ ] either get the dbus changes merged upstream in souvlaki, or vendor the library
+  switch to a cargo workspace
 - [ ] implement debug for MediaControls upstream
 
 - [ ] avoid using ProgressTimes::ZERO as a sentinel value
