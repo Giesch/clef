@@ -1,7 +1,4 @@
 * Now
-- [ ] try eyre and/or miette for more readable stack traces
-- [ ] add a justfile instead of using dev scripts
-- [ ] try replacing flume with std or crossbeam
 - [ ] write about hoverable
 - [ ] test app on windows
   at least make sure nothing panics - disable media controls if necessary
@@ -10,6 +7,9 @@
 - [ ] add a way to search
   - modal? keyboard-based
     command pallete look
+
+- [ ] handle text overflow in bottom bar gracefully
+  do the scroll back and forth thing? needs animations
 
 - [-] keyboard support
   - [X] space for play/pause current song
@@ -43,6 +43,8 @@
 - [ ] either get the dbus changes merged upstream in souvlaki, or vendor the library
   switch to a cargo workspace
 - [ ] implement debug for MediaControls upstream
+- [ ] fix panics in souvlaki fork (return option/result for name taken)
+  audid for other unwraps/expects as well
 
 - [ ] avoid using ProgressTimes::ZERO as a sentinel value
   use an optional, try to catch bad files on import
@@ -125,6 +127,14 @@
 - [ ] current queue (treat like another kind of playlist)
 - [ ] other views
 
+- [ ] learn more about how to gracefully shut down audio thread
+  the audio player needs an explicit 'graceful shutdown' action
+  currently relying on the process ending to kill it
+    is that actually just fine? counting on drop impls to clean things up
+    the player doesn't really have non-process-space cleanup to do
+    the resizer could leave files in a bad state, but it's already 'inside' iced
+  consider moving the audio thread into iced's executor?
+
 - [ ] cache media controls metadata to avoid unnecessary dbus updates
   consider implementing this upstream
 - [ ] make souvlaki error respect std error required by anyhow
@@ -168,3 +178,8 @@
 - [ ] property testing
 
 - [ ] use TryFrom instead of as for crawling total_seconds
+
+- [ ] set up graceful error handling on startup
+  ie missing config dir, other fatal errors should be readable
+    for a non-technical user
+  either in ui or miette

@@ -17,7 +17,7 @@ fn main() -> iced::Result {
     let (to_audio_tx, to_audio_rx) = flume::unbounded::<AudioAction>();
     let (to_ui_tx, to_ui_rx) = flume::unbounded::<AudioMessage>();
 
-    let audio_handle = Player::spawn(to_audio_rx, to_ui_tx, to_audio_tx.clone())
+    Player::spawn(to_audio_rx, to_ui_tx, to_audio_tx.clone())
         .expect("failed to start audio thread");
 
     let flags = Flags {
@@ -27,8 +27,5 @@ fn main() -> iced::Result {
         config,
     };
 
-    App::run(Settings::with_flags(flags)).map_err(|e| {
-        audio_handle.join().ok();
-        e
-    })
+    App::run(Settings::with_flags(flags))
 }
