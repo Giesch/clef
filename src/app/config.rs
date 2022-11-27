@@ -38,6 +38,8 @@ fn local_data_dir() -> anyhow::Result<Utf8PathBuf> {
         .try_into()
         .context("non-utf8 local data directory")?;
 
+    std::fs::create_dir_all(local_data)?;
+
     Ok(local_data.to_owned())
 }
 

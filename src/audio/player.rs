@@ -644,6 +644,12 @@ impl WrappedControls {
         self.media_controls = None;
     }
 
+    #[cfg(target_os = "windows")]
+    fn init(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
     fn init(&mut self) -> anyhow::Result<()> {
         let platform_config = PlatformConfig {
             dbus_name: "clef.player",
