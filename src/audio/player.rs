@@ -2,13 +2,11 @@ use std::fs::File;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
-use souvlaki::{
-    MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig,
-};
+use souvlaki::{MediaControls, MediaMetadata, MediaPlayback};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
