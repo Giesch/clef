@@ -1,9 +1,20 @@
 * Now
-- [ ] write about hoverable
-- [ ] test app on windows
+- [ ] find a better way to avoid flicker
+  skipping a magic number of audio updates sucks
+  need a 'seek completed' response from audio thread
+    or just a flag on the normal update? separate message seems better
+    does it have to care about multiple seeks in flight? like while paused
+      could have request ids or something, but hopefully that's unnecessary
+
+- [X] write about hoverable
+- [X] test app on windows
   at least make sure nothing panics - disable media controls if necessary
 
+
 * Next
+- [ ] get true gapless playback
+  start loading next file early?
+
 - [ ] add a way to search
   - modal? keyboard-based
     command pallete look
@@ -32,6 +43,7 @@
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
 
+- [ ]
 - [ ] add media controls support on windows
   see if this could require having a window handle on the audio thread
   maybe find a workaround for that - see what Psst does
@@ -56,13 +68,6 @@
 - [ ] do the 'display_title' based on file system on import
   then allow updating it later
   this is less confusing for the user and avoids unnecessary optionals
-
-- [ ] find a better way to avoid flicker
-  skipping a magic number of audio updates sucks
-  need a 'seek completed' response from audio thread
-    or just a flag on the normal update? separate message seems better
-    does it have to care about multiple seeks in flight? like while paused
-      could have request ids or something, but hopefully that's unnecessary
 
 - [ ] load a nice startup ui quickly
   - [ ] last played song - progress and scroll?

@@ -33,7 +33,10 @@ where
         }
     }
 
-    pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
+    pub fn padding<P>(mut self, padding: P) -> Self
+    where
+        P: Into<Padding>,
+    {
         self.padding = padding.into();
         self
     }
