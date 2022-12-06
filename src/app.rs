@@ -424,6 +424,11 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
 
+        Message::FromAudio(AudioMessage::SeekComplete(player_display)) => {
+            // TODO
+            Effect::none()
+        }
+
         Message::FromAudio(AudioMessage::DisplayUpdate(None)) => {
             ui.current_song = None;
             ui.progress = None;

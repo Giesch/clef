@@ -62,6 +62,9 @@ pub enum AudioMessage {
     /// A change that affects ui state; None = player stopped
     DisplayUpdate(Option<PlayerDisplay>),
 
+    /// The first update after a seek request from the UI
+    SeekComplete(PlayerDisplay),
+
     /// The audio thread died
     AudioDied,
 }
@@ -271,6 +274,9 @@ impl Player {
             (Some(Back), None) => Ok(Effects::none()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
+                // TODO
+                // in both branches, publish a specific update that
+                // 'completes' the optimistic state
                 if let Some(total) = player_state
                     .track_info
                     .progress_times(player_state.timestamp)
