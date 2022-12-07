@@ -274,9 +274,6 @@ impl Player {
             (Some(Back), None) => Ok(Effects::none()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
-                // TODO
-                // in both branches, publish a specific update that
-                // 'completes' the optimistic state
                 if let Some(total) = player_state
                     .track_info
                     .progress_times(player_state.timestamp)
@@ -287,11 +284,11 @@ impl Player {
 
                     let player_state = player_state.seek_to(seek_seconds);
 
-                    Ok(publish_display_update(player_state))
+                    Ok(publish_seek_complete(player_state))
                 } else {
                     error!("missing track info: {:#?}", player_state.track_info);
 
-                    Ok(publish_display_update(player_state))
+                    Ok(publish_seek_complete(player_state))
                 }
             }
             (Some(Seek(_)), None) => Ok(Effects::none()),
@@ -563,6 +560,7 @@ impl PlayerState {
     }
 }
 
+// TODO deduplicate this with publish_seek_complete
 fn publish_display_update(new_state: PlayerState) -> Effects {
     let current = &new_state.queue.current;
 
@@ -590,6 +588,38 @@ fn publish_display_update(new_state: PlayerState) -> Effects {
     Effects {
         player_state: Some(new_state),
         audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
+        metadata: Some(metadata),
+        playback: Some(playback),
+    }
+}
+
+fn publish_seek_complete(new_state: PlayerState) -> Effects {
+    let current = &new_state.queue.current;
+
+    let cover_url = current
+        .resized_art
+        .as_ref()
+        .map(|path| format!("file://{}", path));
+
+    let metadata = ControlsMetadata {
+        title: current.title.clone(),
+        album: current.album_title.clone(),
+        artist: current.artist.clone(),
+        duration: current.duration,
+        cover_url,
+    };
+
+    let playback = if new_state.playing {
+        MediaPlayback::Playing { progress: None }
+    } else {
+        MediaPlayback::Paused { progress: None }
+    };
+
+    let display: PlayerDisplay = (&new_state).into();
+
+    Effects {
+        player_state: Some(new_state),
+        audio_message: Some(AudioMessage::SeekComplete(display)),
         metadata: Some(metadata),
         playback: Some(playback),
     }

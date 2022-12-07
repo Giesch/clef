@@ -13,7 +13,7 @@ use iced::{
 use iced_native::keyboard::Event as KeyboardEvent;
 use log::error;
 
-use crate::audio::player::{AudioAction, AudioMessage, ProgressTimes};
+use crate::audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
 use crate::db::queries::*;
 use crate::db::SqlitePool;
 
@@ -147,18 +147,6 @@ pub enum ProgressDisplay {
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimisticTime {
     proportion: f32,
-    updates_skipped: usize,
-}
-
-impl OptimisticTime {
-    /// The number of audio thread updates to skip after the user
-    /// releases the mouse while seeking. This prevents a flicker of
-    /// displaying the old play position.
-    const THRESHOLD: usize = 2;
-
-    fn under_threshold(&self) -> bool {
-        self.updates_skipped < Self::THRESHOLD
-    }
 }
 
 impl ProgressDisplay {
@@ -335,7 +323,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::ForwardClicked => AudioAction::Forward.into(),
 
         Message::BackClicked => {
-            let optimistic = OptimisticTime { proportion: 0.0, updates_skipped: 0 };
+            let optimistic = OptimisticTime { proportion: 0.0 };
             ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
             AudioAction::Back.into()
@@ -355,7 +343,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                 }
             };
 
-            let optimistic = OptimisticTime { proportion, updates_skipped: 0 };
+            let optimistic = OptimisticTime { proportion };
             ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
             AudioAction::Seek(proportion).into()
@@ -375,22 +363,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
-            // update current song
-            match &mut ui.current_song {
-                Some(current_song) if current_song.id == display.song_id => {
-                    current_song.playing = display.playing;
-                }
-
-                _ => {
-                    if let Some(current_song) = get_current_song(
-                        &ui.music_cache,
-                        display.song_id,
-                        display.playing,
-                    ) {
-                        ui.current_song = Some(current_song);
-                    }
-                }
-            };
+            update_current_song(ui, &display);
 
             // update progress bar if necessary
             match &ui.progress {
@@ -398,22 +371,8 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                     // ignore update to preserve drag state
                 }
 
-                Some(ProgressDisplay::Optimistic(_)) if !display.playing => {
-                    // this is after dragging while paused
-                    // ignore update to preserve the dropped state until next play
-                }
-
-                Some(ProgressDisplay::Optimistic(optimistic))
-                    if display.playing && optimistic.under_threshold() =>
-                {
-                    // this is after dragging & releasing while playing,
-                    // or when pressing play after a drop
-                    // ignores the first updates to avoid flicker
-                    let optimistic = OptimisticTime {
-                        proportion: optimistic.proportion,
-                        updates_skipped: optimistic.updates_skipped + 1,
-                    };
-                    ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
+                Some(ProgressDisplay::Optimistic(_)) => {
+                    // ignore until SeekComplete to avoid flicker
                 }
 
                 _ => {
@@ -424,8 +383,21 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
 
-        Message::FromAudio(AudioMessage::SeekComplete(player_display)) => {
-            // TODO
+        Message::FromAudio(AudioMessage::SeekComplete(display)) => {
+            update_current_song(ui, &display);
+
+            // update progress bar if necessary
+            match &ui.progress {
+                Some(ProgressDisplay::Dragging(_)) => {
+                    // ignore update to preserve drag state
+                }
+
+                // NOTE we deliberately overwrite the last optimistic state here
+                _ => {
+                    ui.progress = Some(ProgressDisplay::FromAudio(display.times));
+                }
+            }
+
             Effect::none()
         }
 
@@ -450,6 +422,22 @@ fn toggle(ui: &Ui) -> Effect<Message> {
         Some(false) => AudioAction::PlayPaused.into(),
         None => Effect::none(),
     }
+}
+
+fn update_current_song(ui: &mut Ui, display: &PlayerDisplay) {
+    match &mut ui.current_song {
+        Some(current_song) if current_song.id == display.song_id => {
+            current_song.playing = display.playing;
+        }
+
+        _ => {
+            if let Some(current_song) =
+                get_current_song(&ui.music_cache, display.song_id, display.playing)
+            {
+                ui.current_song = Some(current_song);
+            }
+        }
+    };
 }
 
 fn get_current_song(
