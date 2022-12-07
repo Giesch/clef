@@ -43,7 +43,6 @@
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
 
-- [ ]
 - [ ] add media controls support on windows
   see if this could require having a window handle on the audio thread
   maybe find a workaround for that - see what Psst does
