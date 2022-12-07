@@ -560,30 +560,8 @@ impl PlayerState {
     }
 }
 
-// TODO deduplicate this with publish_seek_complete
 fn publish_display_update(new_state: PlayerState) -> Effects {
-    let current = &new_state.queue.current;
-
-    let cover_url = current
-        .resized_art
-        .as_ref()
-        .map(|path| format!("file://{}", path));
-
-    let metadata = ControlsMetadata {
-        title: current.title.clone(),
-        album: current.album_title.clone(),
-        artist: current.artist.clone(),
-        duration: current.duration,
-        cover_url,
-    };
-
-    let playback = if new_state.playing {
-        MediaPlayback::Playing { progress: None }
-    } else {
-        MediaPlayback::Paused { progress: None }
-    };
-
-    let display: PlayerDisplay = (&new_state).into();
+    let (display, metadata, playback) = prepare_publish(&new_state);
 
     Effects {
         player_state: Some(new_state),
@@ -594,6 +572,19 @@ fn publish_display_update(new_state: PlayerState) -> Effects {
 }
 
 fn publish_seek_complete(new_state: PlayerState) -> Effects {
+    let (display, metadata, playback) = prepare_publish(&new_state);
+
+    Effects {
+        player_state: Some(new_state),
+        audio_message: Some(AudioMessage::SeekComplete(display)),
+        metadata: Some(metadata),
+        playback: Some(playback),
+    }
+}
+
+fn prepare_publish(
+    new_state: &PlayerState,
+) -> (PlayerDisplay, ControlsMetadata, MediaPlayback) {
     let current = &new_state.queue.current;
 
     let cover_url = current
@@ -609,20 +600,16 @@ fn publish_seek_complete(new_state: PlayerState) -> Effects {
         cover_url,
     };
 
+    let progress = None;
     let playback = if new_state.playing {
-        MediaPlayback::Playing { progress: None }
+        MediaPlayback::Playing { progress }
     } else {
-        MediaPlayback::Paused { progress: None }
+        MediaPlayback::Paused { progress }
     };
 
-    let display: PlayerDisplay = (&new_state).into();
+    let display: PlayerDisplay = new_state.into();
 
-    Effects {
-        player_state: Some(new_state),
-        audio_message: Some(AudioMessage::SeekComplete(display)),
-        metadata: Some(metadata),
-        playback: Some(playback),
-    }
+    (display, metadata, playback)
 }
 
 struct WrappedControls {
