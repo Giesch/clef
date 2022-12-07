@@ -1,5 +1,5 @@
 * Now
-- [ ] find a better way to avoid flicker
+- [X] find a better way to avoid flicker
   skipping a magic number of audio updates sucks
   need a 'seek completed' response from audio thread
     or just a flag on the normal update? separate message seems better
