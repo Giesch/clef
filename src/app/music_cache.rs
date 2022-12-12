@@ -126,11 +126,9 @@ fn artist_then_title_with_nones_last(
     (b_artist, b_title): &AlbumSortKey,
 ) -> Ordering {
     match with_nones_last(a_artist, b_artist) {
-        Ordering::Equal => {}
-        unequal => return unequal,
+        Ordering::Equal => with_nones_last(a_title, b_title),
+        artist_unequal => artist_unequal,
     }
-
-    with_nones_last(a_title, b_title)
 }
 
 // default lexicographic sort puts None first

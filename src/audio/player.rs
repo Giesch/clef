@@ -253,25 +253,25 @@ impl Player {
                 player_state.playing = false;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Pause), state) => Ok(Effects::same(state)),
+            (Some(Pause), state) => Ok(AudioEffects::same(state)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
                 Ok(publish_display_update(player_state))
             }
-            (Some(PlayPaused), state) => Ok(Effects::same(state)),
+            (Some(PlayPaused), state) => Ok(AudioEffects::same(state)),
 
             (Some(Toggle), Some(mut player_state)) => {
                 player_state.playing = !player_state.playing;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Toggle), None) => Ok(Effects::none()),
+            (Some(Toggle), None) => Ok(AudioEffects::none()),
 
             (Some(Forward), Some(player_state)) => player_state.forward(),
-            (Some(Forward), None) => Ok(Effects::none()),
+            (Some(Forward), None) => Ok(AudioEffects::none()),
 
             (Some(Back), Some(player_state)) => player_state.back(),
-            (Some(Back), None) => Ok(Effects::none()),
+            (Some(Back), None) => Ok(AudioEffects::none()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
                 if let Some(total) = player_state
@@ -291,20 +291,20 @@ impl Player {
                     Ok(publish_seek_complete(player_state))
                 }
             }
-            (Some(Seek(_)), None) => Ok(Effects::none()),
+            (Some(Seek(_)), None) => Ok(AudioEffects::none()),
 
             (None, Some(player_state)) if player_state.playing => {
                 player_state.continue_playing()
             }
-            (None, state) => Ok(Effects::same(state)),
+            (None, state) => Ok(AudioEffects::same(state)),
         }
     }
 }
 
-type StepResult = anyhow::Result<Effects>;
+type StepResult = anyhow::Result<AudioEffects>;
 
 #[derive(Debug)]
-struct Effects {
+struct AudioEffects {
     /// The new player state; this is 'required'; None = stopped
     player_state: Option<PlayerState>,
     /// ui message to send
@@ -337,7 +337,7 @@ impl<'a> From<&'a ControlsMetadata> for MediaMetadata<'a> {
     }
 }
 
-impl Effects {
+impl AudioEffects {
     fn same(player_state: Option<PlayerState>) -> Self {
         Self {
             player_state,
@@ -357,7 +357,7 @@ impl Effects {
     }
 }
 
-impl From<(Option<PlayerState>, Option<AudioMessage>)> for Effects {
+impl From<(Option<PlayerState>, Option<AudioMessage>)> for AudioEffects {
     fn from(
         (player_state, audio_message): (Option<PlayerState>, Option<AudioMessage>),
     ) -> Self {
@@ -560,10 +560,10 @@ impl PlayerState {
     }
 }
 
-fn publish_display_update(new_state: PlayerState) -> Effects {
+fn publish_display_update(new_state: PlayerState) -> AudioEffects {
     let (display, metadata, playback) = prepare_publish(&new_state);
 
-    Effects {
+    AudioEffects {
         player_state: Some(new_state),
         audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
         metadata: Some(metadata),
@@ -571,10 +571,10 @@ fn publish_display_update(new_state: PlayerState) -> Effects {
     }
 }
 
-fn publish_seek_complete(new_state: PlayerState) -> Effects {
+fn publish_seek_complete(new_state: PlayerState) -> AudioEffects {
     let (display, metadata, playback) = prepare_publish(&new_state);
 
-    Effects {
+    AudioEffects {
         player_state: Some(new_state),
         audio_message: Some(AudioMessage::SeekComplete(display)),
         metadata: Some(metadata),

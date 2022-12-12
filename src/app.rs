@@ -11,7 +11,7 @@ use iced::{
     Length, Subscription, Theme,
 };
 use iced_native::keyboard::Event as KeyboardEvent;
-use log::error;
+use log::{error, info};
 
 use crate::audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
 use crate::db::queries::*;
@@ -299,6 +299,13 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
         })) if key_code == KeyCode::Space => toggle(ui),
+
+        Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
+            key_code, ..
+        })) if key_code == KeyCode::Slash => {
+            info!("TODO open modal");
+            Effect::none()
+        }
 
         Message::Native(_) => Effect::none(),
 

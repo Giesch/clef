@@ -1,9 +1,15 @@
 * Now
-- [ ] add a way to search
+- [-] add a way to search
   - modal? keyboard-based
     command pallete look
-  - [ ] open a command pallette style modal on pressing '/'
+  - [-] open a command pallette style modal on pressing '/'
     clear it on escape, enter, ctrl-g
+    - [X] read & play with the modal in iced_aw
+    - [ ] use or vendor iced_aw modal
+      potential problems with newer iced versions?
+      https://github.com/iced-rs/iced_aw/issues/25
+      the readme refers to 0.4.x
+
   - [ ] how to actually do the searching?
     NOTE: get the ui working first
     - sqlite full-text search
@@ -18,7 +24,11 @@
 
 * Next
 - [ ] get true gapless playback
-  start loading next file early?
+  asked here: https://github.com/pdeljanov/Symphonia/discussions/169
+  the 'forward' method on PlayerState in player.rs is what has to change
+    instead of calling play_queue, it should use some prepared thing
+  - load early on same audio thread?
+  - have a second audio thread?
 
 - [ ] handle text overflow in bottom bar gracefully
   do the scroll back and forth thing? needs animations
@@ -44,6 +54,11 @@
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
 
+- [ ] audio support on windows
+  some kind soul is working on adding windows support the symphonia-play example
+  windows requires resampling in a way that linux (and maybe mac?) does not
+  https://github.com/pdeljanov/Symphonia/issues/43
+  https://github.com/pdeljanov/Symphonia/pull/167
 - [ ] add media controls support on windows
   see if this could require having a window handle on the audio thread
   maybe find a workaround for that - see what Psst does
