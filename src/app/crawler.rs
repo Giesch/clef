@@ -160,7 +160,7 @@ fn collect_single_album(
         };
 
         if is_music(&path) {
-            if let Some(decoded) = decode_tags(&path) {
+            if let Some(decoded) = decode_metadata(&path) {
                 songs.push(CrawledSong {
                     path,
                     tags: decoded.tags,
@@ -259,14 +259,14 @@ fn is_cover_art(path: &Utf8Path) -> bool {
         .unwrap_or_default()
 }
 
-struct DecodedStuff {
+struct DecodedMetadata {
     tags: HashMap<TagKey, String>,
     total_seconds: u64,
 }
 
-/// NOTE This returns an empty tag map if they're missing,
+/// NOTE This includes an empty tag map if the tags are missing,
 /// and None for file not found or unsupported format
-fn decode_tags(path: &Utf8Path) -> Option<DecodedStuff> {
+fn decode_metadata(path: &Utf8Path) -> Option<DecodedMetadata> {
     let mut hint = Hint::new();
     let source = {
         // Provide the file extension as a hint.
@@ -323,7 +323,7 @@ fn decode_tags(path: &Utf8Path) -> Option<DecodedStuff> {
     };
     let tags = tags.unwrap_or_default();
 
-    Some(DecodedStuff {
+    Some(DecodedMetadata {
         tags,
         total_seconds: times.total.seconds,
     })

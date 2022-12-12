@@ -1,23 +1,24 @@
 * Now
-- [X] find a better way to avoid flicker
-  skipping a magic number of audio updates sucks
-  need a 'seek completed' response from audio thread
-    or just a flag on the normal update? separate message seems better
-    does it have to care about multiple seeks in flight? like while paused
-      could have request ids or something, but hopefully that's unnecessary
-
-- [X] write about hoverable
-- [X] test app on windows
-  at least make sure nothing panics - disable media controls if necessary
-
+- [ ] add a way to search
+  - modal? keyboard-based
+    command pallete look
+  - [ ] open a command pallette style modal on pressing '/'
+    clear it on escape, enter, ctrl-g
+  - [ ] how to actually do the searching?
+    NOTE: get the ui working first
+    - sqlite full-text search
+      it looks like sqlite has no 'fuzzy' support
+    - some other 'fuzzy' option, using music cache
+      could use something based on selecta/heatseeker
+      is a 'real' search library necessary?
+      - pro: want to show hits on structured content; ie album title, lyrics, etc
+      - con: it's a lot
+      - con: the dataset for my own music library isn't going to be that big
+        how big would a local music library have to be before this mattered?
 
 * Next
 - [ ] get true gapless playback
   start loading next file early?
-
-- [ ] add a way to search
-  - modal? keyboard-based
-    command pallete look
 
 - [ ] handle text overflow in bottom bar gracefully
   do the scroll back and forth thing? needs animations
