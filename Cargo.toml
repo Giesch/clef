@@ -15,17 +15,19 @@ pretty_env_logger = "0.4"
 r2d2 = "0.8.10"
 symphonia = { version = "0.5.1", features = ["mp3"] }
 thiserror = "1.0.37"
+iced_graphics = "0.5.0"
+iced_style = "0.5.1"
 
 [dependencies.souvlaki]
 git = "https://github.com/Giesch/souvlaki"
 branch = "main"
 
 [dependencies.iced]
-version = "0.5"
+version = "0.6"
 features = ["svg", "image", "debug"]
 
 [dependencies.iced_native]
-version = "0.6"
+version = "0.7"
 
 [dependencies.image_rs]
 package = "image"

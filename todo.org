@@ -16,11 +16,12 @@
       it looks like sqlite has no 'fuzzy' support
     - some other 'fuzzy' option, using music cache
       could use something based on selecta/heatseeker
-      is a 'real' search library necessary?
+      is a 'real' search library necessary? ie tantivy https://docs.rs/tantivy/latest/tantivy/query/struct.FuzzyTermQuery.html
       - pro: want to show hits on structured content; ie album title, lyrics, etc
       - con: it's a lot
       - con: the dataset for my own music library isn't going to be that big
         how big would a local music library have to be before this mattered?
+    consider using ngrams? https://www.reddit.com/r/rust/comments/f7rysk/typoresistant_text_search/
 
 * Next
 - [ ] get true gapless playback

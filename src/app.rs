@@ -24,6 +24,7 @@ mod custom_style;
 mod effect;
 mod hoverable;
 mod icons;
+mod modal;
 mod music_cache;
 mod resizer;
 mod rgba;
