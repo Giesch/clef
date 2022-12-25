@@ -4,14 +4,14 @@ use flume::{Receiver, Sender};
 use iced::keyboard::KeyCode;
 use iced::widget::{
     button, column, container, horizontal_space, row, scrollable, slider, text, Column,
-    Container, Image, Row, Space,
+    Container, Image, Row, Space, Text,
 };
 use iced::{
-    alignment, executor, Alignment, Application, Command, ContentFit, Element, Event,
-    Length, Subscription, Theme,
+    alignment, executor, Alignment, Application, Color, Command, ContentFit, Element,
+    Event, Length, Subscription, Theme,
 };
 use iced_native::keyboard::Event as KeyboardEvent;
-use log::{error, info};
+use log::error;
 
 use crate::audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
 use crate::db::queries::*;
@@ -35,6 +35,7 @@ use crawler::*;
 use custom_style::no_background;
 use effect::Effect;
 use hoverable::*;
+use modal::Modal;
 use music_cache::*;
 use resizer::*;
 use rgba::*;
@@ -58,6 +59,7 @@ struct Ui {
     progress: Option<ProgressDisplay>,
     hovered_song_id: Option<SongId>,
     music_cache: MusicCache,
+    modal_state: ModalState,
 }
 
 impl Ui {
@@ -69,8 +71,18 @@ impl Ui {
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
+            modal_state: Default::default(),
         }
     }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+enum ModalState {
+    /// No modal showing
+    #[default]
+    Clear,
+    /// Search modal showing
+    Search,
 }
 
 impl App {
@@ -188,6 +200,8 @@ pub enum Message {
     SeekWithoutSong(f32),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
+    OpenSearchModal,
+    CloseModal,
 }
 
 impl Application for App {
@@ -304,7 +318,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
         })) if key_code == KeyCode::Slash => {
-            info!("TODO open modal");
+            ui.modal_state = ModalState::Search;
             Effect::none()
         }
 
@@ -419,6 +433,16 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             ui.should_exit = true;
             Effect::none()
         }
+
+        Message::OpenSearchModal => {
+            ui.modal_state = ModalState::Search;
+            Effect::none()
+        }
+
+        Message::CloseModal => {
+            ui.modal_state = ModalState::Clear;
+            Effect::none()
+        }
     }
 }
 
@@ -495,8 +519,32 @@ fn view(ui: &Ui) -> Element<'_, Message> {
         .width(Length::Fill)
         .height(Length::Fill)
         .align_items(Alignment::Center);
+    let main_column: Element<'_, Message> = main_column.into();
 
-    main_column.into()
+    // TODO modal style (custom card component? command pallette look)
+    //   look at vscode's, tailwind's
+
+    Modal::new(
+        ui.modal_state == ModalState::Search,
+        main_column,
+        move || {
+            modal_content()
+                // FIXME
+                .explain(Color::WHITE)
+        },
+    )
+    .backdrop(Message::CloseModal)
+    .on_esc(Message::CloseModal)
+    .into()
+}
+
+fn modal_content() -> Element<'static, Message> {
+    Row::new()
+        .spacing(10)
+        .padding(5)
+        .width(Length::Fill)
+        .push(Text::new("Modal Button"))
+        .into()
 }
 
 fn fill_container<'a>(

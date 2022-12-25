@@ -1,40 +1,21 @@
-// From iced_aw::native::modal
-//! A modal for showing elements as an overlay on top of another.
-//!
-//! *This API requires the following crate features to be activated: modal*
+#![allow(unused)]
 
 use iced_graphics::Vector;
 use iced_native::{
-    event, keyboard, layout::Limits, mouse, overlay, renderer, touch, Clipboard, Color,
-    Event, Layout, Length, Point, Rectangle, Shell, Size,
+    event, keyboard, layout::Limits, mouse, overlay, renderer, touch, widget::Tree,
+    Background, Clipboard, Color, Element, Event, Layout, Length, Point, Rectangle,
+    Shell, Size, Widget,
 };
-use iced_native::{widget::Tree, Element, Widget};
+use iced_style::Theme;
+
+// From iced_aw::native::modal
+
+// A modal for showing elements as an overlay on top of another.
 
 /// A modal content as an overlay.
 ///
 /// Can be used in combination with the [`Card`](crate::card::Card)
 /// widget to form dialog elements.
-///
-/// # Example
-/// ```
-/// # use iced_aw::modal;
-/// # use iced_native::renderer::Null;
-/// # use iced_native::widget::Text;
-/// #
-/// # pub type Modal<'a, Content, Message>
-/// #  = iced_aw::Modal<'a, Message, Content, Null>;
-/// #[derive(Debug, Clone)]
-/// enum Message {
-///     CloseModal,
-/// }
-///
-/// let modal = Modal::new(
-///     true,
-///     Text::new("Underlay"),
-///     || Text::new("Overlay").into()
-/// )
-/// .backdrop(Message::CloseModal);
-/// ```
 #[allow(missing_debug_implementations)]
 pub struct Modal<'a, Content, Message, Renderer>
 where
@@ -248,6 +229,7 @@ where
         Element::new(modal)
     }
 }
+
 /// The state of the modal.
 #[derive(Debug, Default)]
 pub struct State<S> {
@@ -386,7 +368,7 @@ where
         cursor_position: Point,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<Message>,
+        shell: &mut Shell<'_, Message>,
     ) -> event::Status {
         // TODO clean this up
         let esc_status =
@@ -499,9 +481,6 @@ where
 }
 
 // From iced_aw::style::modal
-
-use iced_native::Background;
-use iced_style::Theme;
 
 /// The appearance of a [`Modal`](crate::native::Modal).
 #[derive(Clone, Copy, Debug)]
