@@ -370,26 +370,14 @@ where
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> event::Status {
-        // TODO clean this up
-        let esc_status =
-            self.esc
-                .as_ref()
-                .map_or(event::Status::Ignored, |esc| match event {
-                    Event::Keyboard(keyboard::Event::KeyPressed {
-                        key_code,
-                        modifiers,
-                    }) => {
-                        if key_code == keyboard::KeyCode::Escape
-                            || key_code == keyboard::KeyCode::G && modifiers.control()
-                        {
-                            shell.publish(esc.to_owned());
-                            event::Status::Captured
-                        } else {
-                            event::Status::Ignored
-                        }
-                    }
-                    _ => event::Status::Ignored,
-                });
+        let esc_status = self.esc.as_ref().map_or(event::Status::Ignored, |esc| {
+            if counts_as_esc_press(&event) {
+                shell.publish(esc.to_owned());
+                event::Status::Captured
+            } else {
+                event::Status::Ignored
+            }
+        });
 
         let backdrop_status = self
             .backdrop
@@ -483,6 +471,19 @@ where
             &bounds,
         );
     }
+}
+
+fn counts_as_esc_press(event: &Event) -> bool {
+    use keyboard::Event::KeyPressed;
+    let Event::Keyboard(KeyPressed { key_code, modifiers }) = event else {
+        return false;
+    };
+
+    let key_code = *key_code;
+    let literal_escape = key_code == keyboard::KeyCode::Escape;
+    let control_g = key_code == keyboard::KeyCode::G && modifiers.control();
+
+    literal_escape || control_g
 }
 
 // From iced_aw::style::modal
