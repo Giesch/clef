@@ -1,4 +1,8 @@
 * Now
+- [X] document native linux dependencies
+  - [X] list them in readme or similar
+  - [X] include apt commands
+    sudo apt install libsqlite3-dev # NOTE not sqlite3; we need the dev bindings
 - [-] add a way to search
   - modal? keyboard-based
     command pallete look
