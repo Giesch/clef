@@ -375,8 +375,13 @@ where
             self.esc
                 .as_ref()
                 .map_or(event::Status::Ignored, |esc| match event {
-                    Event::Keyboard(keyboard::Event::KeyPressed { key_code, .. }) => {
-                        if key_code == keyboard::KeyCode::Escape {
+                    Event::Keyboard(keyboard::Event::KeyPressed {
+                        key_code,
+                        modifiers,
+                    }) => {
+                        if key_code == keyboard::KeyCode::Escape
+                            || key_code == keyboard::KeyCode::G && modifiers.control()
+                        {
                             shell.publish(esc.to_owned());
                             event::Status::Captured
                         } else {

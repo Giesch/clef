@@ -2,13 +2,19 @@
 - [-] add a way to search
   - modal? keyboard-based
     command pallete look
-  - [-] open a command pallette style modal on pressing '/'
+  - [X] open a command pallette style modal on pressing '/'
     clear it on escape, enter, ctrl-g
     - [X] read & play with the modal in iced_aw
-    - [ ] use or vendor iced_aw modal
+    - [X] use or vendor iced_aw modal
       potential problems with newer iced versions?
       https://github.com/iced-rs/iced_aw/issues/25
       the readme refers to 0.4.x
+
+  - [X] Accept Ctrl-G as Esc
+  - [ ] add a text input to the modal
+    elm-style text state in in the modal state enum
+  - [ ] style the modal to look like a command palette
+  - [ ] add an 'enter' handler
 
   - [ ] how to actually do the searching?
     NOTE: get the ui working first
