@@ -3,8 +3,8 @@ use std::sync::Arc;
 use flume::{Receiver, Sender};
 use iced::keyboard::KeyCode;
 use iced::widget::{
-    button, column, container, horizontal_space, row, scrollable, slider, text, Column,
-    Container, Image, Row, Space, Text,
+    button, column, container, horizontal_space, row, scrollable, slider, text,
+    text_input, Column, Container, Image, Row, Space,
 };
 use iced::{
     alignment, executor, Alignment, Application, Color, Command, ContentFit, Element,
@@ -82,7 +82,7 @@ enum ModalState {
     #[default]
     Clear,
     /// Search modal showing
-    Search,
+    Search { input: String },
 }
 
 impl App {
@@ -202,6 +202,7 @@ pub enum Message {
     UnhoveredSong(SongId),
     OpenSearchModal,
     CloseModal,
+    SearchInputChanged(String),
 }
 
 impl Application for App {
@@ -318,7 +319,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
         })) if key_code == KeyCode::Slash => {
-            ui.modal_state = ModalState::Search;
+            ui.modal_state = ModalState::Search { input: String::from("") };
             Effect::none()
         }
 
@@ -435,12 +436,23 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::OpenSearchModal => {
-            ui.modal_state = ModalState::Search;
+            ui.modal_state = ModalState::Search { input: String::from("") };
             Effect::none()
         }
 
         Message::CloseModal => {
             ui.modal_state = ModalState::Clear;
+            Effect::none()
+        }
+
+        Message::SearchInputChanged(new_input) => {
+            match &mut ui.modal_state {
+                ModalState::Clear => {}
+                ModalState::Search { input } => {
+                    *input = new_input;
+                }
+            };
+
             Effect::none()
         }
     }
@@ -524,27 +536,40 @@ fn view(ui: &Ui) -> Element<'_, Message> {
     // TODO modal style (custom card component? command pallette look)
     //   look at vscode's, tailwind's
 
-    Modal::new(
-        ui.modal_state == ModalState::Search,
-        main_column,
-        move || {
-            modal_content()
-                // FIXME
-                .explain(Color::WHITE)
-        },
-    )
+    // FIXME the modal's text input is only editable the first time the modal is raised
+
+    let modal_active = match ui.modal_state {
+        ModalState::Clear => false,
+        ModalState::Search { .. } => true,
+    };
+
+    // TODO focus input on opening modal
+    //   add to action handler in top level update
+    Modal::new(modal_active, main_column, move || {
+        let search_text = match &ui.modal_state {
+            ModalState::Clear => "",
+            ModalState::Search { input } => input,
+        };
+
+        modal_content(search_text)
+            // FIXME
+            .explain(Color::WHITE)
+    })
     .backdrop(Message::CloseModal)
     .on_esc(Message::CloseModal)
     .into()
 }
 
-fn modal_content() -> Element<'static, Message> {
-    Row::new()
+fn modal_content(search_text: &str) -> Element<'static, Message> {
+    let input = text_input("Search", search_text, Message::SearchInputChanged);
+
+    let row = Row::new()
         .spacing(10)
         .padding(5)
         .width(Length::Fill)
-        .push(Text::new("Modal Button"))
-        .into()
+        .push(input);
+
+    row.into()
 }
 
 fn fill_container<'a>(
