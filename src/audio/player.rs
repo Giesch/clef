@@ -590,7 +590,7 @@ fn prepare_publish(
     let cover_url = current
         .resized_art
         .as_ref()
-        .map(|path| format!("file://{}", path));
+        .map(|path| format!("file://{path}"));
 
     let metadata = ControlsMetadata {
         title: current.title.clone(),
