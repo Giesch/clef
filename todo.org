@@ -2,7 +2,9 @@
 - [X] document native linux dependencies
   - [X] list them in readme or similar
   - [X] include apt commands
-    sudo apt install libsqlite3-dev # NOTE not sqlite3; we need the dev bindings
+    - sqlite3
+    - cmake
+    - libfontconfig1-dev
 - [-] add a way to search
   - modal? keyboard-based
     command pallete look
@@ -32,6 +34,9 @@
       - con: the dataset for my own music library isn't going to be that big
         how big would a local music library have to be before this mattered?
     consider using ngrams? https://www.reddit.com/r/rust/comments/f7rysk/typoresistant_text_search/
+
+- [ ] fix/re-add optimistic scan position update again
+  find some way to test this
 
 * Next
 - [ ] get true gapless playback

@@ -13,6 +13,8 @@ pub struct Config {
 impl Config {
     pub fn init() -> anyhow::Result<Self> {
         let local_data_directory = local_data_dir()?;
+        std::fs::create_dir(&local_data_directory).ok();
+
         let audio_directory = audio_dir()?;
         let db_path = db_path()?;
 
