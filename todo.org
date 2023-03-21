@@ -219,3 +219,13 @@
   ie missing config dir, other fatal errors should be readable
     for a non-technical user
   either in ui or miette
+
+- [ ] remove/update remove_dir_all from souvlaki
+  there's a patched version of 0.8.0 that fixes a security vulnerability
+  this only affects windows builds, but this should block windows support
+  remove_dir_all v0.5.3
+└── tempfile v3.3.0
+    └── uds_windows v1.0.2
+        └── zbus v3.6.2
+            └── souvlaki v0.5.1 (https://github.com/Giesch/souvlaki?branch=main#ede6a666)
+                └── clef v0.1.0 (/home/danielknutson/Projects/clef)
