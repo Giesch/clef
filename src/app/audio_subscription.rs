@@ -1,6 +1,6 @@
 use flume::{Receiver, TryRecvError};
 
-use crate::audio::player::AudioMessage;
+use crate::{app::old_unfold::old_unfold, audio::player::AudioMessage};
 
 #[derive(Debug, PartialEq, Eq)]
 enum AudioSubState {
@@ -13,7 +13,7 @@ pub fn audio_subscription(
 ) -> iced::Subscription<AudioMessage> {
     struct AudioSub;
 
-    iced::subscription::unfold(
+    old_unfold(
         std::any::TypeId::of::<AudioSub>(),
         AudioSubState::Ready,
         move |state| listen(state, inbox.clone()),

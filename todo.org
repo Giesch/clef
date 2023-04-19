@@ -1,4 +1,13 @@
 * Now
+- [X] update to use latest iced
+  - [X] look up a text input example, get the value
+  - [X] maybe replace flume with iced futures mpsc?
+    - [X] if using flume, stop sending no-op messages
+  - [X] figure out what replaced should_exit method, and use that
+
+- [ ] fix images and svgs not working on nvidia
+  https://github.com/iced-rs/iced/issues/1774
+
 - [X] document native linux dependencies
   - [X] list them in readme or similar
   - [X] include apt commands

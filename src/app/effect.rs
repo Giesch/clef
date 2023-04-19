@@ -10,6 +10,7 @@ pub enum Effect<Message> {
     Command(Command<Message>),
     ToAudio(AudioAction),
     ToResizer(ResizeRequest),
+    CloseWindow,
 }
 
 impl<Message> Effect<Message> {

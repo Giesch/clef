@@ -170,6 +170,8 @@ impl Player {
 
                     match err {
                         AudioThreadError::Disconnected => {
+                            // FIXME
+                            println!("AUDIO DISCONNECTED");
                             // wait for graceful shutdown from main
                         }
 
