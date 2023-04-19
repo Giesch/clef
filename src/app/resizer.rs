@@ -5,6 +5,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use flume::{Receiver, TryRecvError};
 use log::error;
 
+use crate::app::old_unfold::old_unfold;
 use crate::app::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 use crate::db::queries::{add_resized_image_location, AlbumId};
 use crate::db::SqlitePool;
@@ -37,7 +38,7 @@ pub fn resizer_subscription(
 ) -> iced::Subscription<ResizerMessage> {
     struct ResizerSub;
 
-    iced::subscription::unfold(
+    old_unfold(
         std::any::TypeId::of::<ResizerSub>(),
         ResizerState::Working,
         move |state| step(state, config.clone(), db.clone(), inbox.clone()),
@@ -58,6 +59,7 @@ async fn step(
     match state {
         ResizerState::Working => {
             let images_directory = &config.resized_images_directory;
+
             let request = match inbox.try_recv() {
                 Ok(request) => request,
                 Err(TryRecvError::Empty) => {

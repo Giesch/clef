@@ -26,6 +26,7 @@ mod hoverable;
 mod icons;
 mod modal;
 mod music_cache;
+mod old_unfold;
 mod resizer;
 mod rgba;
 
@@ -53,7 +54,6 @@ pub struct App {
 
 #[derive(Debug)]
 struct Ui {
-    should_exit: bool,
     crawling_music: bool,
     current_song: Option<CurrentSong>,
     progress: Option<ProgressDisplay>,
@@ -65,7 +65,6 @@ struct Ui {
 impl Ui {
     fn new() -> Self {
         Self {
-            should_exit: false,
             current_song: None,
             progress: None,
             hovered_song_id: None,
@@ -121,6 +120,8 @@ impl App {
 
                 Command::none()
             }
+
+            Effect::CloseWindow => iced::window::close(),
         }
     }
 }
@@ -227,10 +228,6 @@ impl Application for App {
 
     fn theme(&self) -> Theme {
         Theme::Dark
-    }
-
-    fn should_exit(&self) -> bool {
-        self.ui.should_exit
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
@@ -430,10 +427,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             Effect::none()
         }
 
-        Message::FromAudio(AudioMessage::AudioDied) => {
-            ui.should_exit = true;
-            Effect::none()
-        }
+        Message::FromAudio(AudioMessage::AudioDied) => Effect::CloseWindow,
 
         Message::OpenSearchModal => {
             ui.modal_state = ModalState::Search { input: String::from("") };
@@ -561,7 +555,7 @@ fn view(ui: &Ui) -> Element<'_, Message> {
 }
 
 fn modal_content(search_text: &str) -> Element<'static, Message> {
-    let input = text_input("Search", search_text, Message::SearchInputChanged);
+    let input = text_input("Search", search_text).on_input(Message::SearchInputChanged);
 
     let row = Row::new()
         .spacing(10)
@@ -653,7 +647,7 @@ fn song_row_status(
 }
 
 fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
-    let length = Length::Units(IMAGE_SIZE);
+    let length = Length::Fixed(IMAGE_SIZE as f32);
 
     match image_bytes {
         Some(image_bytes) => Image::new(image_bytes.clone())
@@ -713,7 +707,7 @@ fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
             button_slot,
             text(song.display_title().unwrap_or_default()).width(Length::Fill),
             text(duration),
-            horizontal_space(Length::Units(10))
+            horizontal_space(Length::Fixed(10f32))
         ]
         .width(Length::Fill)
         .align_items(Alignment::Center)
@@ -728,7 +722,7 @@ fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
 }
 
 // 24 (svg) + 5 + 5 (default button padding)
-const MAGIC_SVG_SIZE: Length = Length::Units(34);
+const MAGIC_SVG_SIZE: Length = Length::Fixed(34f32);
 
 /// The bottom row with the play/pause button and current song info
 fn view_bottom_row<'a>(
@@ -895,6 +889,7 @@ mod tests {
     }
 
     fn crawled_album_message(crawled: &CrawledAlbum) -> Message {
-        Message::FromCrawler(CrawlerMessage::CrawledAlbum(Box::new(crawled.clone())))
+        let crawled = Box::new(crawled.clone());
+        Message::FromCrawler(Some(CrawlerMessage::CrawledAlbum(crawled)))
     }
 }

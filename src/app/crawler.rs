@@ -16,6 +16,7 @@ use symphonia::default::get_probe;
 
 use super::config::Config;
 use super::rgba::{load_cached_rgba_bmp, RgbaBytes};
+use crate::app::old_unfold::old_unfold;
 use crate::audio::track_info::{first_supported_track, TrackInfo};
 use crate::db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
@@ -50,7 +51,7 @@ pub fn crawler_subcription(
 ) -> iced::Subscription<CrawlerMessage> {
     struct CrawlerSub;
 
-    iced::subscription::unfold(
+    old_unfold(
         std::any::TypeId::of::<CrawlerSub>(),
         CrawlerState::Initial,
         move |state| step(state, config.clone(), db.clone()),
