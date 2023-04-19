@@ -1,19 +1,4 @@
 * Now
-- [X] update to use latest iced
-  - [X] look up a text input example, get the value
-  - [X] maybe replace flume with iced futures mpsc?
-    - [X] if using flume, stop sending no-op messages
-  - [X] figure out what replaced should_exit method, and use that
-
-- [ ] fix images and svgs not working on nvidia
-  https://github.com/iced-rs/iced/issues/1774
-
-- [X] document native linux dependencies
-  - [X] list them in readme or similar
-  - [X] include apt commands
-    - sqlite3
-    - cmake
-    - libfontconfig1-dev
 - [-] add a way to search
   - modal? keyboard-based
     command pallete look
@@ -167,10 +152,20 @@
 - [ ] make the layout more responsive
   text wrapping in bottom row is bad
 
+- [ ] reduce cpu usage
+  where is it coming from? me, iced, or symphonia? audio thread spinning?
+
 * Someday
 - [ ] playlists
 - [ ] current queue (treat like another kind of playlist)
 - [ ] other views
+
+- [ ] investigate hot-reloading
+  The existing lib only works on macos
+  but there may be a way for iced itself to avoid unloading the old dylib
+  or work around it no longer existing during overlay layout.
+  The hot-reload lib guy is/was also looking into a solution
+  https://github.com/rksm/hot-lib-reloader-rs/issues/25
 
 - [ ] learn more about how to gracefully shut down audio thread
   the audio player needs an explicit 'graceful shutdown' action

@@ -15,7 +15,7 @@ pretty_env_logger = "0.4"
 r2d2 = "0.8.10"
 symphonia = { version = "0.5.1", features = ["mp3"] }
 thiserror = "1.0.37"
-# TODO see if these can be accessed through iced instead of separately
+
 iced_graphics = "0.8.0"
 iced_style = "0.8.0"
 

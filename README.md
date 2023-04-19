@@ -6,7 +6,12 @@ My short-term goal is to make something that feels nicer to use than streaming s
 
 For now, only linux is supported. To build from source, you'll need some native dependencies. Using apt:
 
-``` sh
+```sh
 sudo apt install libsqlite3-dev cmake libfontconfig1-dev
 ```
 
+For development, you'll also want [just](https://github.com/casey/just), [bacon](https://dystroy.org/bacon), and diesel_cli:
+
+```sh
+cargo install diesel_cli --no-default-features --features sqlite
+```
