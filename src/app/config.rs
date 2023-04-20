@@ -13,9 +13,11 @@ pub struct Config {
 impl Config {
     pub fn init() -> anyhow::Result<Self> {
         let local_data_directory = local_data_dir()?;
-        std::fs::create_dir(&local_data_directory).ok();
+        std::fs::create_dir_all(&local_data_directory).ok();
 
         let audio_directory = audio_dir()?;
+        std::fs::create_dir(&audio_directory).ok();
+
         let db_path = db_path()?;
 
         let resized_images_directory = local_data_directory.join(IMAGES_DIR_NAME);

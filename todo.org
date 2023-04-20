@@ -1,4 +1,8 @@
 * Now
+- [ ] add resampling for windows
+  https://github.com/pdeljanov/Symphonia/issues/43
+  https://github.com/pdeljanov/Symphonia/commit/a5ac0ec8101829fea3ce6cfedee9a22f089aea2d
+
 - [-] add a way to search
   - modal? keyboard-based
     command pallete look

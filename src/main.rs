@@ -10,6 +10,7 @@ fn main() -> iced::Result {
     pretty_env_logger::init();
 
     let config = Config::init().expect("unable to build config");
+
     let db_pool = db::create_pool(&config.db_path).expect("failed to create db pool");
 
     run_migrations(&db_pool).expect("failed to run migrations");
