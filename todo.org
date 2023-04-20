@@ -77,6 +77,8 @@
 - [ ] add media controls support on windows
   see if this could require having a window handle on the audio thread
   maybe find a workaround for that - see what Psst does
+  - [ ] get back on mainline souvlaki
+    upstream dbus name release fix if necessary
 
 - [ ] replace icons with slightly darker color
   - convert to pngs?
