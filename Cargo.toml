@@ -13,7 +13,7 @@ log = { version = "0.4", features = ["release_max_level_info"] }
 parking_lot = "0.12.1"
 pretty_env_logger = "0.4"
 r2d2 = "0.8.10"
-symphonia = { version = "0.5.1", features = ["mp3"] }
+symphonia = { version = "0.5.2", features = ["mp3"] }
 thiserror = "1.0.37"
 libsqlite3-sys = { version = "0.25.2", features = ["bundled"] }
 
@@ -46,6 +46,8 @@ libpulse-simple-binding = "2.5.0"
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 cpal = "0.13.3"
 rb = "0.3.2"
+arrayvec = "0.7.1"
+rubato = "0.12.0"
 
 [dev-dependencies]
 mockall = "0.11.3"

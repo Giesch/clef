@@ -1,7 +1,8 @@
 * Now
-- [ ] add resampling for windows
+- [X] add resampling for windows
   https://github.com/pdeljanov/Symphonia/issues/43
   https://github.com/pdeljanov/Symphonia/commit/a5ac0ec8101829fea3ce6cfedee9a22f089aea2d
+  - [X] reread the .2 symphonia output.rs example
 
 - [-] add a way to search
   - modal? keyboard-based
@@ -68,7 +69,7 @@
 - [ ] keep track of the queue on the ui side
   necessary for displaying the queue
 
-- [ ] audio support on windows
+- [X] audio support on windows
   some kind soul is working on adding windows support the symphonia-play example
   windows requires resampling in a way that linux (and maybe mac?) does not
   https://github.com/pdeljanov/Symphonia/issues/43
