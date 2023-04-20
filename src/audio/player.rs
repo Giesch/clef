@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use std::fs::File;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -22,6 +24,8 @@ use crate::db::queries::SongId;
 use crate::queue::Queue;
 
 use super::track_info::{first_supported_track, TrackInfo};
+
+use media_controls::WrappedControls;
 
 /// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]
@@ -170,9 +174,8 @@ impl Player {
 
                     match err {
                         AudioThreadError::Disconnected => {
-                            // FIXME
-                            println!("AUDIO DISCONNECTED");
-                            // wait for graceful shutdown from main
+                            // This can happen both during startup and shutdown.
+                            // In both cases we just wait for the app.
                         }
 
                         AudioThreadError::Other(e) => {
@@ -554,7 +557,7 @@ impl PlayerState {
         let audio_output: &mut dyn AudioOutput = player_state
             .audio_output
             .as_deref_mut()
-            .ok_or_else(|| anyhow::anyhow!("no audio device"))?;
+            .ok_or_else(|| anyhow!("no audio device"))?;
 
         audio_output.write(decoded).context("writing audio")?;
 
@@ -614,126 +617,155 @@ fn prepare_publish(
     (display, metadata, playback)
 }
 
-struct WrappedControls {
-    media_controls: Option<MediaControls>,
-    controls_to_audio: Sender<AudioAction>,
-}
+// MEDIA CONTROLS
 
-impl std::fmt::Debug for WrappedControls {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WrappedControls")
-            .field("media_controls", &"MediaControls")
-            .field("controls_to_audio", &self.controls_to_audio)
-            .finish()
+#[cfg(not(target_os = "windows"))]
+mod media_controls {
+    use super::*;
+
+    pub struct WrappedControls {
+        media_controls: Option<MediaControls>,
+        controls_to_audio: Sender<AudioAction>,
     }
-}
 
-#[cfg(target_os = "linux")]
-impl WrappedControls {
-    fn new(controls_to_audio: Sender<AudioAction>) -> Self {
-        Self {
-            controls_to_audio,
-            media_controls: None,
+    impl std::fmt::Debug for WrappedControls {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("WrappedControls")
+                .field("media_controls", &"MediaControls")
+                .field("controls_to_audio", &self.controls_to_audio)
+                .finish()
         }
     }
 
-    fn set_metadata(&mut self, metadata: MediaMetadata<'_>) {
-        self.ensure_init();
+    impl WrappedControls {
+        pub fn new(controls_to_audio: Sender<AudioAction>) -> Self {
+            Self {
+                controls_to_audio,
+                media_controls: None,
+            }
+        }
 
-        if let Some(ref mut media_controls) = self.media_controls {
+        pub fn set_metadata(&mut self, metadata: MediaMetadata<'_>) {
+            self.ensure_init();
+
+            if let Some(ref mut media_controls) = self.media_controls {
+                media_controls
+                    .set_metadata(metadata)
+                    .map_err(|e| {
+                        log::error!("failed to set media controls metadata: {e:?}")
+                    })
+                    .ok();
+            }
+        }
+
+        pub fn set_playback(&mut self, playback: MediaPlayback) {
+            self.ensure_init();
+
+            if let Some(ref mut media_controls) = self.media_controls {
+                media_controls
+                    .set_playback(playback)
+                    .map_err(|e| {
+                        log::error!("failed to set media controls playback: {e:?}")
+                    })
+                    .ok();
+            }
+        }
+
+        pub fn deinit(&mut self) {
+            // NOTE This relies on the controls releasing the dbus name on drop.
+            // This is where I added that in my fork:
+            // https://github.com/Giesch/souvlaki/commit/ede6a666d2d3719277a12450a0281e2a6f0bd79a
+            // It may still need to be added in souvlaki 0.6 before switching to upstream
+            self.media_controls = None;
+        }
+
+        fn ensure_init(&mut self) {
+            if self.media_controls.is_none() {
+                self.init().ok();
+            }
+        }
+
+        fn init(&mut self) -> anyhow::Result<()> {
+            // NOTE This is required for windows media controls support,
+            // but iced does not currently provide a way to get it.
+            // https://github.com/iced-rs/iced/issues/576
+            let hwnd = None;
+
+            let platform_config = PlatformConfig {
+                dbus_name: "clef.player",
+                display_name: "Clef",
+                hwnd,
+            };
+
+            let mut media_controls = MediaControls::new(platform_config)
+                .map_err(|_| anyhow!("failed to create media controls"))?;
+
+            let controls_to_audio = self.controls_to_audio.clone();
+
             media_controls
-                .set_metadata(metadata)
-                .map_err(|e| log::error!("failed to set media controls metadata: {e:?}"))
-                .ok();
+                .attach(move |e: MediaControlEvent| {
+                    let action: Option<AudioAction> = match &e {
+                        MediaControlEvent::Play => Some(AudioAction::PlayPaused),
+                        MediaControlEvent::Pause => Some(AudioAction::Pause),
+                        MediaControlEvent::Next => Some(AudioAction::Forward),
+                        MediaControlEvent::Previous => Some(AudioAction::Back),
+                        MediaControlEvent::Toggle => Some(AudioAction::Toggle),
+
+                        MediaControlEvent::Stop => None,
+                        MediaControlEvent::Seek(_) => None,
+                        MediaControlEvent::SeekBy(_, _) => None,
+                        MediaControlEvent::SetPosition(_) => None,
+                        MediaControlEvent::OpenUri(_) => None,
+                        MediaControlEvent::Raise => None,
+                        MediaControlEvent::Quit => None,
+                    };
+
+                    if let Some(action) = action {
+                        controls_to_audio
+                            .send(action)
+                            .map_err(|e| {
+                                error!("failed to send from controls to audio: {e:?}")
+                            })
+                            .ok();
+                    } else {
+                        info!("unsupported media controls action: {e:?}");
+                    }
+                })
+                .map_err(|_| anyhow!("failed to set up listening to media controls"))?;
+
+            self.media_controls = Some(media_controls);
+
+            Ok(())
         }
-    }
-
-    fn set_playback(&mut self, playback: MediaPlayback) {
-        self.ensure_init();
-
-        if let Some(ref mut media_controls) = self.media_controls {
-            media_controls
-                .set_playback(playback)
-                .map_err(|e| log::error!("failed to set media controls playback: {e:?}"))
-                .ok();
-        }
-    }
-
-    fn ensure_init(&mut self) {
-        if self.media_controls.is_none() {
-            self.init().ok();
-        }
-    }
-
-    fn deinit(&mut self) {
-        // NOTE this relies on the controls releasing the dbus name on drop
-        self.media_controls = None;
-    }
-
-    fn init(&mut self) -> anyhow::Result<()> {
-        let platform_config = PlatformConfig {
-            dbus_name: "clef.player",
-            display_name: "Clef",
-            hwnd: None, // required for windows support
-        };
-
-        let mut media_controls = MediaControls::new(platform_config)
-            .map_err(|_| anyhow!("failed to create media controls"))?;
-
-        let controls_to_audio = self.controls_to_audio.clone();
-
-        media_controls
-            .attach(move |e: MediaControlEvent| {
-                let action: Option<AudioAction> = match &e {
-                    MediaControlEvent::Play => Some(AudioAction::PlayPaused),
-                    MediaControlEvent::Pause => Some(AudioAction::Pause),
-                    MediaControlEvent::Next => Some(AudioAction::Forward),
-                    MediaControlEvent::Previous => Some(AudioAction::Back),
-                    MediaControlEvent::Toggle => Some(AudioAction::Toggle),
-
-                    MediaControlEvent::Stop => None,
-                    MediaControlEvent::Seek(_) => None,
-                    MediaControlEvent::SeekBy(_, _) => None,
-                    MediaControlEvent::SetPosition(_) => None,
-                    MediaControlEvent::OpenUri(_) => None,
-                    MediaControlEvent::Raise => None,
-                    MediaControlEvent::Quit => None,
-                };
-
-                if let Some(action) = action {
-                    controls_to_audio
-                        .send(action)
-                        .map_err(|e| {
-                            log::error!("failed to send from controls to audio: {e:?}")
-                        })
-                        .ok();
-                } else {
-                    log::info!("unsupported media controls action: {e:?}");
-                }
-            })
-            .map_err(|_| anyhow!("failed to set up listening to media controls"))?;
-
-        self.media_controls = Some(media_controls);
-
-        Ok(())
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-impl WrappedControls {
-    fn new(controls_to_audio: Sender<AudioAction>) -> Self {
-        Self {
-            controls_to_audio,
-            media_controls: None,
+// Media controls are disabled in windows.
+// To support them, we'll need a way to get a window handle from iced.
+// https://github.com/iced-rs/iced/issues/576
+#[cfg(target_os = "windows")]
+mod media_controls {
+    use super::*;
+
+    #[derive(Debug)]
+    #[cfg(target_os = "windows")]
+    pub struct WrappedControls;
+
+    #[cfg(target_os = "windows")]
+    impl WrappedControls {
+        pub fn new(_controls_to_audio: Sender<AudioAction>) -> Self {
+            Self
         }
+
+        pub fn set_metadata(&mut self, _metadata: MediaMetadata<'_>) {}
+
+        pub fn set_playback(&mut self, _playback: MediaPlayback) {}
+
+        pub fn deinit(&mut self) {}
     }
-
-    fn set_metadata(&mut self, _metadata: MediaMetadata<'_>) {}
-
-    fn set_playback(&mut self, _playback: MediaPlayback) {}
-
-    fn deinit(&mut self) {}
 }
+
+// TESTS
 
 #[cfg(test)]
 mod tests {

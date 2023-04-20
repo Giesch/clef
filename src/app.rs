@@ -890,6 +890,6 @@ mod tests {
 
     fn crawled_album_message(crawled: &CrawledAlbum) -> Message {
         let crawled = Box::new(crawled.clone());
-        Message::FromCrawler(Some(CrawlerMessage::CrawledAlbum(crawled)))
+        Message::FromCrawler(CrawlerMessage::CrawledAlbum(crawled))
     }
 }
