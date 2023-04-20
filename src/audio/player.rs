@@ -628,6 +628,7 @@ impl std::fmt::Debug for WrappedControls {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl WrappedControls {
     fn new(controls_to_audio: Sender<AudioAction>) -> Self {
         Self {
@@ -716,6 +717,22 @@ impl WrappedControls {
 
         Ok(())
     }
+}
+
+#[cfg(not(target_os = "linux"))]
+impl WrappedControls {
+    fn new(controls_to_audio: Sender<AudioAction>) -> Self {
+        Self {
+            controls_to_audio,
+            media_controls: None,
+        }
+    }
+
+    fn set_metadata(&mut self, _metadata: MediaMetadata<'_>) {}
+
+    fn set_playback(&mut self, _playback: MediaPlayback) {}
+
+    fn deinit(&mut self) {}
 }
 
 #[cfg(test)]

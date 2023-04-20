@@ -285,13 +285,15 @@ mod cpal {
                 move |err| error!("audio output error: {}", err),
             );
 
-            if let Err(err) = stream_result {
-                error!("audio output stream open error: {}", err);
-
-                return Err(AudioOutputError::OpenStreamError);
-            }
-
-            let stream = stream_result.unwrap();
+            // FIXME
+            // https://github.com/pdeljanov/Symphonia/issues/43
+            let stream = match stream_result {
+                Ok(stream) => stream,
+                Err(err) => {
+                    error!("audio output stream open error: {}", err);
+                    return Err(AudioOutputError::OpenStreamError);
+                }
+            };
 
             // Start the output stream.
             if let Err(err) = stream.play() {

@@ -469,6 +469,7 @@ dependencies = [
  "image",
  "libpulse-binding",
  "libpulse-simple-binding",
+ "libsqlite3-sys",
  "log",
  "mockall",
  "parking_lot 0.12.1",
@@ -2078,6 +2079,7 @@ version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29f835d03d717946d28b1d1ed632eb6f0e24a299388ee623d0c23118d3e8a7fa"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]
