@@ -17,5 +17,5 @@ remove-cache:
 
 # NOTE re: __NV_PRIME_RENDER_OFFLOAD=1
 # this is specific to my machine;
-# it asks pop os to use the gpu in hybrid mode
+# it ensures pop os uses the gpu while in hybrid mode
 # https://support.system76.com/articles/graphics-switch-pop/
