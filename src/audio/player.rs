@@ -667,9 +667,7 @@ impl WrappedControls {
 
     pub fn deinit(&mut self) {
         // NOTE This relies on the controls releasing the dbus name on drop.
-        // This is where I added that in my fork:
-        // https://github.com/Giesch/souvlaki/commit/ede6a666d2d3719277a12450a0281e2a6f0bd79a
-        // It may still need to be added in souvlaki 0.6 before switching to upstream
+        // That previously caused problems with souvlaki 0.5.x, but seems resolved
         self.media_controls = None;
     }
 
