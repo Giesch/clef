@@ -235,7 +235,7 @@ impl Application for App {
 
     fn title(&self) -> String {
         // NOTE This is used to look up our own window handle on startup.
-        // so it should not be modified until after recieving GotHwnd
+        // So on windows, it should not be modified until after recieving GotHwnd.
         WINDOW_TITLE.to_string()
     }
 
