@@ -190,7 +190,7 @@ mod cpal {
     use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
     use rb::*;
 
-    use log::{error, info};
+    use log::{error, trace};
 
     pub struct CpalAudioOutput;
 
@@ -319,7 +319,7 @@ mod cpal {
             let sample_buf = SampleBuffer::<T>::new(duration, spec);
 
             let resampler = if spec.rate != config.sample_rate.0 {
-                info!("resampling {} Hz to {} Hz", spec.rate, config.sample_rate.0);
+                trace!("resampling {} Hz to {} Hz", spec.rate, config.sample_rate.0);
                 Some(Resampler::new(
                     spec,
                     config.sample_rate.0 as usize,

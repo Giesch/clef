@@ -4,7 +4,7 @@
 const VARS: [(&str, &str); 3] = [
     ("RUST_BACKTRACE", "full"),
     ("RUST_LIB_BACKTRACE", "full"),
-    ("RUST_LOG", "clef=trace"),
+    ("RUST_LOG", "clef=debug"),
 ];
 
 pub fn init() {
