@@ -1,6 +1,7 @@
-/// This exposes a way for the app to look up its own window handle on windows.
-/// It's a workaround for iced not yet providing a way to access it.
-/// The hwnd is necessary on windows for supporting media controls.
+//! This is a way for the app to look up its own window handle during startup on windows.
+//! It's a workaround for iced not yet providing a way to access the window handle.
+//! The hwnd is necessary on windows for supporting os media controls / keys.
+
 use std::sync::Mutex;
 
 use log::trace;

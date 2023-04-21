@@ -4,13 +4,16 @@ Clef is a native local music player, similar to classic iTunes or MediaMonkey. I
 
 My goal is to make something that feels nicer to use than streaming services, to the point that I prefer to use it myself every day.
 
-For now, only linux is fully supported. On windows, the app is usable without media controls. To build from source on linux, you'll need some native dependencies. Using apt:
+Windows and (ubuntu-ish) linux are supported. It might work on other platforms and it might not.
+To build from source on linux, you'll need some native dependencies. Using apt:
 
 ```sh
 sudo apt install libsqlite3-dev cmake libfontconfig1-dev
 ```
 
-For development, you'll also want [just](https://github.com/casey/just), [bacon](https://dystroy.org/bacon), and diesel_cli:
+For development, you'll also want
+[just](https://github.com/casey/just),
+[bacon](https://dystroy.org/bacon), and [diesel_cli](https://crates.io/crates/diesel_cli):
 
 ```sh
 cargo install just

@@ -41,6 +41,9 @@ use music_cache::*;
 use resizer::*;
 use rgba::*;
 
+// NOTE this needs to match the string used in window_handle_hack
+pub const WINDOW_TITLE: &str = "Clef";
+
 #[derive(Debug)]
 pub struct App {
     config: Arc<Config>,
@@ -187,7 +190,7 @@ pub struct Flags {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GotHwind,
+    GotHwnd,
     FromCrawler(CrawlerMessage),
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
@@ -215,13 +218,24 @@ impl Application for App {
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let initial_state = Self::new(flags);
-        let initial_command = set_window_handle();
+
+        #[cfg(not(target_os = "windows"))]
+        let initial_command = Command::none();
+
+        #[cfg(target_os = "windows")]
+        let initial_command = Command::perform(
+            async move {
+                crate::window_handle_hack::set_hwnd();
+            },
+            |_| Message::GotHwnd,
+        );
 
         (initial_state, initial_command)
     }
 
     fn title(&self) -> String {
         // NOTE This is used to look up our own window handle on startup.
+        // so it should not be modified until after recieving GotHwnd
         WINDOW_TITLE.to_string()
     }
 
@@ -265,7 +279,7 @@ impl Application for App {
 
 fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
     match message {
-        Message::GotHwind => Effect::none(),
+        Message::GotHwnd => Effect::none(),
 
         Message::FromCrawler(CrawlerMessage::NoAudioDirectory) => {
             error!("failed to crawl audio directory");
@@ -798,18 +812,6 @@ fn view_bottom_row<'a>(
     let bottom_row = row_content.width(Length::Fill).spacing(10);
 
     Element::from(bottom_row)
-}
-
-// NOTE this needs to match the string used in window_handle_hack
-pub const WINDOW_TITLE: &str = "Clef";
-
-fn set_window_handle() -> Command<Message> {
-    Command::perform(
-        async move {
-            crate::window_handle_hack::set_hwnd();
-        },
-        |_| Message::GotHwind,
-    )
 }
 
 fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {

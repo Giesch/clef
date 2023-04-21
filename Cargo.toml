@@ -21,8 +21,6 @@ iced_graphics = "0.8.0"
 iced_style = "0.8.0"
 
 [dependencies.souvlaki]
-# git = "https://github.com/Giesch/souvlaki"
-# branch = "main"
 version = "0.6"
 default-features = false
 features = ["use_zbus"]
