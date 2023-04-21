@@ -41,7 +41,6 @@ use music_cache::*;
 use resizer::*;
 use rgba::*;
 
-// NOTE this needs to match the string used in window_handle_hack
 pub const WINDOW_TITLE: &str = "Clef";
 
 #[derive(Debug)]
@@ -224,9 +223,7 @@ impl Application for App {
 
         #[cfg(target_os = "windows")]
         let initial_command = Command::perform(
-            async move {
-                crate::window_handle_hack::set_hwnd();
-            },
+            async move { crate::window_handle_hack::set_hwnd(WINDOW_TITLE) },
             |_| Message::GotHwnd,
         );
 
