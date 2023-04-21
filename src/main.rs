@@ -1,5 +1,6 @@
 use clef::audio::player::{AudioAction, AudioMessage, Player};
 use clef::db::run_migrations;
+use clef::logging;
 use iced::{Application, Settings};
 
 use clef::app::config::Config;
@@ -7,7 +8,7 @@ use clef::app::{App, Flags};
 use clef::db;
 
 fn main() -> iced::Result {
-    pretty_env_logger::init();
+    logging::init();
 
     let config = Config::init().expect("unable to build config");
 
