@@ -127,7 +127,7 @@ where
     }
 }
 
-fn convert_samples_any(input: &AudioBufferRef<'_>, output: &mut Vec<Vec<f32>>) {
+fn convert_samples_any(input: &AudioBufferRef<'_>, output: &mut [Vec<f32>]) {
     match input {
         AudioBufferRef::U8(input) => convert_samples(input, output),
         AudioBufferRef::U16(input) => convert_samples(input, output),
@@ -142,7 +142,7 @@ fn convert_samples_any(input: &AudioBufferRef<'_>, output: &mut Vec<Vec<f32>>) {
     }
 }
 
-fn convert_samples<S>(input: &AudioBuffer<S>, output: &mut Vec<Vec<f32>>)
+fn convert_samples<S>(input: &AudioBuffer<S>, output: &mut [Vec<f32>])
 where
     S: Sample + IntoSample<f32>,
 {

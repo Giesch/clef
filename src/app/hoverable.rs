@@ -114,10 +114,7 @@ where
             .pad(self.padding);
 
         let mut content_layout = self.content.as_widget().layout(renderer, &limits);
-        content_layout.move_to(Point::new(
-            self.padding.left.into(),
-            self.padding.top.into(),
-        ));
+        content_layout.move_to(Point::new(self.padding.left, self.padding.top));
 
         let size = limits.resolve(content_layout.size()).pad(self.padding);
 
