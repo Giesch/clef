@@ -1,8 +1,14 @@
 * Now
-- [X] add resampling for windows
-  https://github.com/pdeljanov/Symphonia/issues/43
-  https://github.com/pdeljanov/Symphonia/commit/a5ac0ec8101829fea3ce6cfedee9a22f089aea2d
-  - [X] reread the .2 symphonia output.rs example
+- [-] add media controls support on windows
+  see if this could require having a window handle on the audio thread
+  maybe find a workaround for that - see what Psst does
+  - [X] get an hwnd, and make sure it's the right hwnd
+  - [ ] get back on mainline souvlaki
+    - [ ] test this branch on linux
+      - [ ] make sure features are set up and I didn't break anything
+      - [ ] make sure new souvlaki didn't break anything
+    - [ ] upstream dbus name release fix, if necessary
+  - [ ] update readme
 
 - [-] add a way to search
   - modal? keyboard-based
@@ -37,6 +43,8 @@
 - [ ] fix/re-add optimistic scan position update again
   find some way to test this
 
+- [ ] figure out why hover is slow again after version update
+
 * Next
 - [ ] get true gapless playback
   asked here: https://github.com/pdeljanov/Symphonia/discussions/169
@@ -56,7 +64,7 @@
       what would the alternative look like?
       do everything by fuzzy search instead of tab-focus
 
-- [ ] volume controls
+- [ ] volume controls in ui
 
 - [ ] get a nicer 'stopped' state
   the do-nothing play button and progress slider are bad
@@ -74,11 +82,6 @@
   windows requires resampling in a way that linux (and maybe mac?) does not
   https://github.com/pdeljanov/Symphonia/issues/43
   https://github.com/pdeljanov/Symphonia/pull/167
-- [ ] add media controls support on windows
-  see if this could require having a window handle on the audio thread
-  maybe find a workaround for that - see what Psst does
-  - [ ] get back on mainline souvlaki
-    upstream dbus name release fix if necessary
 - [ ] make the justfile cross-platform
   'reset' needs to be platform-aware
   maybe just implement it as a cargo xtask? or cli
@@ -87,9 +90,8 @@
   - convert to pngs?
   - modify iced to use theme text_color for svg currentColor?
 
-- [ ] either get the dbus changes merged upstream in souvlaki, or vendor the library
-  switch to a cargo workspace
-- [ ] implement debug for MediaControls upstream
+- [ ] switch to a cargo workspace?
+
 - [ ] fix panics in souvlaki fork (return option/result for name taken)
   audid for other unwraps/expects as well
 
@@ -131,6 +133,8 @@
 
 - [ ] switch to tracing from env-logger
   look into whether it plays nice with iced exector
+
+- [ ] consider using config lib instead of hacky --debug flag
 
 - [ ] read symphonia docs thoroughly
 - [ ] read iced examples thoroughly
