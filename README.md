@@ -13,6 +13,8 @@ sudo apt install libsqlite3-dev cmake libfontconfig1-dev
 For development, you'll also want [just](https://github.com/casey/just), [bacon](https://dystroy.org/bacon), and diesel_cli:
 
 ```sh
+cargo install just
+cargo install --locked bacon
 cargo install diesel_cli --no-default-features --features sqlite
 ```
 
