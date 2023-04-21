@@ -1,5 +1,5 @@
-// This is a hacky setup to avoid using env vars in powershell
-// consider using a config crate or something, and switching to tracing
+// This is a hacky setup to avoid needing to set env vars in powershell.
+// Consider using a config crate or something, and switching to tracing.
 
 const VARS: [(&str, &str); 3] = [
     ("RUST_BACKTRACE", "full"),
