@@ -40,7 +40,7 @@
         how big would a local music library have to be before this mattered?
     consider using ngrams? https://www.reddit.com/r/rust/comments/f7rysk/typoresistant_text_search/
 
-- [ ] fix/re-add optimistic scan position update again
+- [X] fix/re-add optimistic scan position update again
   find some way to test this
 
 - [ ] figure out why hover is slow on windows
@@ -169,6 +169,9 @@
 
 - [ ] reduce cpu usage
   where is it coming from? me, iced, or symphonia? audio thread spinning?
+
+- [ ] see if / how much of the optimistic time stuff can be removed app-side
+  now that the player publishes optimistic seek times
 
 * Someday
 - [ ] playlists

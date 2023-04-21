@@ -135,9 +135,19 @@ impl From<&PlayerState> for PlayerDisplay {
         let song_id = player_state.queue.current.id;
         let playing = player_state.playing;
 
+        // NOTE This is to avoid flashing the 'old' timestamp while seeking
+        // to the new timestamp; we display where we're going.
+        // This relies on resetting seek_ts to none in continue_playing
+        // when the seek is complete.
+        let timestamp = if let Some(seek_ts) = player_state.seek_ts {
+            seek_ts
+        } else {
+            player_state.timestamp
+        };
+
         let times = player_state
             .track_info
-            .progress_times(player_state.timestamp)
+            .progress_times(timestamp)
             .unwrap_or_else(|| {
                 error!("missing track time info");
                 ProgressTimes::ZERO
@@ -539,17 +549,19 @@ impl PlayerState {
             player_state.audio_output.replace(new_audio_output);
         }
 
-        // Write the decoded audio samples to the audio output if the presentation
-        // timestamp for the packet is >= the seeked position (if any).
-        let timestamp = packet.ts();
-        player_state.timestamp = timestamp;
-
+        // Write the decoded audio samples to the audio output
+        // If the timestamp for the packet is >= a seek position,
+        // then continue 'playing' until seek is reached.
+        player_state.timestamp = packet.ts();
         let seeking = player_state
             .seek_ts
-            .map(|seek_ts| timestamp < seek_ts)
+            .map(|seek_ts| player_state.timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
             return Ok((Some(player_state), None).into());
+        } else {
+            // when a seek is complete, return to publishing the real timestamp
+            player_state.seek_ts = None;
         }
 
         let audio_output: &mut dyn AudioOutput = player_state
