@@ -1,14 +1,14 @@
 * Now
-- [-] add media controls support on windows
+- [X] add media controls support on windows
   see if this could require having a window handle on the audio thread
   maybe find a workaround for that - see what Psst does
   - [X] get an hwnd, and make sure it's the right hwnd
-  - [ ] get back on mainline souvlaki
-    - [ ] test this branch on linux
-      - [ ] make sure features are set up and I didn't break anything
-      - [ ] make sure new souvlaki didn't break anything
-    - [ ] upstream dbus name release fix, if necessary
-  - [ ] update readme
+  - [X] get back on mainline souvlaki
+    - [X] test this branch on linux
+      - [X] make sure features are set up and I didn't break anything
+      - [X] make sure new souvlaki didn't break anything
+    - [X] upstream dbus name release fix, if necessary
+  - [X] update readme
 
 - [-] add a way to search
   - modal? keyboard-based
@@ -43,7 +43,8 @@
 - [ ] fix/re-add optimistic scan position update again
   find some way to test this
 
-- [ ] figure out why hover is slow again after version update
+- [ ] figure out why hover is slow on windows
+  try using tracy?
 
 * Next
 - [ ] get true gapless playback
@@ -91,9 +92,9 @@
   - modify iced to use theme text_color for svg currentColor?
 
 - [ ] switch to a cargo workspace?
+  could use an internal crate for player
 
-- [ ] fix panics in souvlaki fork (return option/result for name taken)
-  audid for other unwraps/expects as well
+- [ ] improve error handling in souvlaki upstream
 
 - [ ] avoid using ProgressTimes::ZERO as a sentinel value
   use an optional, try to catch bad files on import
