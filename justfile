@@ -1,19 +1,40 @@
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
+[linux]
 dev:
     __NV_PRIME_RENDER_OFFLOAD=1 \
-    RUST_LIB_BACKTRACE=full RUST_BACKTRACE=full RUST_LOG=clef=info \
-    cargo run
+    cargo run -- --debug
 
+[windows]
+dev:
+    cargo run -- --debug
+
+[linux]
 run:
     __NV_PRIME_RENDER_OFFLOAD=1 \
     cargo run --release
 
+[windows]
+run:
+    cargo run --release
+
 reset: remove-db remove-cache
 
+[linux]
 remove-db:
-    rm -rf $HOME/.local/share/clef/db.sqlite*
+    rm $HOME/.local/share/clef/db.sqlite*
 
+[linux]
 remove-cache:
     rm -rf $HOME/.local/share/clef/resized_images
+
+[windows]
+remove-db:
+    rm $HOME\AppData\Local\Clef\data\db.sqlite*
+
+[windows]
+remove-cache:
+    rm -r -fo $HOME\AppData\Local\Clef\data\resized_images
 
 # NOTE re: __NV_PRIME_RENDER_OFFLOAD=1
 # this is specific to my machine;

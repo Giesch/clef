@@ -15,3 +15,5 @@ For development, you'll also want [just](https://github.com/casey/just), [bacon]
 ```sh
 cargo install diesel_cli --no-default-features --features sqlite
 ```
+
+To add diesel migrations, you'll need to copy .env.example to .env, and potentially modify it for your platform.
