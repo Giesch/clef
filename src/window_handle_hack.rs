@@ -4,22 +4,24 @@
 
 use std::sync::Mutex;
 
-use log::trace;
+use log::{error, trace};
 use once_cell::sync::Lazy;
-use windows::core::PCSTR;
+use windows::core::*;
 use windows::Win32::Foundation::*;
-use windows::Win32::UI::WindowsAndMessaging::FindWindowA;
+use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
+
+use crate::app::WINDOW_TITLE;
 
 static WINDOW_HANDLE: Lazy<Mutex<Option<HWND>>> = Lazy::new(|| Mutex::new(None));
 
 #[allow(unsafe_code)]
-pub fn set_hwnd(window_name: &str) {
-    let window_name = PCSTR(window_name.as_ptr());
-    let window: HWND = unsafe { FindWindowA(None, window_name) };
+pub fn set_hwnd() {
+    let window_hstring = HSTRING::from(WINDOW_TITLE);
+    let window_pcwstr = PCWSTR(window_hstring.as_ptr());
+    let window: HWND = unsafe { FindWindowW(None, window_pcwstr) };
 
     if window.0 == 0 {
-        // this can only happen if the function is incorrectly
-        // called before the ui window is opened
+        error!("invalid hwnd for window");
         return;
     }
 

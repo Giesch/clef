@@ -10,6 +10,10 @@
     - [X] upstream dbus name release fix, if necessary
   - [X] update readme
 
+- [X] why does it fail to get a hwnd only in release mode?
+  it's inconsistent
+  it was W vs A version of windows fns ?
+
 - [-] add a way to search
   - modal? keyboard-based
     command pallete look
