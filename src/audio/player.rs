@@ -596,11 +596,7 @@ fn prepare_publish(
     let progress = new_state
         .track_info
         .progress_times(timestamp)
-        .map(|progress| {
-            let elapsed_duration = Duration::from_secs(progress.elapsed.seconds);
-            let media_position = MediaPosition(elapsed_duration);
-            media_position
-        });
+        .map(|progress| MediaPosition(Duration::from_secs(progress.elapsed.seconds)));
 
     let playback = if new_state.playing {
         MediaPlayback::Playing { progress }
