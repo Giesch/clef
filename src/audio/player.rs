@@ -342,6 +342,10 @@ impl AudioEffects {
     }
 }
 
+// NOTE this is used for seeking and error states,
+// when we want to deliberately avoid publishing to media controls
+// TODO replace with explicit functions;
+// one for no_publish and one for publish_stop
 impl From<(Option<PlayerState>, Option<AudioMessage>)> for AudioEffects {
     fn from(
         (player_state, audio_message): (Option<PlayerState>, Option<AudioMessage>),
@@ -487,6 +491,8 @@ impl PlayerState {
             }
         };
 
+        // TODO what should actually happen here? we don't support the
+        // track switching that symphonia-play was trying to
         if packet.track_id() != player_state.track_info.id {
             return Ok((Some(player_state), None).into());
         }
