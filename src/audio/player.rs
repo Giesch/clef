@@ -6,7 +6,7 @@ use anyhow::{anyhow, bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
-use souvlaki::MediaPlayback;
+use souvlaki::{MediaPlayback, MediaPosition};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -138,12 +138,7 @@ impl From<&PlayerState> for PlayerDisplay {
         // to the new timestamp; we display where we're going.
         // This relies on resetting seek_ts to none in continue_playing
         // when the seek is complete.
-        let timestamp = if let Some(seek_ts) = player_state.seek_ts {
-            seek_ts
-        } else {
-            player_state.timestamp
-        };
-
+        let timestamp = player_state.seek_ts.unwrap_or(player_state.timestamp);
         let times = player_state
             .track_info
             .progress_times(timestamp)
@@ -592,7 +587,17 @@ fn prepare_publish(
         cover_url,
     };
 
-    let progress = None;
+    // TODO share this line with the display from state impl
+    let timestamp = new_state.seek_ts.unwrap_or(new_state.timestamp);
+    let progress = new_state
+        .track_info
+        .progress_times(timestamp)
+        .map(|progress| {
+            let elapsed_duration = Duration::from_secs(progress.elapsed.seconds);
+            let media_position = MediaPosition(elapsed_duration);
+            media_position
+        });
+
     let playback = if new_state.playing {
         MediaPlayback::Playing { progress }
     } else {
