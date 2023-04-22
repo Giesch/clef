@@ -223,7 +223,7 @@ impl Application for App {
 
         #[cfg(target_os = "windows")]
         let initial_command = Command::perform(
-            async move { crate::window_handle_hack::set_hwnd(WINDOW_TITLE) },
+            async move { crate::window_handle_hack::set_hwnd() },
             |_| Message::GotHwnd,
         );
 
