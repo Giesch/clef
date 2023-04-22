@@ -134,11 +134,7 @@ impl From<&PlayerState> for PlayerDisplay {
         let song_id = player_state.queue.current.id;
         let playing = player_state.playing;
 
-        // NOTE This is to avoid flashing the 'old' timestamp while seeking
-        // to the new timestamp; we display where we're going.
-        // This relies on resetting seek_ts to none in continue_playing
-        // when the seek is complete.
-        let timestamp = player_state.seek_ts.unwrap_or(player_state.timestamp);
+        let timestamp = player_state.optimistic_timestamp();
         let times = player_state
             .track_info
             .progress_times(timestamp)
@@ -528,6 +524,14 @@ impl PlayerState {
 
         Ok(publish_display_update(player_state))
     }
+
+    // NOTE This is to avoid flashing the 'old' timestamp while seeking
+    // to the new timestamp; we publish the timestamp where we're going to.
+    // This relies on resetting seek_ts to none in continue_playing
+    // when the seek is complete.
+    fn optimistic_timestamp(&self) -> u64 {
+        self.seek_ts.unwrap_or(self.timestamp)
+    }
 }
 
 fn publish_display_update(new_state: PlayerState) -> AudioEffects {
@@ -588,8 +592,7 @@ fn prepare_publish(
         cover_url,
     };
 
-    // TODO share this line with the display from state impl
-    let timestamp = new_state.seek_ts.unwrap_or(new_state.timestamp);
+    let timestamp = new_state.optimistic_timestamp();
     let progress = new_state
         .track_info
         .progress_times(timestamp)
