@@ -156,20 +156,13 @@ impl CurrentSong {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgressDisplay {
     Dragging(f32),
-    Optimistic(OptimisticTime),
     FromAudio(ProgressTimes),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct OptimisticTime {
-    proportion: f32,
 }
 
 impl ProgressDisplay {
     fn display_proportion(&self) -> f32 {
         match self {
             ProgressDisplay::Dragging(proportion) => *proportion,
-            ProgressDisplay::Optimistic(optimistic) => optimistic.proportion,
             ProgressDisplay::FromAudio(times) => {
                 let elapsed = times.elapsed.seconds as f32 + times.elapsed.frac as f32;
                 let total = times.total.seconds as f32 + times.total.frac as f32;
@@ -354,12 +347,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
         Message::ForwardClicked => AudioAction::Forward.into(),
 
-        Message::BackClicked => {
-            let optimistic = OptimisticTime { proportion: 0.0 };
-            ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
-
-            AudioAction::Back.into()
-        }
+        Message::BackClicked => AudioAction::Back.into(),
 
         Message::SeekDrag(proportion) => {
             ui.progress = Some(ProgressDisplay::Dragging(proportion));
@@ -374,9 +362,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
                     return Effect::none();
                 }
             };
-
-            let optimistic = OptimisticTime { proportion };
-            ui.progress = Some(ProgressDisplay::Optimistic(optimistic));
 
             AudioAction::Seek(proportion).into()
         }
@@ -397,17 +382,12 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::FromAudio(AudioMessage::DisplayUpdate(Some(display))) => {
             update_current_song(ui, &display);
 
-            // update progress bar if necessary
             match &ui.progress {
                 Some(ProgressDisplay::Dragging(_)) => {
-                    // ignore update to preserve drag state
+                    // ignore update to preserve draging slider state
                 }
 
-                Some(ProgressDisplay::Optimistic(_)) => {
-                    // ignore until SeekComplete to avoid flicker
-                }
-
-                _ => {
+                Some(ProgressDisplay::FromAudio(_)) | None => {
                     ui.progress = Some(ProgressDisplay::FromAudio(display.times));
                 }
             }
@@ -418,17 +398,8 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::FromAudio(AudioMessage::SeekComplete(display)) => {
             update_current_song(ui, &display);
 
-            // update progress bar if necessary
-            match &ui.progress {
-                Some(ProgressDisplay::Dragging(_)) => {
-                    // ignore update to preserve drag state
-                }
-
-                // NOTE we deliberately overwrite the last optimistic state here
-                _ => {
-                    ui.progress = Some(ProgressDisplay::FromAudio(display.times));
-                }
-            }
+            // deliberately overwrite the dragging state
+            ui.progress = Some(ProgressDisplay::FromAudio(display.times));
 
             Effect::none()
         }
@@ -754,8 +725,7 @@ fn view_bottom_row<'a>(
             };
 
             let elapsed = match progress {
-                ProgressDisplay::Dragging(proportion)
-                | ProgressDisplay::Optimistic(OptimisticTime { proportion, .. }) => {
+                ProgressDisplay::Dragging(proportion) => {
                     f64::from(*proportion) * current_song.total_seconds as f64
                 }
 
