@@ -6,7 +6,7 @@ use anyhow::{anyhow, bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, warn};
-use souvlaki::MediaPlayback;
+use souvlaki::{MediaPlayback, MediaPosition};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -134,16 +134,7 @@ impl From<&PlayerState> for PlayerDisplay {
         let song_id = player_state.queue.current.id;
         let playing = player_state.playing;
 
-        // NOTE This is to avoid flashing the 'old' timestamp while seeking
-        // to the new timestamp; we display where we're going.
-        // This relies on resetting seek_ts to none in continue_playing
-        // when the seek is complete.
-        let timestamp = if let Some(seek_ts) = player_state.seek_ts {
-            seek_ts
-        } else {
-            player_state.timestamp
-        };
-
+        let timestamp = player_state.optimistic_timestamp();
         let times = player_state
             .track_info
             .progress_times(timestamp)
@@ -347,19 +338,6 @@ impl AudioEffects {
     }
 }
 
-impl From<(Option<PlayerState>, Option<AudioMessage>)> for AudioEffects {
-    fn from(
-        (player_state, audio_message): (Option<PlayerState>, Option<AudioMessage>),
-    ) -> Self {
-        Self {
-            player_state,
-            audio_message,
-            metadata: None,
-            playback: None,
-        }
-    }
-}
-
 impl PlayerState {
     // This is based on the main loop in the symphonia-play example
     fn play_queue(queue: Queue<QueuedSong>) -> anyhow::Result<Self> {
@@ -435,7 +413,7 @@ impl PlayerState {
                 Ok(publish_display_update(new_state))
             }
 
-            Err(_old_queue) => Ok((None, Some(AudioMessage::DisplayUpdate(None))).into()),
+            Err(_old_queue) => Ok(publish_stop()),
         }
     }
 
@@ -492,10 +470,6 @@ impl PlayerState {
             }
         };
 
-        if packet.track_id() != player_state.track_info.id {
-            return Ok((Some(player_state), None).into());
-        }
-
         let decoded = match player_state.decoder.decode(&packet) {
             Ok(decoded) => decoded,
 
@@ -503,7 +477,7 @@ impl PlayerState {
                 // Decode errors are not fatal.
                 // Print the error message and try to decode the next packet as usual.
                 warn!("decode error: {}", err);
-                return Ok((Some(player_state), None).into());
+                return Ok(publish_nothing(player_state));
             }
 
             Err(err) => bail!("failed to read packet: {err}"),
@@ -535,7 +509,7 @@ impl PlayerState {
             .map(|seek_ts| player_state.timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
-            return Ok((Some(player_state), None).into());
+            return Ok(publish_nothing(player_state));
         } else {
             // when a seek is complete, return to publishing the real timestamp
             player_state.seek_ts = None;
@@ -549,6 +523,14 @@ impl PlayerState {
         audio_output.write(decoded).context("writing audio")?;
 
         Ok(publish_display_update(player_state))
+    }
+
+    // NOTE This is to avoid flashing the 'old' timestamp while seeking
+    // to the new timestamp; we publish the timestamp where we're going to.
+    // This relies on resetting seek_ts to none in continue_playing
+    // when the seek is complete.
+    fn optimistic_timestamp(&self) -> u64 {
+        self.seek_ts.unwrap_or(self.timestamp)
     }
 }
 
@@ -574,6 +556,24 @@ fn publish_seek_complete(new_state: PlayerState) -> AudioEffects {
     }
 }
 
+fn publish_stop() -> AudioEffects {
+    AudioEffects {
+        audio_message: Some(AudioMessage::DisplayUpdate(None)),
+        player_state: None,
+        metadata: None,
+        playback: None,
+    }
+}
+
+fn publish_nothing(player_state: PlayerState) -> AudioEffects {
+    AudioEffects {
+        player_state: Some(player_state),
+        audio_message: None,
+        metadata: None,
+        playback: None,
+    }
+}
+
 fn prepare_publish(
     new_state: &PlayerState,
 ) -> (PlayerDisplay, ControlsMetadata, MediaPlayback) {
@@ -592,7 +592,12 @@ fn prepare_publish(
         cover_url,
     };
 
-    let progress = None;
+    let timestamp = new_state.optimistic_timestamp();
+    let progress = new_state
+        .track_info
+        .progress_times(timestamp)
+        .map(|progress| MediaPosition(Duration::from_secs(progress.elapsed.seconds)));
+
     let playback = if new_state.playing {
         MediaPlayback::Playing { progress }
     } else {
