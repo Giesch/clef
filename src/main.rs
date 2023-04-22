@@ -2,6 +2,7 @@ use clef::audio::player::{AudioAction, AudioMessage, Player};
 use clef::db::run_migrations;
 use clef::logging;
 use iced::{Application, Settings};
+use iced_native::window::Icon;
 
 use clef::app::config::Config;
 use clef::app::{App, Flags};
@@ -29,5 +30,15 @@ fn main() -> iced::Result {
         config,
     };
 
-    App::run(Settings::with_flags(flags))
+    let mut settings = Settings::with_flags(flags);
+    settings.window = iced::window::Settings {
+        icon: get_icon(),
+        ..Default::default()
+    };
+
+    App::run(settings)
+}
+
+fn get_icon() -> Option<Icon> {
+    iced::window::icon::from_file("./base_clef.ico").ok()
 }
