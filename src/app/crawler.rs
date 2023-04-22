@@ -168,12 +168,23 @@ fn collect_single_album(
                     total_seconds: decoded.total_seconds,
                 });
             } else {
+                info!("skipping file with invalid music metadata: {path}");
                 continue;
             }
         } else if is_cover_art(&path) {
-            covers.push(path.clone());
+            let file_meta = match entry.metadata() {
+                Ok(meta) => meta,
+                Err(e) => {
+                    info!("skipping file with invalid file metadata: {path} {e}");
+                    continue;
+                }
+            };
+            covers.push((path.clone(), file_meta.len()));
         }
     }
+
+    covers.sort_by_key(|(_path, file_size)| *file_size);
+    let original_art = covers.last().map(|(path, _file_size)| path).cloned();
 
     let (saved_album, mut saved_songs) = conn
         .immediate_transaction(|tx| {
@@ -194,7 +205,7 @@ fn collect_single_album(
                     title: album_title.cloned(),
                     artist: album_artist.cloned(),
                     release_date: album_date.cloned(),
-                    original_art: covers.first().cloned(),
+                    original_art,
                     resized_art: None,
                 };
 
