@@ -342,23 +342,6 @@ impl AudioEffects {
     }
 }
 
-// NOTE this is used for seeking and error states,
-// when we want to deliberately avoid publishing to media controls
-// TODO replace with explicit functions;
-// one for no_publish and one for publish_stop
-impl From<(Option<PlayerState>, Option<AudioMessage>)> for AudioEffects {
-    fn from(
-        (player_state, audio_message): (Option<PlayerState>, Option<AudioMessage>),
-    ) -> Self {
-        Self {
-            player_state,
-            audio_message,
-            metadata: None,
-            playback: None,
-        }
-    }
-}
-
 impl PlayerState {
     // This is based on the main loop in the symphonia-play example
     fn play_queue(queue: Queue<QueuedSong>) -> anyhow::Result<Self> {
@@ -434,7 +417,7 @@ impl PlayerState {
                 Ok(publish_display_update(new_state))
             }
 
-            Err(_old_queue) => Ok((None, Some(AudioMessage::DisplayUpdate(None))).into()),
+            Err(_old_queue) => Ok(publish_stop()),
         }
     }
 
@@ -491,12 +474,6 @@ impl PlayerState {
             }
         };
 
-        // TODO what should actually happen here? we don't support the
-        // track switching that symphonia-play was trying to
-        if packet.track_id() != player_state.track_info.id {
-            return Ok((Some(player_state), None).into());
-        }
-
         let decoded = match player_state.decoder.decode(&packet) {
             Ok(decoded) => decoded,
 
@@ -504,7 +481,7 @@ impl PlayerState {
                 // Decode errors are not fatal.
                 // Print the error message and try to decode the next packet as usual.
                 warn!("decode error: {}", err);
-                return Ok((Some(player_state), None).into());
+                return Ok(publish_nothing(player_state));
             }
 
             Err(err) => bail!("failed to read packet: {err}"),
@@ -536,7 +513,7 @@ impl PlayerState {
             .map(|seek_ts| player_state.timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
-            return Ok((Some(player_state), None).into());
+            return Ok(publish_nothing(player_state));
         } else {
             // when a seek is complete, return to publishing the real timestamp
             player_state.seek_ts = None;
@@ -572,6 +549,24 @@ fn publish_seek_complete(new_state: PlayerState) -> AudioEffects {
         audio_message: Some(AudioMessage::SeekComplete(display)),
         metadata: Some(metadata),
         playback: Some(playback),
+    }
+}
+
+fn publish_stop() -> AudioEffects {
+    AudioEffects {
+        audio_message: Some(AudioMessage::DisplayUpdate(None)),
+        player_state: None,
+        metadata: None,
+        playback: None,
+    }
+}
+
+fn publish_nothing(player_state: PlayerState) -> AudioEffects {
+    AudioEffects {
+        player_state: Some(player_state),
+        audio_message: None,
+        metadata: None,
+        playback: None,
     }
 }
 
