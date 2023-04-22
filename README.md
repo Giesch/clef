@@ -22,4 +22,10 @@ cargo install --locked bacon
 cargo install diesel_cli --no-default-features --features sqlite
 ```
 
-To add diesel migrations, you'll need to copy .env.example to .env, and potentially modify it for your platform.
+On windows, it can be easier to have diesel_cli use bundled sqlite than install your own copy:
+
+``` sh
+cargo install diesel_cli --no-default-features --features "sqlite-bundled"
+```
+
+To add diesel migrations, you'll need to copy .env.example to .env. On windows, the DATABASE_URL needs to be set manually.
