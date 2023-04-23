@@ -34,7 +34,7 @@ remove-db:
 
 [windows]
 remove-cache:
-    rm -r -fo $HOME\AppData\Local\Clef\data\resized_images
+    rm $HOME\AppData\Local\Clef\data\resized_images\*
 
 # NOTE re: __NV_PRIME_RENDER_OFFLOAD=1
 # this is specific to my machine;
