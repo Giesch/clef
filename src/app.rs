@@ -3,12 +3,12 @@ use std::sync::Arc;
 use flume::{Receiver, Sender};
 use iced::keyboard::KeyCode;
 use iced::widget::{
-    button, column, container, horizontal_space, row, scrollable, slider, text,
-    text_input, Column, Container, Image, Row, Space,
+    button, column, container, horizontal_space, row, scrollable, slider, text, Column,
+    Container, Image, Row, Space,
 };
 use iced::{
-    alignment, executor, Alignment, Application, Color, Command, ContentFit, Element,
-    Event, Length, Subscription, Theme,
+    alignment, executor, Alignment, Application, Command, ContentFit, Element, Event,
+    Length, Subscription, Theme,
 };
 use iced_native::keyboard::Event as KeyboardEvent;
 use log::error;
@@ -24,7 +24,6 @@ mod custom_style;
 mod effect;
 mod hoverable;
 mod icons;
-mod modal;
 mod music_cache;
 mod old_unfold;
 mod resizer;
@@ -36,7 +35,6 @@ use crawler::*;
 use custom_style::no_background;
 use effect::Effect;
 use hoverable::*;
-use modal::Modal;
 use music_cache::*;
 use resizer::*;
 use rgba::*;
@@ -61,7 +59,6 @@ struct Ui {
     progress: Option<ProgressDisplay>,
     hovered_song_id: Option<SongId>,
     music_cache: MusicCache,
-    modal_state: ModalState,
 }
 
 impl Ui {
@@ -72,18 +69,8 @@ impl Ui {
             hovered_song_id: None,
             crawling_music: true,
             music_cache: MusicCache::new(),
-            modal_state: Default::default(),
         }
     }
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-enum ModalState {
-    /// No modal showing
-    #[default]
-    Clear,
-    /// Search modal showing
-    Search { input: String },
 }
 
 impl App {
@@ -197,9 +184,6 @@ pub enum Message {
     SeekWithoutSong(f32),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
-    OpenSearchModal,
-    CloseModal,
-    SearchInputChanged(String),
 }
 
 impl Application for App {
@@ -318,13 +302,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
             key_code, ..
         })) if key_code == KeyCode::Space => toggle(ui),
 
-        Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
-            key_code, ..
-        })) if key_code == KeyCode::Slash => {
-            ui.modal_state = ModalState::Search { input: String::from("") };
-            Effect::none()
-        }
-
         Message::Native(_) => Effect::none(),
 
         Message::PlayPausedClicked => AudioAction::PlayPaused.into(),
@@ -411,27 +388,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::FromAudio(AudioMessage::AudioDied) => Effect::CloseWindow,
-
-        Message::OpenSearchModal => {
-            ui.modal_state = ModalState::Search { input: String::from("") };
-            Effect::none()
-        }
-
-        Message::CloseModal => {
-            ui.modal_state = ModalState::Clear;
-            Effect::none()
-        }
-
-        Message::SearchInputChanged(new_input) => {
-            match &mut ui.modal_state {
-                ModalState::Clear => {}
-                ModalState::Search { input } => {
-                    *input = new_input;
-                }
-            };
-
-            Effect::none()
-        }
     }
 }
 
@@ -508,45 +464,8 @@ fn view(ui: &Ui) -> Element<'_, Message> {
         .width(Length::Fill)
         .height(Length::Fill)
         .align_items(Alignment::Center);
-    let main_column: Element<'_, Message> = main_column.into();
 
-    // TODO modal style (custom card component? command pallette look)
-    //   look at vscode's, tailwind's
-
-    // FIXME the modal's text input is only editable the first time the modal is raised
-
-    let modal_active = match ui.modal_state {
-        ModalState::Clear => false,
-        ModalState::Search { .. } => true,
-    };
-
-    // TODO focus input on opening modal
-    //   add to action handler in top level update
-    Modal::new(modal_active, main_column, move || {
-        let search_text = match &ui.modal_state {
-            ModalState::Clear => "",
-            ModalState::Search { input } => input,
-        };
-
-        modal_content(search_text)
-            // FIXME
-            .explain(Color::WHITE)
-    })
-    .backdrop(Message::CloseModal)
-    .on_esc(Message::CloseModal)
-    .into()
-}
-
-fn modal_content(search_text: &str) -> Element<'static, Message> {
-    let input = text_input("Search", search_text).on_input(Message::SearchInputChanged);
-
-    let row = Row::new()
-        .spacing(10)
-        .padding(5)
-        .width(Length::Fill)
-        .push(input);
-
-    row.into()
+    main_column.into()
 }
 
 fn fill_container<'a>(
