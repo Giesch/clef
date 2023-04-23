@@ -180,6 +180,10 @@ pub struct Flags {
     pub config: Config,
 }
 
+use once_cell::sync::Lazy;
+
+static SEARCH_INPUT_ID: Lazy<text_input::Id> = Lazy::new(|| text_input::Id::unique());
+
 #[derive(Debug, Clone)]
 pub enum Message {
     GotHwnd,
@@ -197,7 +201,6 @@ pub enum Message {
     SeekWithoutSong(f32),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
-    OpenSearchModal,
     CloseModal,
     SearchInputChanged(String),
 }
@@ -321,8 +324,20 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
             key_code, ..
         })) if key_code == KeyCode::Slash => {
+            // FIXME is this working at all?
+            // does the focusable element need to already exist?
+            // this looks similar to how the todos example does it
+            // maybe the modal impl is wrong somehow?
+
             ui.modal_state = ModalState::Search { input: String::from("") };
-            Effect::none()
+
+            // return Effect::none();
+
+            Effect::Command(Command::batch(vec![
+                iced::widget::focus_next(),
+                text_input::focus(SEARCH_INPUT_ID.clone()),
+                text_input::select_all(SEARCH_INPUT_ID.clone()),
+            ]))
         }
 
         Message::Native(_) => Effect::none(),
@@ -412,11 +427,6 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
 
         Message::FromAudio(AudioMessage::AudioDied) => Effect::CloseWindow,
 
-        Message::OpenSearchModal => {
-            ui.modal_state = ModalState::Search { input: String::from("") };
-            Effect::none()
-        }
-
         Message::CloseModal => {
             ui.modal_state = ModalState::Clear;
             Effect::none()
@@ -425,7 +435,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         Message::SearchInputChanged(new_input) => {
             match &mut ui.modal_state {
                 ModalState::Clear => {}
-                ModalState::Search { input } => {
+                ModalState::Search { input, .. } => {
                     *input = new_input;
                 }
             };
@@ -510,17 +520,11 @@ fn view(ui: &Ui) -> Element<'_, Message> {
         .align_items(Alignment::Center);
     let main_column: Element<'_, Message> = main_column.into();
 
-    // TODO modal style (custom card component? command pallette look)
-    //   look at vscode's, tailwind's
-
-    // FIXME the modal's text input is only editable the first time the modal is raised
-
-    let modal_active = match ui.modal_state {
+    let modal_active = match &ui.modal_state {
         ModalState::Clear => false,
         ModalState::Search { .. } => true,
     };
 
-    // TODO focus input on opening modal
     //   add to action handler in top level update
     Modal::new(modal_active, main_column, move || {
         let search_text = match &ui.modal_state {
@@ -528,17 +532,22 @@ fn view(ui: &Ui) -> Element<'_, Message> {
             ModalState::Search { input } => input,
         };
 
-        modal_content(search_text)
-            // FIXME
-            .explain(Color::WHITE)
+        modal_content(search_text, SEARCH_INPUT_ID.clone())
+        // FIXME
+        // .explain(Color::WHITE)
     })
     .backdrop(Message::CloseModal)
     .on_esc(Message::CloseModal)
     .into()
 }
 
-fn modal_content(search_text: &str) -> Element<'static, Message> {
-    let input = text_input("Search", search_text).on_input(Message::SearchInputChanged);
+fn modal_content(
+    search_text: &str,
+    input_id: text_input::Id,
+) -> Element<'static, Message> {
+    let input = text_input("Search", search_text)
+        .id(input_id)
+        .on_input(Message::SearchInputChanged);
 
     let row = Row::new()
         .spacing(10)

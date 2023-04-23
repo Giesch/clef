@@ -14,9 +14,10 @@
   - [ ] add a text input to the modal
     elm-style text state in in the modal state enum
     - [ ] start editing the text input on open
-      is that possible?
+      figure out why focus action isn't working - is it the modal?
+
   - [ ] style the modal to look like a command palette
-  - [ ] add an 'enter' handler
+  - [ ] add a submit handler to the text input
 
   - [ ] how to actually do the searching?
     NOTE: get the ui working first
