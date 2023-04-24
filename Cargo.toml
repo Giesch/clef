@@ -1,9 +1,8 @@
-# TODO filter/rearrange dependencies
-
 [package]
 name = "clef"
 version = "0.1.0"
 edition = "2021"
+authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }

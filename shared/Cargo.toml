@@ -2,3 +2,4 @@
 name = "clef_shared"
 version = "0.0.1"
 edition = "2021"
+authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]

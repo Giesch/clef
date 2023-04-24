@@ -18,12 +18,12 @@ use symphonia::core::units::Time;
 use clef_db::queries::SongId;
 use clef_shared::Queue;
 
-// TODO make these submodules of player
-use super::output::{self, AudioOutput};
-use super::track_info::{first_supported_track, TrackInfo};
-
 mod media_controls;
 use media_controls::*;
+mod output;
+use output::AudioOutput;
+pub(crate) mod track_info;
+use track_info::{first_supported_track, TrackInfo};
 
 /// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]

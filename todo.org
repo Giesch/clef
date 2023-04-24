@@ -1,11 +1,13 @@
 * Now
-- [ ] refactor to a cargo workspace
-  - [ ] make audio backend a crate
-  - [ ] make iced frontend a crate
-  - [ ] make db a crate
-  - [ ] make main/coordination types a crate? just queue?
+- [X] refactor to a cargo workspace
+  - [X] make audio backend a crate
+  - [X] make iced frontend a crate
+  - [X] make db a crate
+  - [X] make main/coordination types a crate? just queue?
 
+- [X] clean up extra dependencies
 - [ ] set up lint rules / forbid/deny unsafe code by crate
+- [ ] move crawler usage of symphonia into an audio crate module
 
 - [ ] implement true gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169

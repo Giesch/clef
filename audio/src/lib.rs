@@ -1,6 +1,5 @@
-mod output;
 pub mod player;
-pub mod track_info;
+pub use player::track_info::{first_supported_track, TrackInfo};
 
 #[cfg(not(target_os = "linux"))]
 mod resampler;

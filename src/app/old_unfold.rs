@@ -1,12 +1,13 @@
-use iced_native::Subscription;
+use std::hash::Hash;
 
 use iced::futures::Future;
-
-use std::hash::Hash;
+use iced_native::Subscription;
 
 /// A copy of the old version of iced::subscription::unfold, that used filter_map
 /// This allows for using flume without spamming the app with no-op messages.
 /// It could be replaced with a custom flume channel helper, based on iced::subscription::channel.
+///   But getting iced streams to hook up to a flume Selector is a bit weird.
+/// It's probably better to just use iced streams for non-audio stuff
 pub fn old_unfold<I, T, Fut, Message>(
     id: I,
     initial: T,
