@@ -459,6 +459,42 @@ dependencies = [
  "anyhow",
  "arrayvec 0.7.2",
  "camino",
+ "clef_audio",
+ "clef_db",
+ "clef_shared",
+ "cpal",
+ "directories",
+ "flume",
+ "iced",
+ "iced_graphics",
+ "iced_native",
+ "iced_style",
+ "image",
+ "libpulse-binding",
+ "libpulse-simple-binding",
+ "log",
+ "mockall",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "pretty_env_logger",
+ "r2d2",
+ "rb",
+ "rubato",
+ "souvlaki",
+ "symphonia",
+ "thiserror",
+ "windows 0.48.0",
+]
+
+[[package]]
+name = "clef_audio"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrayvec 0.7.2",
+ "camino",
+ "clef_db",
+ "clef_shared",
  "cpal",
  "diesel",
  "diesel_migrations",
@@ -485,6 +521,31 @@ dependencies = [
  "thiserror",
  "windows 0.48.0",
 ]
+
+[[package]]
+name = "clef_db"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "camino",
+ "clef_shared",
+ "diesel",
+ "diesel_migrations",
+ "directories",
+ "flume",
+ "image",
+ "libsqlite3-sys",
+ "log",
+ "parking_lot 0.12.1",
+ "pretty_env_logger",
+ "r2d2",
+ "symphonia",
+ "thiserror",
+]
+
+[[package]]
+name = "clef_shared"
+version = "0.0.1"
 
 [[package]]
 name = "clipboard-win"

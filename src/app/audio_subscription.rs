@@ -1,6 +1,7 @@
 use flume::{Receiver, TryRecvError};
 
-use crate::{app::old_unfold::old_unfold, audio::player::AudioMessage};
+use crate::app::old_unfold::old_unfold;
+use clef_audio::player::AudioMessage;
 
 #[derive(Debug, PartialEq, Eq)]
 enum AudioSubState {

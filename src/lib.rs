@@ -3,10 +3,7 @@
 #![deny(unsafe_code)]
 
 pub mod app;
-pub mod audio;
-pub mod db;
 pub mod logging;
-pub mod queue;
 
 #[cfg(target_os = "windows")]
 pub mod window_handle_hack;

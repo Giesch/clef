@@ -3,7 +3,7 @@ use std::fs::File;
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use diesel::result::Error as DieselError;
+use clef_db::queries::DbError;
 use log::{error, info};
 use symphonia::core::meta::{Metadata, StandardTagKey};
 use symphonia::core::{
@@ -17,8 +17,8 @@ use symphonia::default::get_probe;
 use super::config::Config;
 use super::rgba::{load_cached_rgba_bmp, RgbaBytes};
 use crate::app::old_unfold::old_unfold;
-use crate::audio::track_info::{first_supported_track, TrackInfo};
-use crate::db::{
+use clef_audio::track_info::{first_supported_track, TrackInfo};
+use clef_db::{
     queries::{self, Album, NewAlbum, NewSong, Song},
     SqlitePool, SqlitePoolConn,
 };
@@ -232,7 +232,7 @@ fn collect_single_album(
 
             Ok((saved_album, saved_songs))
         })
-        .map_err(|e: DieselError| {
+        .map_err(|e: DbError| {
             error!("failed to insert album: {e}");
             Some(CrawlerMessage::DbError)
         })?;
@@ -335,10 +335,9 @@ fn decode_metadata(path: &Utf8Path) -> Option<DecodedMetadata> {
     };
     let tags = tags.unwrap_or_default();
 
-    Some(DecodedMetadata {
-        tags,
-        total_seconds: times.total.seconds,
-    })
+    let total_seconds = times.total.seconds;
+
+    Some(DecodedMetadata { tags, total_seconds })
 }
 
 fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {

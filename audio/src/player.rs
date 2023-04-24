@@ -15,10 +15,11 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 
-use crate::audio::output::{self, AudioOutput};
-use crate::db::queries::SongId;
-use crate::queue::Queue;
+use clef_db::queries::SongId;
+use clef_shared::Queue;
 
+// TODO make these submodules of player
+use super::output::{self, AudioOutput};
 use super::track_info::{first_supported_track, TrackInfo};
 
 mod media_controls;

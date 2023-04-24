@@ -13,9 +13,9 @@ use iced::{
 use iced_native::keyboard::Event as KeyboardEvent;
 use log::error;
 
-use crate::audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
-use crate::db::queries::*;
-use crate::db::SqlitePool;
+use clef_audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
+use clef_db::queries::*;
+use clef_db::SqlitePool;
 
 mod audio_subscription;
 pub mod config;
@@ -321,9 +321,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::PauseClicked => AudioAction::Pause.into(),
-
         Message::ForwardClicked => AudioAction::Forward.into(),
-
         Message::BackClicked => AudioAction::Back.into(),
 
         Message::SeekDrag(proportion) => {

@@ -154,7 +154,7 @@ impl From<NewSong> for NewSongRow {
 pub fn find_or_insert_album(
     tx: &mut SqliteConnection,
     new_album: NewAlbum,
-) -> Result<Album, DieselError> {
+) -> Result<Album, DbError> {
     use super::schema::albums;
     use albums::dsl::*;
     use diesel::prelude::*;
@@ -180,7 +180,7 @@ pub fn find_or_insert_album(
 pub fn find_or_insert_song(
     tx: &mut SqliteConnection,
     new_song: NewSong,
-) -> Result<Song, DieselError> {
+) -> Result<Song, DbError> {
     use super::schema::songs;
     use diesel::prelude::*;
     use songs::dsl::*;
@@ -204,7 +204,7 @@ pub fn add_resized_image_location(
     tx: &mut SqliteConnection,
     AlbumId(album_id): AlbumId,
     location: &Utf8Path,
-) -> Result<(), DieselError> {
+) -> Result<(), DbError> {
     use super::schema::albums;
     use albums::dsl::*;
     use diesel::prelude::*;
@@ -215,4 +215,10 @@ pub fn add_resized_image_location(
         .execute(tx)?;
 
     Ok(())
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum DbError {
+    #[error(transparent)]
+    Diesel(#[from] DieselError),
 }

@@ -7,8 +7,8 @@ use log::error;
 
 use crate::app::old_unfold::old_unfold;
 use crate::app::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
-use crate::db::queries::{add_resized_image_location, AlbumId};
-use crate::db::SqlitePool;
+use clef_db::queries::{add_resized_image_location, AlbumId};
+use clef_db::SqlitePool;
 
 use super::config::Config;
 
