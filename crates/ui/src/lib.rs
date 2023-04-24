@@ -3,6 +3,8 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod icon;
+pub mod setup;
 
-#[cfg(test)]
-pub mod test_util;
+pub use app::Config;
+pub use app::Flags;

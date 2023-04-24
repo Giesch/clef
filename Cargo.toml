@@ -11,25 +11,11 @@ directories = "4.0.1"
 flume = { version = "0.10.14" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 pretty_env_logger = "0.4"
-thiserror = "1.0.37"
-
-iced_style = "0.8.0"
 
 clef_shared = { path = "./crates/shared" }
 clef_db = { path = "./crates/db" }
 clef_audio = { path = "./crates/audio" }
 clef_ui = { path = "./crates/ui" }
-
-[dependencies.iced]
-version = "0.9"
-features = ["svg", "image", "debug"]
-
-[dependencies.iced_native]
-version = "0.10.1"
-
-[dependencies.image_rs]
-package = "image"
-version = "0.24"
 
 # compile all external dependencies in release mode
 [profile.dev.package."*"]

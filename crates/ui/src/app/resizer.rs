@@ -10,7 +10,7 @@ use crate::app::rgba::{load_rgba, save_rgba, RgbaBytes, IMAGE_SIZE};
 use clef_db::queries::{add_resized_image_location, AlbumId};
 use clef_db::SqlitePool;
 
-use super::config::Config;
+use super::Config;
 
 #[derive(Clone, Debug)]
 pub enum ResizerMessage {

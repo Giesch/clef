@@ -464,13 +464,8 @@ dependencies = [
  "clef_ui",
  "directories",
  "flume",
- "iced",
- "iced_native",
- "iced_style",
- "image",
  "log",
  "pretty_env_logger",
- "thiserror",
 ]
 
 [[package]]
@@ -527,14 +522,12 @@ dependencies = [
  "clef_audio",
  "clef_db",
  "clef_shared",
- "directories",
  "flume",
  "iced",
  "iced_native",
  "iced_style",
  "image",
  "log",
- "pretty_env_logger",
  "thiserror",
 ]
 

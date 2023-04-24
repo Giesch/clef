@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
 use iced::keyboard::KeyCode;
 use iced::widget::{
@@ -18,8 +19,7 @@ use clef_db::queries::*;
 use clef_db::SqlitePool;
 
 mod audio_subscription;
-pub mod config;
-pub mod crawler;
+mod crawler;
 mod custom_style;
 mod effect;
 mod hoverable;
@@ -30,7 +30,6 @@ mod resizer;
 mod rgba;
 
 use audio_subscription::audio_subscription;
-use config::Config;
 use crawler::*;
 use custom_style::no_background;
 use effect::Effect;
@@ -141,7 +140,7 @@ impl CurrentSong {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ProgressDisplay {
+pub(crate) enum ProgressDisplay {
     Dragging(f32),
     FromAudio(ProgressTimes),
 }
@@ -157,6 +156,14 @@ impl ProgressDisplay {
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub struct Config {
+    pub local_data_directory: Utf8PathBuf,
+    pub audio_directory: Utf8PathBuf,
+    pub db_path: Utf8PathBuf,
+    pub resized_images_directory: Utf8PathBuf,
 }
 
 #[derive(Debug)]

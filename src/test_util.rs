@@ -3,8 +3,7 @@ use std::str::FromStr;
 use camino::Utf8PathBuf;
 
 use clef_db::queries::*;
-
-use crate::app::crawler::CrawledAlbum;
+use clef_ui::app::crawler::CrawledAlbum;
 
 pub fn fake_album() -> CrawledAlbum {
     let album_id = AlbumId::new(1);

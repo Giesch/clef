@@ -5,8 +5,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 use clef_db::queries::DbError;
 use log::{error, info};
 
-use super::config::Config;
 use super::rgba::{load_cached_rgba_bmp, RgbaBytes};
+use super::Config;
 use crate::app::old_unfold::old_unfold;
 use clef_audio::metadata::{decode_metadata, TagKey};
 use clef_db::{
