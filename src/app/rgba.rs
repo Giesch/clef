@@ -10,12 +10,13 @@ pub const IMAGE_SIZE: u16 = 256;
 /// Image pixels in the format that iced converts them to internally
 /// Doing the conversion ahead of time (outside the framework)
 /// makes it possible to do that work off the ui thread.
+/// The slow operations to avoid include both the resize and the format conversion.
 ///
 /// https://github.com/iced-rs/iced/issues/549
 #[derive(Clone)]
 pub struct RgbaBytes {
-    height: u32,
     width: u32,
+    height: u32,
     handle: Handle,
 }
 
@@ -23,16 +24,16 @@ impl RgbaBytes {
     #[cfg(test)]
     pub fn empty() -> Self {
         let handle = Handle::from_pixels(0, 0, vec![]);
-        Self { height: 0, width: 0, handle }
+        Self { width: 0, height: 0, handle }
     }
 
     fn from_buffer(rgba: ImageBuffer<Rgba<u8>, Vec<u8>>) -> Self {
-        let height = rgba.height();
         let width = rgba.width();
+        let height = rgba.height();
         let bytes = rgba.into_raw();
         let handle = Handle::from_pixels(width, height, bytes);
 
-        RgbaBytes { height, width, handle }
+        RgbaBytes { width, height, handle }
     }
 }
 
@@ -46,8 +47,8 @@ impl From<&RgbaBytes> for image::Handle {
 impl std::fmt::Debug for RgbaBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RgbaBytes")
-            .field("height", &self.height)
             .field("width", &self.width)
+            .field("height", &self.height)
             .finish()
     }
 }
@@ -61,8 +62,7 @@ pub fn load_rgba(path: &Utf8PathBuf) -> anyhow::Result<RgbaBytes> {
         FilterType::Lanczos3,
     );
 
-    let rgba = img.to_rgba8();
-    let rgba_bytes = RgbaBytes::from_buffer(rgba);
+    let rgba_bytes = RgbaBytes::from_buffer(img.to_rgba8());
 
     Ok(rgba_bytes)
 }
@@ -71,8 +71,7 @@ pub fn load_rgba(path: &Utf8PathBuf) -> anyhow::Result<RgbaBytes> {
 // will be fast because it's already in the right format
 pub fn load_cached_rgba_bmp(path: &Utf8Path) -> anyhow::Result<RgbaBytes> {
     let img = image_rs::open(path)?;
-    let rgba = img.to_rgba8();
-    let rgba_bytes = RgbaBytes::from_buffer(rgba);
+    let rgba_bytes = RgbaBytes::from_buffer(img.to_rgba8());
 
     Ok(rgba_bytes)
 }
@@ -80,7 +79,7 @@ pub fn load_cached_rgba_bmp(path: &Utf8Path) -> anyhow::Result<RgbaBytes> {
 pub fn save_rgba(path: &Utf8PathBuf, rgba: &RgbaBytes) -> anyhow::Result<()> {
     use iced_native::image::Data;
 
-    let RgbaBytes { height, width, handle } = rgba;
+    let RgbaBytes { width, height, handle } = rgba;
     let bytes = match handle.data() {
         Data::Path(_) => unreachable!(),
         Data::Bytes(bytes) => bytes,
