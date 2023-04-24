@@ -483,7 +483,6 @@ dependencies = [
  "libpulse-simple-binding",
  "log",
  "mockall",
- "r2d2",
  "rb",
  "rubato",
  "souvlaki",
