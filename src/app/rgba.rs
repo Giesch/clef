@@ -16,21 +16,21 @@ pub const IMAGE_SIZE: u16 = 256;
 pub struct RgbaBytes {
     height: u32,
     width: u32,
-    // TODO this is only optional for tests; find another way to handle that
-    handle: Option<Handle>,
+    handle: Handle,
 }
 
 impl RgbaBytes {
     #[cfg(test)]
     pub fn empty() -> Self {
-        Self { height: 0, width: 0, handle: None }
+        let handle = Handle::from_pixels(0, 0, vec![]);
+        Self { height: 0, width: 0, handle }
     }
 
     fn from_buffer(rgba: ImageBuffer<Rgba<u8>, Vec<u8>>) -> Self {
         let height = rgba.height();
         let width = rgba.width();
         let bytes = rgba.into_raw();
-        let handle = Some(Handle::from_pixels(width, height, bytes));
+        let handle = Handle::from_pixels(width, height, bytes);
 
         RgbaBytes { height, width, handle }
     }
@@ -39,7 +39,7 @@ impl RgbaBytes {
 impl From<&RgbaBytes> for image::Handle {
     fn from(rgba_bytes: &RgbaBytes) -> Self {
         // NOTE The handle uses an Arc internally, so this clone is cheap
-        rgba_bytes.handle.clone().unwrap()
+        rgba_bytes.handle.clone()
     }
 }
 
@@ -81,7 +81,7 @@ pub fn save_rgba(path: &Utf8PathBuf, rgba: &RgbaBytes) -> anyhow::Result<()> {
     use iced_native::image::Data;
 
     let RgbaBytes { height, width, handle } = rgba;
-    let bytes = match handle.as_ref().unwrap().data() {
+    let bytes = match handle.data() {
         Data::Path(_) => unreachable!(),
         Data::Bytes(bytes) => bytes,
         Data::Rgba { pixels, .. } => pixels,
