@@ -2,7 +2,7 @@ use symphonia::core::codecs::{CodecParameters, CODEC_TYPE_NULL};
 use symphonia::core::formats::Track;
 use symphonia::core::units::TimeBase;
 
-use super::player::ProgressTimes;
+use crate::player::ProgressTimes;
 
 pub fn first_supported_track(tracks: &[Track]) -> Option<&Track> {
     tracks

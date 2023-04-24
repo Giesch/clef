@@ -1,5 +1,5 @@
 use iced::widget::{svg, Svg};
-pub use iced_style::svg::StyleSheet;
+use iced_style::svg::StyleSheet;
 
 pub fn play<Renderer>() -> Svg<Renderer>
 where

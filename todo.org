@@ -6,8 +6,15 @@
   - [X] make main/coordination types a crate? just queue?
 
 - [X] clean up extra dependencies
+- [ ] make sure this still works on windows
+  where does window_handle_hack go?
 - [ ] set up lint rules / forbid/deny unsafe code by crate
 - [ ] move crawler usage of symphonia into an audio crate module
+
+- [ ] look into parking_lot again
+  - [ ] use parking_lot::Mutex instead iced or std?
+  - [ ] use parking_lot::Once instead of once_cell?
+    could also be possible to use just the stabilized portion of once_cell
 
 - [ ] implement true gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169

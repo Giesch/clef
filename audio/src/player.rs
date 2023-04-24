@@ -21,9 +21,8 @@ use clef_shared::Queue;
 mod media_controls;
 use media_controls::*;
 mod output;
+use super::track_info::{first_supported_track, TrackInfo};
 use output::AudioOutput;
-pub(crate) mod track_info;
-use track_info::{first_supported_track, TrackInfo};
 
 /// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]

@@ -1,3 +1,7 @@
+#![warn(rust_2018_idioms)]
+#![deny(missing_debug_implementations)]
+#![forbid(unsafe_code)]
+
 use std::time::Duration;
 
 use camino::Utf8Path;

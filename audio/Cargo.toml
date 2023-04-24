@@ -7,14 +7,11 @@ authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }
 camino = "1.1.1"
-diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 flume = { version = "0.10.14" }
 log = { version = "0.4", features = ["release_max_level_info"] }
-parking_lot = "0.12.1"
 r2d2 = "0.8.10"
 symphonia = { version = "0.5.2", features = ["mp3"] }
 thiserror = "1.0.37"
-libsqlite3-sys = { version = "0.25.2", features = ["bundled"] }
 
 clef_shared = { path = "../shared" }
 clef_db = { path = "../db" }
@@ -23,10 +20,6 @@ clef_db = { path = "../db" }
 version = "0.6"
 default-features = false
 features = ["use_zbus"]
-
-[dependencies.diesel]
-version = "2.0.2"
-features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.5.0"
