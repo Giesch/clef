@@ -457,33 +457,77 @@ name = "clef"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "arrayvec 0.7.2",
  "camino",
- "cpal",
- "diesel",
- "diesel_migrations",
+ "clef_audio",
+ "clef_db",
+ "clef_shared",
+ "clef_ui",
  "directories",
  "flume",
- "iced",
- "iced_graphics",
- "iced_native",
- "iced_style",
- "image",
+ "log",
+ "pretty_env_logger",
+]
+
+[[package]]
+name = "clef_audio"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrayvec 0.7.2",
+ "camino",
+ "clef_db",
+ "clef_shared",
+ "cpal",
+ "flume",
  "libpulse-binding",
  "libpulse-simple-binding",
- "libsqlite3-sys",
  "log",
  "mockall",
- "once_cell",
- "parking_lot 0.12.1",
- "pretty_env_logger",
- "r2d2",
  "rb",
  "rubato",
  "souvlaki",
  "symphonia",
  "thiserror",
+]
+
+[[package]]
+name = "clef_db"
+version = "0.0.1"
+dependencies = [
+ "camino",
+ "diesel",
+ "diesel_migrations",
+ "libsqlite3-sys",
+ "log",
+ "r2d2",
+ "thiserror",
+]
+
+[[package]]
+name = "clef_shared"
+version = "0.0.1"
+dependencies = [
+ "log",
+ "once_cell",
  "windows 0.48.0",
+]
+
+[[package]]
+name = "clef_ui"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "camino",
+ "clef_audio",
+ "clef_db",
+ "clef_shared",
+ "flume",
+ "iced",
+ "iced_native",
+ "iced_style",
+ "image",
+ "log",
+ "thiserror",
 ]
 
 [[package]]

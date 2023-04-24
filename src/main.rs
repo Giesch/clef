@@ -1,21 +1,18 @@
-use clef::audio::player::{AudioAction, AudioMessage, Player};
-use clef::db::run_migrations;
+use clef_audio::player::{AudioAction, AudioMessage, Player};
+use clef_ui::Flags;
+
+use clef::config;
 use clef::logging;
-use iced::{Application, Settings};
-use iced_native::window::Icon;
 
-use clef::app::config::Config;
-use clef::app::{App, Flags};
-use clef::db;
-
-fn main() -> iced::Result {
+fn main() -> anyhow::Result<()> {
     logging::init();
 
-    let config = Config::init().expect("unable to build config");
+    let config = config::init().expect("unable to build config");
 
-    let db_pool = db::create_pool(&config.db_path).expect("failed to create db pool");
+    let db_pool =
+        clef_db::create_pool(&config.db_path).expect("failed to create db pool");
 
-    run_migrations(&db_pool).expect("failed to run migrations");
+    clef_db::run_migrations(&db_pool).expect("failed to run migrations");
 
     let (to_audio_tx, to_audio_rx) = flume::unbounded::<AudioAction>();
     let (to_ui_tx, to_ui_rx) = flume::unbounded::<AudioMessage>();
@@ -30,28 +27,5 @@ fn main() -> iced::Result {
         config,
     };
 
-    let mut settings = Settings::with_flags(flags);
-    settings.window = iced::window::Settings {
-        icon: get_icon(),
-        ..Default::default()
-    };
-
-    App::run(settings)
-}
-
-fn get_icon() -> Option<Icon> {
-    #[cfg(target_os = "windows")]
-    let icon = {
-        use iced::window::icon;
-        use image_rs::ImageFormat;
-
-        let bytes = include_bytes!("../base_clef.jpg");
-        icon::from_file_data(bytes, Some(ImageFormat::Jpeg)).ok()
-    };
-
-    // making this look ok at a larger size is going to take more work
-    #[cfg(not(target_os = "windows"))]
-    let icon = None;
-
-    icon
+    clef_ui::setup::launch(flags)
 }

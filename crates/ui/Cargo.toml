@@ -1,0 +1,29 @@
+[package]
+name = "clef_ui"
+version = "0.0.1"
+edition = "2021"
+authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
+
+[dependencies]
+anyhow = { version = "1.0.66", features = ["backtrace"] }
+camino = "1.1.1"
+flume = { version = "0.10.14" }
+log = { version = "0.4", features = ["release_max_level_info"] }
+thiserror = "1.0.37"
+
+iced_style = "0.8.0"
+
+clef_shared = { path = "../shared" }
+clef_db = { path = "../db" }
+clef_audio = { path = "../audio" }
+
+[dependencies.iced]
+version = "0.9"
+features = ["svg", "image", "debug"]
+
+[dependencies.iced_native]
+version = "0.10.1"
+
+[dependencies.image_rs]
+package = "image"
+version = "0.24"
