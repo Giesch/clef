@@ -14,7 +14,8 @@
       - check that it's working with a log message or something
   - [ ] build a decoder on the preloader, and read 10 seconds or the whole file
     could also limit attempted time by the length of the current/previous track
-    - [ ] don't include any audio device anything
+     don't include any audio device anything
+    - [ ] first, load a decoder without any decoding done at first
     - [ ] send the prepared decoder to the player thread
   - [ ] recieve the preloaded decoder on the player thread
     - [ ] store it in a new field

@@ -18,11 +18,15 @@ use symphonia::core::units::Time;
 use clef_db::queries::SongId;
 use clef_shared::queue::Queue;
 
+use self::preloader::{Preloader, PreloaderAction, PreloaderEffect};
+
+use super::track_info::{first_supported_track, TrackInfo};
+
 mod media_controls;
 use media_controls::*;
 mod output;
-use super::track_info::{first_supported_track, TrackInfo};
 use output::AudioOutput;
+mod preloader;
 
 /// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +102,8 @@ pub struct Player {
     inbox: Receiver<AudioAction>,
     to_ui: Sender<AudioMessage>,
     media_controls: WrappedControls,
+    to_preloader: Sender<PreloaderAction>,
+    from_preloader: Receiver<PreloaderEffect>,
 }
 
 struct PlayerState {
@@ -161,18 +167,33 @@ impl Player {
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
         to_self: Sender<AudioAction>,
-    ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
-        std::thread::Builder::new()
+    ) -> anyhow::Result<JoinHandle<()>> {
+        let (to_preloader, preloader_inbox) =
+            flume::unbounded::<preloader::PreloaderAction>();
+        let (to_player, from_preloader) =
+            flume::unbounded::<preloader::PreloaderEffect>();
+
+        Preloader::spawn(preloader_inbox, to_player)
+            .context("failed to spawn preloader")?;
+
+        let join_handle = std::thread::Builder::new()
             .name("ClefAudioPlayer".to_string())
             .spawn(move || {
-                let player = Player::new(inbox, to_ui.clone(), to_self);
+                let player = Player::new(
+                    inbox,
+                    to_ui.clone(),
+                    to_self,
+                    to_preloader,
+                    from_preloader,
+                );
 
                 if let Err(err) = player.run_loop() {
                     to_ui.send(AudioMessage::AudioDied).ok();
 
                     match err {
                         AudioThreadError::Disconnected => {
-                            // This can happen both during startup and shutdown.
+                            // This can happen both during startup and shutdown,
+                            // before the the ui exists or after its closed.
                             // In both cases we just wait for the app.
                         }
 
@@ -181,13 +202,17 @@ impl Player {
                         }
                     }
                 }
-            })
+            })?;
+
+        Ok(join_handle)
     }
 
     pub fn new(
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
         to_self: Sender<AudioAction>,
+        to_preloader: Sender<PreloaderAction>,
+        from_preloader: Receiver<PreloaderEffect>,
     ) -> Self {
         let media_controls = WrappedControls::new(to_self);
 
@@ -196,18 +221,20 @@ impl Player {
             inbox,
             to_ui,
             media_controls,
+            to_preloader,
+            from_preloader,
         }
     }
 
     pub fn run_loop(self) -> Result<(), AudioThreadError> {
         let Player {
-            state,
+            mut state,
             inbox,
             to_ui,
             mut media_controls,
+            to_preloader,
+            from_preloader,
         } = self;
-
-        let mut state = state;
 
         loop {
             let action = match inbox.try_recv() {
