@@ -245,6 +245,21 @@ impl Player {
                 }
             };
 
+            let preloaded = match from_preloader.try_recv() {
+                Ok(action) => Some(action),
+                Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => None,
+            };
+
+            if let Some(preloaded) = preloaded {
+                match preloaded {
+                    PreloaderEffect::Loaded(content) => {
+                        let path = content.path;
+                        log::debug!("got preload: {path:#?}");
+                    }
+                    PreloaderEffect::PreloaderDied => todo!(),
+                }
+            }
+
             let was_playing = state.is_some();
 
             let effects =
@@ -266,6 +281,10 @@ impl Player {
                 media_controls.deinit();
             }
 
+            if let Some(preload) = effects.preload {
+                to_preloader.send(preload).ok();
+            }
+
             state = effects.player_state;
         }
     }
@@ -276,7 +295,13 @@ impl Player {
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
                 let player_state = PlayerState::play_queue(*queue)?;
-                Ok(publish_display_update(player_state))
+
+                // TODO do this same thing for forward and back
+                let up_next = player_state.up_next().map(|up_next| up_next.path.clone());
+                let mut effects = publish_display_update(player_state);
+                effects.preload = up_next.map(PreloaderAction::Load);
+
+                Ok(effects)
             }
 
             (Some(Pause), Some(mut player_state)) if player_state.playing => {
@@ -340,6 +365,7 @@ struct AudioEffects {
     metadata: Option<ControlsMetadata>,
     /// playback & progress to publish to media controls
     playback: Option<MediaPlayback>,
+    preload: Option<PreloaderAction>,
 }
 
 impl AudioEffects {
@@ -349,6 +375,7 @@ impl AudioEffects {
             audio_message: None,
             metadata: None,
             playback: None,
+            preload: None,
         }
     }
 
@@ -358,6 +385,7 @@ impl AudioEffects {
             audio_message: None,
             metadata: None,
             playback: None,
+            preload: None,
         }
     }
 }
@@ -501,7 +529,7 @@ impl PlayerState {
                 // Decode errors are not fatal.
                 // Print the error message and try to decode the next packet as usual.
                 warn!("decode error: {}", err);
-                return Ok(publish_nothing(player_state));
+                return Ok(AudioEffects::same(Some(player_state)));
             }
 
             Err(err) => bail!("failed to read packet: {err}"),
@@ -533,7 +561,7 @@ impl PlayerState {
             .map(|seek_ts| player_state.timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
-            return Ok(publish_nothing(player_state));
+            return Ok(AudioEffects::same(Some(player_state)));
         } else {
             // when a seek is complete, return to publishing the real timestamp
             player_state.seek_ts = None;
@@ -556,6 +584,10 @@ impl PlayerState {
     fn optimistic_timestamp(&self) -> u64 {
         self.seek_ts.unwrap_or(self.timestamp)
     }
+
+    fn up_next(&self) -> Option<&QueuedSong> {
+        self.queue.next.iter().next()
+    }
 }
 
 fn publish_display_update(new_state: PlayerState) -> AudioEffects {
@@ -566,6 +598,7 @@ fn publish_display_update(new_state: PlayerState) -> AudioEffects {
         audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
         metadata: Some(metadata),
         playback: Some(playback),
+        preload: None,
     }
 }
 
@@ -577,6 +610,7 @@ fn publish_seek_complete(new_state: PlayerState) -> AudioEffects {
         audio_message: Some(AudioMessage::SeekComplete(display)),
         metadata: Some(metadata),
         playback: Some(playback),
+        preload: None,
     }
 }
 
@@ -586,15 +620,7 @@ fn publish_stop() -> AudioEffects {
         player_state: None,
         metadata: None,
         playback: None,
-    }
-}
-
-fn publish_nothing(player_state: PlayerState) -> AudioEffects {
-    AudioEffects {
-        player_state: Some(player_state),
-        audio_message: None,
-        metadata: None,
-        playback: None,
+        preload: None,
     }
 }
 

@@ -22,8 +22,13 @@ pub enum PreloaderAction {
 
 #[derive(Debug)]
 pub enum PreloaderEffect {
-    Loaded { path: Utf8PathBuf },
+    Loaded(PreloadedContent),
     PreloaderDied,
+}
+
+#[derive(Debug)]
+pub struct PreloadedContent {
+    pub path: Utf8PathBuf,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -78,6 +83,12 @@ impl Preloader {
             };
 
             log::debug!("Got PreloaderAction: {action:#?}");
+
+            let content = match action {
+                PreloaderAction::Load(path) => PreloadedContent { path },
+            };
+
+            to_player.send(PreloaderEffect::Loaded(content)).ok();
         }
     }
 }
