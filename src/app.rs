@@ -524,41 +524,30 @@ fn view_album<'a>(
     Element::from(row)
 }
 
+fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
+    let length = Length::Fixed(IMAGE_SIZE as f32);
+
+    let Some(image_bytes) = image_bytes else {
+        return Space::new(length,length).into();
+    };
+
+    Image::new(image_bytes)
+        .width(length)
+        .height(length)
+        .content_fit(ContentFit::ScaleDown)
+        .into()
+}
+
 fn song_row_status(
     current_song: &Option<CurrentSong>,
     hovered_song_id: Option<SongId>,
     song_row_id: SongId,
 ) -> SongRowStatus {
     match current_song {
-        Some(song) if song.id == song_row_id => {
-            if song.playing {
-                SongRowStatus::Playing
-            } else {
-                SongRowStatus::Paused
-            }
-        }
-
-        _ => {
-            if hovered_song_id == Some(song_row_id) {
-                SongRowStatus::Hovered
-            } else {
-                SongRowStatus::None
-            }
-        }
-    }
-}
-
-fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
-    let length = Length::Fixed(IMAGE_SIZE as f32);
-
-    match image_bytes {
-        Some(image_bytes) => Image::new(image_bytes.clone())
-            .width(length)
-            .height(length)
-            .content_fit(ContentFit::ScaleDown)
-            .into(),
-
-        None => Space::new(length, length).into(),
+        Some(song) if song.id == song_row_id && song.playing => SongRowStatus::Playing,
+        Some(song) if song.id == song_row_id => SongRowStatus::Paused,
+        _ if hovered_song_id == Some(song_row_id) => SongRowStatus::Hovered,
+        _ => SongRowStatus::Blank,
     }
 }
 
@@ -571,7 +560,7 @@ enum SongRowStatus {
     /// Both hovered and not currently playing - show play from start button
     Hovered,
     /// Both not playing and not hovered - show nothing
-    None,
+    Blank,
 }
 
 /// A song in the album table
@@ -592,7 +581,7 @@ fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
             .style(no_background())
             .into(),
 
-        SongRowStatus::None => {
+        SongRowStatus::Blank => {
             text(song.track_number.map(|n| n.to_string()).unwrap_or_default())
                 .width(MAGIC_SVG_SIZE)
                 .height(MAGIC_SVG_SIZE)
