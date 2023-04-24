@@ -1,49 +1,17 @@
 * Now
-- [-] add a way to search
-  - modal? keyboard-based
-    command pallete look
-  - [X] open a command pallette style modal on pressing '/'
-    clear it on escape, enter, ctrl-g
-    - [X] read & play with the modal in iced_aw
-    - [X] use or vendor iced_aw modal
-      potential problems with newer iced versions?
-      https://github.com/iced-rs/iced_aw/issues/25
-      the readme refers to 0.4.x
-
-  - [X] Accept Ctrl-G as Esc
-  - [ ] add a text input to the modal
-    elm-style text state in in the modal state enum
-    - [ ] start editing the text input on open
-      is that possible?
-  - [ ] style the modal to look like a command palette
-  - [ ] add an 'enter' handler
-
-  - [ ] how to actually do the searching?
-    NOTE: get the ui working first
-    - sqlite full-text search
-      it looks like sqlite has no 'fuzzy' support
-    - some other 'fuzzy' option, using music cache
-      could use something based on selecta/heatseeker
-      is a 'real' search library necessary? ie tantivy https://docs.rs/tantivy/latest/tantivy/query/struct.FuzzyTermQuery.html
-      - pro: want to show hits on structured content; ie album title, lyrics, etc
-      - con: it's a lot
-      - con: the dataset for my own music library isn't going to be that big
-        how big would a local music library have to be before this mattered?
-    consider using ngrams? https://www.reddit.com/r/rust/comments/f7rysk/typoresistant_text_search/
-
-- [X] fix/re-add optimistic scan position update again
-  find some way to test this
-
-- [ ] figure out why hover is slow on windows
-  try using tracy?
 
 * Next
 - [ ] get true gapless playback
-  asked here: https://github.com/pdeljanov/Symphonia/discussions/169
-  the 'forward' method on PlayerState in player.rs is what has to change
-    instead of calling play_queue, it should use some prepared thing
-  - load early on same audio thread?
-  - have a second audio thread?
+  see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
+  - have a separate dedicated 'preloader' thread?
+    like, decode the first N seconds and send me a decoder
+    this requires less changes to what i have now
+  - have a second audio thread and swap between them?
+    this also involves a third mixer/coordinator
+    does this break how i handled seek times in the ui?
+
+- [ ] figure out why hover is slow on windows
+  try using tracy?
 
 - [ ] handle text overflow in bottom bar gracefully
   do the scroll back and forth thing? needs animations
@@ -51,17 +19,19 @@
 - [-] keyboard support
   - [X] space for play/pause current song
   - [ ] tab navigation - need to make the buttons focusable
+    focus is a rabbit hole; might be worth waiting on iced
     so the track numbers will also have to be wrapped in button
     is it better to not mimic the web for this?
       what would the alternative look like?
       do everything by fuzzy search instead of tab-focus
 
 - [ ] volume controls in ui
+  or just hotkeys? still need some indicator
 
 - [ ] get a nicer 'stopped' state
   the do-nothing play button and progress slider are bad
 
-- [ ] add some vimmy commands (scroll)
+- [ ] add some vimmy ui hotkeys (scroll especially)
   C-e and C-y are easier
   snap to top/bottom is easy
   could have C-d and C-u just move by some predefined chunk
@@ -75,6 +45,8 @@
 
 - [ ] switch to a cargo workspace?
   could use an internal crate for player
+  allows for multiple frontends
+  makes it easier to add a streaming backend
 
 - [ ] improve error handling in souvlaki upstream
 
@@ -89,8 +61,7 @@
   then allow updating it later
   this is less confusing for the user and avoids unnecessary optionals
 
-- [ ] load a nice startup ui quickly
-  - [ ] last played song - progress and scroll?
+- [ ] preserve the last played song (and other app state? timestamp? scroll?)
 
 - [ ] integration test the crawler and resizer
   with filesystem & db, without audio/ui
@@ -98,14 +69,11 @@
 - [ ] in player, if audio output is present,
   then spec and duration should still be validated
 
-- [-] in ui, current_song and progress should be in one optional
-  this makes updating the current song awkward,
-  because only one of them comes from the cache
-
 - [ ] make a custom slider / player progress widget
   style it differently
   no mouse interaction when disabled
   change mouse interaction consistently on release
+  no ugly cursor interaction on windows
 
 - [ ] thumbnail album art for currently playing song
   or next to songs in a non-album view
@@ -117,14 +85,10 @@
 - [ ] switch to tracing from env-logger
   look into whether it plays nice with iced exector
 
-- [ ] consider using config lib instead of hacky --debug flag
-
-- [ ] read symphonia docs thoroughly
-- [ ] read iced examples thoroughly
-
-- [ ] handle graceful shutdown on the audio thread
-  need a typed return from the run method?
-  or a way for the ui to join audio instead of disconnecting
+- [ ] use a config lib instead of env vars for --debug flag
+  goals: change log level without recompile, be ergonomic with powershell
+  could directly take the log filter as a flag? no new dependencies
+  maybe worth using clap or something
 
 - [ ] make a full custom app theme
 
@@ -133,18 +97,20 @@
   might need a delegate macro for that to not be super annoying
   does sqlite have read-only connections?
 
+- [ ] handle graceful shutdown on the audio thread
+  need a typed return from the run method?
+  or a way for the ui to join audio instead of disconnecting
+
 - [ ] handle the audio thread errors gracefully
   restart the audio thread?
   go through the possible errors to see what could be done
   ie; missing/bad file = tell the ui about it and stop
     can test this by deleting the file after startup
 
-- [ ] listen to media keys while backgrounded
-
 - [ ] make it more responsive
   text wrapping in bottom row is bad
 
-- [ ] listen to media keys while backgrounded
+- [X] listen to media keys while backgrounded
 
 - [ ] make the layout more responsive
   text wrapping in bottom row is bad
@@ -153,7 +119,7 @@
   where is it coming from? me, iced, or symphonia? audio thread spinning?
   other flume worker threads spinning on empty queues?
 
-- [ ] see if / how much of the optimistic time stuff can be removed app-side
+- [X] see if / how much of the optimistic time stuff can be removed app-side
   now that the player publishes optimistic seek times
 
 * Someday
