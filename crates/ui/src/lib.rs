@@ -8,3 +8,6 @@ pub mod setup;
 
 pub use app::Config;
 pub use app::Flags;
+
+#[cfg(test)]
+pub mod test_util;

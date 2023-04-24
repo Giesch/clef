@@ -611,7 +611,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::audio::output::AudioOutput;
+    use crate::player::output::AudioOutput;
     use mockall::mock;
     use symphonia::core::formats::Track;
 

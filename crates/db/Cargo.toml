@@ -7,10 +7,10 @@ authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 [dependencies]
 camino = "1.1.1"
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
+libsqlite3-sys = { version = "0.25.2", features = ["bundled"] }
 log = { version = "0.4", features = ["release_max_level_info"] }
 r2d2 = "0.8.10"
 thiserror = "1.0.37"
-libsqlite3-sys = { version = "0.25.2", features = ["bundled"] }
 
 [dependencies.diesel]
 version = "2.0.2"

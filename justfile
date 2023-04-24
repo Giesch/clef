@@ -52,7 +52,7 @@ remove-cache:
 
 # check for unused dependencies
 unused:
-    cargo +nightly udeps --all-targets
+    cargo +nightly udeps --all-targets --workspace
 
 # NOTE re: __NV_PRIME_RENDER_OFFLOAD=1
 # this is specific to my machine;

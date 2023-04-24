@@ -19,7 +19,7 @@ use clef_db::queries::*;
 use clef_db::SqlitePool;
 
 mod audio_subscription;
-mod crawler;
+pub(crate) mod crawler;
 mod custom_style;
 mod effect;
 mod hoverable;

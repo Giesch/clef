@@ -10,16 +10,12 @@ camino = "1.1.1"
 flume = { version = "0.10.14" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 r2d2 = "0.8.10"
+souvlaki = { version = "0.6", default-features = false, features = ["use_zbus"] }
 symphonia = { version = "0.5.2", features = ["mp3"] }
 thiserror = "1.0.37"
 
 clef_shared = { path = "../shared" }
 clef_db = { path = "../db" }
-
-[dependencies.souvlaki]
-version = "0.6"
-default-features = false
-features = ["use_zbus"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-binding = "2.5.0"
