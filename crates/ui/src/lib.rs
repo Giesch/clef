@@ -2,7 +2,7 @@
 #![deny(missing_debug_implementations)]
 #![forbid(unsafe_code)]
 
-pub mod logging;
+pub mod app;
 
 #[cfg(test)]
 pub mod test_util;

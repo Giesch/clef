@@ -1,6 +1,6 @@
 [package]
-name = "clef"
-version = "0.1.0"
+name = "clef_ui"
+version = "0.0.1"
 edition = "2021"
 authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 
@@ -15,10 +15,9 @@ thiserror = "1.0.37"
 
 iced_style = "0.8.0"
 
-clef_shared = { path = "./crates/shared" }
-clef_db = { path = "./crates/db" }
-clef_audio = { path = "./crates/audio" }
-clef_ui = { path = "./crates/ui" }
+clef_shared = { path = "../shared" }
+clef_db = { path = "../db" }
+clef_audio = { path = "../audio" }
 
 [dependencies.iced]
 version = "0.9"
@@ -30,16 +29,3 @@ version = "0.10.1"
 [dependencies.image_rs]
 package = "image"
 version = "0.24"
-
-# compile all external dependencies in release mode
-[profile.dev.package."*"]
-opt-level = 3
-
-[workspace]
-resolver = "2"
-members = [
-    "crates/shared",
-    "crates/db",
-    "crates/audio",
-    "crates/ui"
-]

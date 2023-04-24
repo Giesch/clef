@@ -461,6 +461,7 @@ dependencies = [
  "clef_audio",
  "clef_db",
  "clef_shared",
+ "clef_ui",
  "directories",
  "flume",
  "iced",
@@ -515,6 +516,26 @@ dependencies = [
  "log",
  "once_cell",
  "windows 0.48.0",
+]
+
+[[package]]
+name = "clef_ui"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "camino",
+ "clef_audio",
+ "clef_db",
+ "clef_shared",
+ "directories",
+ "flume",
+ "iced",
+ "iced_native",
+ "iced_style",
+ "image",
+ "log",
+ "pretty_env_logger",
+ "thiserror",
 ]
 
 [[package]]
