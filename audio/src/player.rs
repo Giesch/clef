@@ -277,22 +277,19 @@ impl Player {
             (Some(Back), None) => Ok(AudioEffects::none()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
-                if let Some(total) = player_state
+                let Some(ProgressTimes { total, .. }) = player_state
                     .track_info
-                    .progress_times(player_state.timestamp)
-                    .map(|times| times.total)
-                {
-                    let mut seek_seconds = total.seconds as f32 * proportion;
-                    seek_seconds += total.frac as f32 * proportion;
+                    .progress_times(player_state.timestamp) else {
+                        error!("missing track info: {:#?}", player_state.track_info);
+                        return Ok(publish_seek_complete(player_state))
+                    };
 
-                    let player_state = player_state.seek_to(seek_seconds);
+                let mut seek_seconds = total.seconds as f32 * proportion;
+                seek_seconds += total.frac as f32 * proportion;
 
-                    Ok(publish_seek_complete(player_state))
-                } else {
-                    error!("missing track info: {:#?}", player_state.track_info);
+                let player_state = player_state.seek_to(seek_seconds);
 
-                    Ok(publish_seek_complete(player_state))
-                }
+                Ok(publish_seek_complete(player_state))
             }
             (Some(Seek(_)), None) => Ok(AudioEffects::none()),
 

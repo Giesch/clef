@@ -7,7 +7,7 @@
 
 - [X] clean up extra dependencies
 - [X] make sure this still works on windows
-  where does window_handle_hack go? shared
+  - [X] where does window_handle_hack go? shared
 - [X] set up lint rules / forbid/deny unsafe code by crate
 - [X] move crawler usage of symphonia into an audio crate module
 
@@ -32,6 +32,10 @@
 
 - [ ] figure out why hover is slow on windows
   try using tracy?
+
+- [ ] reduce cpu usage
+  where is it coming from? me, iced, or symphonia? audio thread spinning?
+  other flume worker threads spinning on empty queues?
 
 - [ ] handle text overflow in bottom bar gracefully
   do the scroll back and forth thing? needs animations
@@ -130,17 +134,8 @@
 - [ ] make it more responsive
   text wrapping in bottom row is bad
 
-- [X] listen to media keys while backgrounded
-
 - [ ] make the layout more responsive
   text wrapping in bottom row is bad
-
-- [ ] reduce cpu usage
-  where is it coming from? me, iced, or symphonia? audio thread spinning?
-  other flume worker threads spinning on empty queues?
-
-- [X] see if / how much of the optimistic time stuff can be removed app-side
-  now that the player publishes optimistic seek times
 
 * Someday
 - [ ] playlists

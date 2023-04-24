@@ -90,9 +90,9 @@ impl App {
 
     fn execute(&mut self, effect: Effect<Message>) -> Command<Message> {
         match effect {
-            Effect::Command(cmd) => cmd,
-
             Effect::None => Command::none(),
+
+            Effect::Command(cmd) => cmd,
 
             Effect::ToAudio(audio_action) => {
                 self.to_audio
