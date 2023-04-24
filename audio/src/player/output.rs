@@ -180,7 +180,7 @@ mod pulseaudio {
 #[cfg(not(target_os = "linux"))]
 mod cpal {
     use super::{AudioOutput, AudioOutputError, Result};
-    use crate::audio::resampler::Resampler;
+    use crate::resampler::Resampler;
 
     use symphonia::core::audio::{AudioBufferRef, RawSample, SampleBuffer, SignalSpec};
     use symphonia::core::conv::{ConvertibleSample, IntoSample};

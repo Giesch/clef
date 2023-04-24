@@ -1,12 +1,13 @@
-use clef::logging;
-use clef_audio::player::{AudioAction, AudioMessage, Player};
-use clef_db as db;
-use clef_db::run_migrations;
 use iced::{Application, Settings};
 use iced_native::window::Icon;
 
+use clef_audio::player::{AudioAction, AudioMessage, Player};
+use clef_db as db;
+use clef_db::run_migrations;
+
 use clef::app::config::Config;
 use clef::app::{App, Flags};
+use clef::logging;
 
 fn main() -> iced::Result {
     logging::init();

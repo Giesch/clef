@@ -39,7 +39,7 @@ use music_cache::*;
 use resizer::*;
 use rgba::*;
 
-pub const WINDOW_TITLE: &str = "Clef";
+use clef_shared::WINDOW_TITLE;
 
 #[derive(Debug)]
 pub struct App {
@@ -200,7 +200,7 @@ impl Application for App {
 
         #[cfg(target_os = "windows")]
         let initial_command = Command::perform(
-            async move { crate::window_handle_hack::set_hwnd() },
+            async move { clef_shared::window_handle_hack::set_hwnd() },
             |_| Message::GotHwnd,
         );
 

@@ -4,13 +4,12 @@
 
 use std::sync::Mutex;
 
+use super::WINDOW_TITLE;
 use log::{error, trace};
 use once_cell::sync::Lazy;
 use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
-
-use crate::app::WINDOW_TITLE;
 
 static WINDOW_HANDLE: Lazy<Mutex<Option<HWND>>> = Lazy::new(|| Mutex::new(None));
 

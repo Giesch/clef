@@ -4,10 +4,11 @@ use std::time::Duration;
 
 use log::error;
 
-use crate::app::{crawler::CrawledAlbum, rgba::RgbaBytes};
 use clef_audio::player::QueuedSong;
 use clef_db::queries::{Album, AlbumId, Song, SongId};
-use clef_shared::Queue;
+use clef_shared::queue::Queue;
+
+use crate::app::{crawler::CrawledAlbum, rgba::RgbaBytes};
 
 #[derive(Default, Debug)]
 pub struct MusicCache {

@@ -8,7 +8,8 @@ use super::models::{AlbumRow, NewAlbumRow, NewSongRow, SongRow};
 pub struct AlbumId(i32);
 
 impl AlbumId {
-    #[cfg(test)]
+    /// Exported for testing
+    #[cfg(debug_assertions)]
     pub fn new(id: i32) -> Self {
         Self(id)
     }
@@ -22,7 +23,8 @@ impl AlbumId {
 pub struct SongId(i32);
 
 impl SongId {
-    #[cfg(test)]
+    /// Exported for testing
+    #[cfg(debug_assertions)]
     pub fn new(id: i32) -> Self {
         Self(id)
     }

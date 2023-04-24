@@ -6,21 +6,17 @@
   - [X] make main/coordination types a crate? just queue?
 
 - [X] clean up extra dependencies
-- [ ] make sure this still works on windows
-  where does window_handle_hack go?
-- [ ] set up lint rules / forbid/deny unsafe code by crate
-- [ ] move crawler usage of symphonia into an audio crate module
+- [X] make sure this still works on windows
+  where does window_handle_hack go? shared
+- [X] set up lint rules / forbid/deny unsafe code by crate
+- [X] move crawler usage of symphonia into an audio crate module
 
-- [ ] look into parking_lot again
-  - [ ] use parking_lot::Mutex instead iced or std?
-  - [ ] use parking_lot::Once instead of once_cell?
-    could also be possible to use just the stabilized portion of once_cell
-
-- [ ] implement true gapless playback
+- [ ] gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
   - have a separate dedicated 'preloader' thread?
     like, decode the first N seconds and send me a decoder
     this requires less changes to what i have now
+    it probably as issues with preloading after very short tracks
   - have a second audio thread and swap between them?
     this also involves a third mixer/coordinator
     does this break how i handled seek times in the ui?
@@ -28,6 +24,11 @@
 * Next
 - [ ] think about how to do search ui
   - command palette?
+
+- [ ] look into parking_lot again
+  - [ ] use parking_lot::Mutex instead iced or std Mutex?
+  - [ ] use parking_lot::Once instead of once_cell?
+    could also be possible to use just the stabilized portion of once_cell, after rustc 1.70
 
 - [ ] figure out why hover is slow on windows
   try using tracy?

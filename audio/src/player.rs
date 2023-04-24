@@ -16,7 +16,7 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 
 use clef_db::queries::SongId;
-use clef_shared::Queue;
+use clef_shared::queue::Queue;
 
 mod media_controls;
 use media_controls::*;

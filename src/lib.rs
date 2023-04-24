@@ -5,8 +5,5 @@
 pub mod app;
 pub mod logging;
 
-#[cfg(target_os = "windows")]
-pub mod window_handle_hack;
-
 #[cfg(test)]
 pub mod test_util;

@@ -83,7 +83,7 @@ impl WrappedControls {
         let hwnd = {
             use std::ffi::c_void;
 
-            let hwnd = crate::window_handle_hack::get_hwnd();
+            let hwnd = clef_shared::window_handle_hack::get_hwnd();
             hwnd.map(|hwnd| hwnd.0 as *mut c_void)
         };
 

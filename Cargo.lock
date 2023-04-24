@@ -468,7 +468,6 @@ dependencies = [
  "iced_style",
  "image",
  "log",
- "mockall",
  "pretty_env_logger",
  "thiserror",
 ]
@@ -488,14 +487,12 @@ dependencies = [
  "libpulse-simple-binding",
  "log",
  "mockall",
- "once_cell",
  "r2d2",
  "rb",
  "rubato",
  "souvlaki",
  "symphonia",
  "thiserror",
- "windows 0.48.0",
 ]
 
 [[package]]
@@ -514,6 +511,11 @@ dependencies = [
 [[package]]
 name = "clef_shared"
 version = "0.0.1"
+dependencies = [
+ "log",
+ "once_cell",
+ "windows 0.48.0",
+]
 
 [[package]]
 name = "clipboard-win"
