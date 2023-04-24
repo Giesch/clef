@@ -13,10 +13,8 @@ pub const IMAGE_SIZE: u16 = 256;
 /// The slow operations to avoid include both the resize and the format conversion.
 ///
 /// https://github.com/iced-rs/iced/issues/549
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RgbaBytes {
-    width: u32,
-    height: u32,
     handle: Handle,
 }
 
@@ -24,7 +22,7 @@ impl RgbaBytes {
     #[cfg(test)]
     pub fn empty() -> Self {
         let handle = Handle::from_pixels(0, 0, vec![]);
-        Self { width: 0, height: 0, handle }
+        Self { handle }
     }
 
     fn from_buffer(rgba: ImageBuffer<Rgba<u8>, Vec<u8>>) -> Self {
@@ -33,7 +31,7 @@ impl RgbaBytes {
         let bytes = rgba.into_raw();
         let handle = Handle::from_pixels(width, height, bytes);
 
-        RgbaBytes { width, height, handle }
+        RgbaBytes { handle }
     }
 }
 
@@ -41,15 +39,6 @@ impl From<&RgbaBytes> for image::Handle {
     fn from(rgba_bytes: &RgbaBytes) -> Self {
         // NOTE The handle uses an Arc internally, so this clone is cheap
         rgba_bytes.handle.clone()
-    }
-}
-
-impl std::fmt::Debug for RgbaBytes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RgbaBytes")
-            .field("width", &self.width)
-            .field("height", &self.height)
-            .finish()
     }
 }
 
@@ -79,14 +68,13 @@ pub fn load_cached_rgba_bmp(path: &Utf8Path) -> anyhow::Result<RgbaBytes> {
 pub fn save_rgba(path: &Utf8PathBuf, rgba: &RgbaBytes) -> anyhow::Result<()> {
     use iced_native::image::Data;
 
-    let RgbaBytes { width, height, handle } = rgba;
-    let bytes = match handle.data() {
-        Data::Path(_) => unreachable!(),
-        Data::Bytes(bytes) => bytes,
-        Data::Rgba { pixels, .. } => pixels,
+    let RgbaBytes { handle } = rgba;
+    let (pixels, width, height) = match handle.data() {
+        Data::Path(_) | Data::Bytes(_) => unreachable!(),
+        Data::Rgba { pixels, width, height } => (pixels, width, height),
     };
 
-    image_rs::save_buffer(path, bytes, *width, *height, ColorType::Rgba8)?;
+    image_rs::save_buffer(path, pixels, *width, *height, ColorType::Rgba8)?;
 
     Ok(())
 }
