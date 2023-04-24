@@ -1,18 +1,4 @@
 * Now
-- [X] refactor to a cargo workspace
-  - [X] make audio backend a crate
-  - [X] make iced frontend a crate
-  - [X] make db a crate
-  - [X] make main/coordination types a crate? just queue?
-
-- [X] clean up extra dependencies
-- [X] make sure this still works on windows
-  - [X] where does window_handle_hack go? shared
-- [X] set up lint rules / forbid/deny unsafe code by crate
-- [X] move crawler usage of symphonia into an audio crate module
-
-- [ ] make sure that debug logging still works in sub-packages
-
 - [ ] gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
   - have a separate dedicated 'preloader' thread?
@@ -22,6 +8,22 @@
   - have a second audio thread and swap between them?
     this also involves a third mixer/coordinator
     does this break how i handled seek times in the ui?
+  - [ ] try the preloader version and see if it works out
+    - [ ] launch a preloader thread in a ready state when spawning the player
+    - [ ] send a message to the preloader in play_queue, forward, and back
+      - check that it's working with a log message or something
+  - [ ] build a decoder on the preloader, and read 10 seconds or the whole file
+    could also limit attempted time by the length of the current/previous track
+    - [ ] don't include any audio device anything
+    - [ ] send the prepared decoder to the player thread
+  - [ ] recieve the preloaded decoder on the player thread
+    - [ ] store it in a new field
+    - [ ] in forward, back, and play_queue, check the new field first,
+      before loading a new decoder
+      - [ ] add some logging when a non-preloaded track is played?
+        maybe only for continue
+    - [ ] test that this doesn't screw with displayed times
+  - [ ] think over what other changes are necessary to do the swapping version
 
 * Next
 - [ ] think about how to do search ui
