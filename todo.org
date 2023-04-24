@@ -11,6 +11,8 @@
 - [X] set up lint rules / forbid/deny unsafe code by crate
 - [X] move crawler usage of symphonia into an audio crate module
 
+- [ ] make sure that debug logging still works in sub-packages
+
 - [ ] gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
   - have a separate dedicated 'preloader' thread?
