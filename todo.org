@@ -25,6 +25,8 @@
       - [X] add some logging when a non-preloaded track is played?
         maybe only for continue
     - [X] do some actual decoding on the preloader thread; the gap is still audible
+    - [ ] there's still an audible gap on windows
+      - [ ] move or duplicate the resampler
     - [ ] test that this doesn't screw with displayed times
       could just only preload a couple packets?
     - [ ] look for other bugs
