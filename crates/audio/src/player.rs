@@ -332,7 +332,7 @@ impl Player {
                 player_state.playing = !player_state.playing;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Toggle), None) => Ok(AudioEffects::none()),
+            (Some(Toggle), None) => Ok(AudioEffects::same(None)),
 
             (Some(Forward), Some(player_state)) => {
                 let mut effects = player_state.forward()?;
@@ -340,7 +340,7 @@ impl Player {
 
                 Ok(effects)
             }
-            (Some(Forward), None) => Ok(AudioEffects::none()),
+            (Some(Forward), None) => Ok(AudioEffects::same(None)),
 
             (Some(Back), Some(player_state)) => {
                 let mut effects = player_state.back()?;
@@ -353,7 +353,7 @@ impl Player {
 
                 Ok(effects)
             }
-            (Some(Back), None) => Ok(AudioEffects::none()),
+            (Some(Back), None) => Ok(AudioEffects::same(None)),
 
             (Some(Seek(proportion)), Some(player_state)) => {
                 let Some(ProgressTimes { total, .. }) = player_state
@@ -370,7 +370,7 @@ impl Player {
 
                 Ok(publish_seek_complete(player_state))
             }
-            (Some(Seek(_)), None) => Ok(AudioEffects::none()),
+            (Some(Seek(_)), None) => Ok(AudioEffects::same(None)),
 
             (None, Some(player_state)) if player_state.playing => {
                 let before = player_state.queue.current.id;
@@ -411,19 +411,10 @@ struct AudioEffects {
 }
 
 impl AudioEffects {
+    /// preserve the player state, doing nothing else
     fn same(player_state: Option<PlayerState>) -> Self {
         Self {
             player_state,
-            audio_message: None,
-            metadata: None,
-            playback: None,
-            preload: None,
-        }
-    }
-
-    fn none() -> Self {
-        Self {
-            player_state: None,
             audio_message: None,
             metadata: None,
             playback: None,
