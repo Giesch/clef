@@ -524,7 +524,7 @@ impl PlayerState {
         self
     }
 
-    fn forward(self) -> StepResult {
+    fn forward(mut self) -> StepResult {
         match self.queue.try_forward() {
             Ok(new_queue) => {
                 let mut new_state = match self.preloaded_content {
@@ -546,7 +546,13 @@ impl PlayerState {
                 Ok(publish_display_update(new_state))
             }
 
-            Err(_old_queue) => Ok(publish_stop()),
+            Err(_old_queue) => {
+                if let Some(output) = &mut self.audio_output {
+                    output.flush();
+                }
+
+                Ok(publish_stop())
+            }
         }
     }
 
@@ -584,9 +590,7 @@ impl PlayerState {
         let (timestamp, decoded) = {
             if let Some((timestamp, buffer)) = player_state.predecoded_packets.pop_front()
             {
-                log::trace!("using preloaded packet");
-                let decoded = DecodedPacket::Preloaded((timestamp, buffer));
-                (timestamp, decoded)
+                (timestamp, DecodedPacket::Preloaded((timestamp, buffer)))
             } else {
                 // Get the next packet from the format reader.
                 let packet = match player_state.reader.next_packet() {
@@ -598,10 +602,6 @@ impl PlayerState {
                     Err(SymphoniaError::IoError(io_error))
                         if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
                     {
-                        if let Some(output) = &mut player_state.audio_output {
-                            output.flush();
-                        }
-
                         return player_state.forward();
                     }
 
@@ -647,7 +647,6 @@ impl PlayerState {
         // Write the decoded audio samples to the audio output
         // If the timestamp for the packet is >= a seek position,
         // then continue 'playing' until seek is reached.
-        // FIXME
         player_state.timestamp = timestamp;
         let seeking = player_state
             .seek_ts
