@@ -19,12 +19,15 @@
     - [X] send the prepared decoder to the player thread
   - [-] recieve the preloaded decoder on the player thread
     - [X] store it in a new field
-    - [ ] in forward, back, and play_queue, check the new field first,
+    - [X] in forward, back, and play_queue, check the new field first,
       before loading a new decoder
-      - [ ] add some logging when a non-preloaded track is played?
+      - [X] handle forward, back, and continue_playing
+      - [X] add some logging when a non-preloaded track is played?
         maybe only for continue
     - [ ] do some actual decoding on the preloader thread; the gap is still audible
     - [ ] test that this doesn't screw with displayed times
+      could just only preload a couple packets?
+
   - [ ] think over what other changes are necessary to do the swapping version
 
 * Next

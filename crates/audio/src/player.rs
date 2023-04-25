@@ -303,11 +303,8 @@ impl Player {
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
                 let player_state = PlayerState::play_queue(*queue)?;
-
-                // TODO do this same thing for forward and back
-                let up_next = player_state.up_next().map(|up_next| up_next.path.clone());
                 let mut effects = publish_display_update(player_state);
-                effects.preload = up_next.map(PreloaderAction::Load);
+                effects.preload_next();
 
                 Ok(effects)
             }
@@ -330,10 +327,25 @@ impl Player {
             }
             (Some(Toggle), None) => Ok(AudioEffects::none()),
 
-            (Some(Forward), Some(player_state)) => player_state.forward(),
+            (Some(Forward), Some(player_state)) => {
+                let mut effects = player_state.forward()?;
+                effects.preload_next();
+
+                Ok(effects)
+            }
             (Some(Forward), None) => Ok(AudioEffects::none()),
 
-            (Some(Back), Some(player_state)) => player_state.back(),
+            (Some(Back), Some(player_state)) => {
+                let mut effects = player_state.back()?;
+
+                effects.preload = effects
+                    .player_state
+                    .as_ref()
+                    .and_then(|state| state.up_next())
+                    .map(|up_next| PreloaderAction::Load(up_next.path.clone()));
+
+                Ok(effects)
+            }
             (Some(Back), None) => Ok(AudioEffects::none()),
 
             (Some(Seek(proportion)), Some(player_state)) => {
@@ -354,7 +366,22 @@ impl Player {
             (Some(Seek(_)), None) => Ok(AudioEffects::none()),
 
             (None, Some(player_state)) if player_state.playing => {
-                player_state.continue_playing()
+                let before = player_state.queue.current.id;
+
+                let mut effects = player_state.continue_playing()?;
+
+                let after = effects
+                    .player_state
+                    .as_ref()
+                    .map(|state| state.queue.current.id);
+
+                // if we started playing a new song,
+                // then try to preload the one after that
+                if matches!(after, Some(after) if before != after) {
+                    effects.preload_next();
+                }
+
+                Ok(effects)
             }
             (None, state) => Ok(AudioEffects::same(state)),
         }
@@ -395,6 +422,15 @@ impl AudioEffects {
             playback: None,
             preload: None,
         }
+    }
+
+    /// add a preload action for the next track if there is one
+    fn preload_next(&mut self) {
+        self.preload = self
+            .player_state
+            .as_ref()
+            .and_then(|state| state.up_next())
+            .map(|up_next| PreloaderAction::Load(up_next.path.clone()));
     }
 }
 
@@ -485,13 +521,12 @@ impl PlayerState {
                 let mut new_state = match self.preloaded_content {
                     // hit preload
                     Some(preloaded) if preloaded.path == new_queue.current.path => {
-                        log::debug!("hit preload");
                         Self::play_preloaded(new_queue, preloaded)
                     }
 
                     // missed preload
                     _ => {
-                        log::debug!("missed preload");
+                        log::info!("missed preload");
                         Self::play_queue(new_queue)?
                     }
                 };
