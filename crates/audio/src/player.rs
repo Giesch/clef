@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::File;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -5,8 +6,9 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
-use log::{error, trace, warn};
+use log::{error, info, trace, warn};
 use souvlaki::{MediaPlayback, MediaPosition};
+use symphonia::core::audio::{AsAudioBufferRef, AudioBufferRef};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -18,7 +20,9 @@ use symphonia::core::units::Time;
 use clef_db::queries::SongId;
 use clef_shared::queue::Queue;
 
-use self::preloader::{PreloadedContent, Preloader, PreloaderAction, PreloaderEffect};
+use self::preloader::{
+    AnyAudioBuffer, PreloadedContent, Preloader, PreloaderAction, PreloaderEffect,
+};
 
 use super::track_info::{first_supported_track, TrackInfo};
 
@@ -104,8 +108,6 @@ pub struct Player {
     media_controls: WrappedControls,
     to_preloader: Sender<PreloaderAction>,
     from_preloader: Receiver<PreloaderEffect>,
-    // FIXME this needs to be inside PlayerState,
-    // which means that PlayerState can't just be an optional any more
 }
 
 struct PlayerState {
@@ -117,7 +119,10 @@ struct PlayerState {
     track_info: TrackInfo,
     queue: Queue<QueuedSong>,
     timestamp: u64,
+    // the recieved information about the possible next song
     preloaded_content: Option<PreloadedContent>,
+    // preloaded packets for the currrent song
+    predecoded_packets: VecDeque<(u64, AnyAudioBuffer)>,
 }
 
 impl std::fmt::Debug for PlayerState {
@@ -260,7 +265,9 @@ impl Player {
                         trace!("Got preloaded decoder: {path}");
 
                         if let Some(state) = &mut state {
+                            // FIXME
                             state.preloaded_content = Some(content);
+                            // state.decoder = content.decoder;
                         }
                     }
 
@@ -446,6 +453,7 @@ impl PlayerState {
             playing: true,
             timestamp: 0,
             preloaded_content: None,
+            predecoded_packets: preloaded.predecoded_packets,
         }
     }
 
@@ -495,6 +503,7 @@ impl PlayerState {
             track_info,
             queue,
             preloaded_content: None,
+            predecoded_packets: Default::default(),
         })
     }
 
@@ -521,12 +530,13 @@ impl PlayerState {
                 let mut new_state = match self.preloaded_content {
                     // hit preload
                     Some(preloaded) if preloaded.path == new_queue.current.path => {
+                        trace!("hit preload");
                         Self::play_preloaded(new_queue, preloaded)
                     }
 
                     // missed preload
                     _ => {
-                        log::info!("missed preload");
+                        info!("missed preload");
                         Self::play_queue(new_queue)?
                     }
                 };
@@ -571,39 +581,50 @@ impl PlayerState {
     fn continue_playing(self) -> StepResult {
         let mut player_state = self;
 
-        // Get the next packet from the format reader.
-        let packet = match player_state.reader.next_packet() {
-            Ok(packet) => packet,
-
-            // NOTE this is the normal way to reach the end of the file,
-            // not really an error
-            // https://github.com/pdeljanov/Symphonia/issues/134
-            Err(SymphoniaError::IoError(io_error))
-                if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
+        let (timestamp, decoded) = {
+            if let Some((timestamp, buffer)) = player_state.predecoded_packets.pop_front()
             {
-                if let Some(output) = &mut player_state.audio_output {
-                    output.flush();
-                }
+                log::trace!("using preloaded packet");
+                let decoded = DecodedPacket::Preloaded((timestamp, buffer));
+                (timestamp, decoded)
+            } else {
+                // Get the next packet from the format reader.
+                let packet = match player_state.reader.next_packet() {
+                    Ok(packet) => packet,
 
-                return player_state.forward();
+                    // NOTE this is the normal way to reach the end of the file,
+                    // not really an error
+                    // https://github.com/pdeljanov/Symphonia/issues/134
+                    Err(SymphoniaError::IoError(io_error))
+                        if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
+                    {
+                        if let Some(output) = &mut player_state.audio_output {
+                            output.flush();
+                        }
+
+                        return player_state.forward();
+                    }
+
+                    Err(error) => {
+                        bail!("error reading next packet: {error}");
+                    }
+                };
+
+                let decoded = match player_state.decoder.decode(&packet) {
+                    Ok(decoded) => DecodedPacket::JustDecoded(decoded),
+
+                    Err(SymphoniaError::DecodeError(err)) => {
+                        // Decode errors are not fatal.
+                        // Print the error message and try to decode the next packet as usual.
+                        warn!("decode error: {}", err);
+                        return Ok(AudioEffects::same(Some(player_state)));
+                    }
+
+                    Err(err) => bail!("failed to read packet: {err}"),
+                };
+
+                (packet.ts(), decoded)
             }
-
-            Err(error) => {
-                bail!("error reading next packet: {error}");
-            }
-        };
-
-        let decoded = match player_state.decoder.decode(&packet) {
-            Ok(decoded) => decoded,
-
-            Err(SymphoniaError::DecodeError(err)) => {
-                // Decode errors are not fatal.
-                // Print the error message and try to decode the next packet as usual.
-                warn!("decode error: {}", err);
-                return Ok(AudioEffects::same(Some(player_state)));
-            }
-
-            Err(err) => bail!("failed to read packet: {err}"),
         };
 
         // If the audio output is not open, try to open it.
@@ -626,10 +647,11 @@ impl PlayerState {
         // Write the decoded audio samples to the audio output
         // If the timestamp for the packet is >= a seek position,
         // then continue 'playing' until seek is reached.
-        player_state.timestamp = packet.ts();
+        // FIXME
+        player_state.timestamp = timestamp;
         let seeking = player_state
             .seek_ts
-            .map(|seek_ts| player_state.timestamp < seek_ts)
+            .map(|seek_ts| timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
             return Ok(AudioEffects::same(Some(player_state)));
@@ -643,7 +665,14 @@ impl PlayerState {
             .as_deref_mut()
             .ok_or_else(|| anyhow!("no audio device"))?;
 
-        audio_output.write(decoded).context("writing audio")?;
+        match decoded {
+            DecodedPacket::Preloaded((_ts, buf)) => audio_output
+                .write(buf.as_audio_buffer_ref())
+                .context("writing preloaded audio")?,
+            DecodedPacket::JustDecoded(buf) => {
+                audio_output.write(buf).context("writing audio")?
+            }
+        }
 
         Ok(publish_display_update(player_state))
     }
@@ -658,6 +687,27 @@ impl PlayerState {
 
     fn up_next(&self) -> Option<&QueuedSong> {
         self.queue.next.iter().next()
+    }
+}
+
+enum DecodedPacket<'a> {
+    Preloaded((u64, AnyAudioBuffer)),
+    JustDecoded(AudioBufferRef<'a>),
+}
+
+impl<'a> DecodedPacket<'a> {
+    fn spec(&self) -> &symphonia::core::audio::SignalSpec {
+        match self {
+            DecodedPacket::Preloaded((_ts, buf)) => buf.spec(),
+            DecodedPacket::JustDecoded(buf) => buf.spec(),
+        }
+    }
+
+    fn capacity(&self) -> usize {
+        match self {
+            DecodedPacket::Preloaded((_ts, buf)) => buf.capacity(),
+            DecodedPacket::JustDecoded(buf) => buf.capacity(),
+        }
     }
 }
 

@@ -1,9 +1,11 @@
+use std::collections::VecDeque;
 use std::fs::File;
 use std::thread::JoinHandle;
 
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, RecvError, Sender};
+use log::error;
 use symphonia::core::audio::{AsAudioBufferRef, AudioBuffer, AudioBufferRef};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::formats::{FormatOptions, FormatReader};
@@ -35,7 +37,7 @@ pub struct PreloadedContent {
     pub reader: Box<dyn FormatReader>,
     pub decoder: Box<dyn Decoder>,
     pub track_info: TrackInfo,
-    pub predecoded_packets: Vec<AnyAudioBuffer>,
+    pub predecoded_packets: VecDeque<(u64, AnyAudioBuffer)>,
 }
 
 impl std::fmt::Debug for PreloadedContent {
@@ -71,8 +73,10 @@ impl Preloader {
                     to_player.send(PreloaderEffect::PreloaderDied).ok();
 
                     match err {
-                        PreloaderError::Disconnected => todo!(),
-                        PreloaderError::Other(_err) => todo!(),
+                        PreloaderError::Disconnected => error!("preloader disconnected"),
+                        PreloaderError::Other(e) => {
+                            error!("preload error: {e}")
+                        }
                     }
                 }
             })
@@ -141,21 +145,30 @@ fn prepare_decoder(path: Utf8PathBuf) -> anyhow::Result<PreloadedContent> {
         .make(&track.codec_params, &Default::default())
         .context("making decoder")?;
 
-    // TODO decoding!
+    let mut predecoded_packets = VecDeque::new();
+    loop {
+        // TODO handle EOF differently if looping
+        let Ok(packet) = reader.next_packet() else {
+            bail!("failed to read packet");
+        };
 
-    // TODO handle EOF differently if looping
-    let Ok(packet) = reader.next_packet() else {
-        bail!("failed to read packet");
-    };
+        let timestamp = packet.ts();
 
-    let timestamp = packet.ts();
+        let decoded = match decoder.decode(&packet) {
+            Ok(decoded) => AnyAudioBuffer::from_ref(decoded),
+            Err(e) => bail!("failed to decode packet: {e}"),
+        };
 
-    let decoded = match decoder.decode(&packet) {
-        Ok(decoded) => AnyAudioBuffer::from_ref(decoded),
-        Err(e) => bail!("failed to decode packet: {e}"),
-    };
+        predecoded_packets.push_back((timestamp, decoded));
 
-    let predecoded_packets = vec![decoded];
+        let Some(progress) = track_info.progress_times(timestamp) else {
+            bail!("missing track info");
+        };
+
+        if progress.elapsed.seconds > 2 {
+            break;
+        }
+    }
 
     Ok(PreloadedContent {
         reader,
@@ -182,7 +195,7 @@ pub enum AnyAudioBuffer {
 }
 
 impl AnyAudioBuffer {
-    fn from_ref<'a>(buffer_ref: AudioBufferRef<'a>) -> AnyAudioBuffer {
+    pub fn from_ref<'a>(buffer_ref: AudioBufferRef<'a>) -> AnyAudioBuffer {
         match buffer_ref {
             AudioBufferRef::U8(sample) => AnyAudioBuffer::U8(sample.into_owned()),
             AudioBufferRef::U16(sample) => AnyAudioBuffer::U16(sample.into_owned()),
@@ -194,6 +207,36 @@ impl AnyAudioBuffer {
             AudioBufferRef::S32(sample) => AnyAudioBuffer::S32(sample.into_owned()),
             AudioBufferRef::F32(sample) => AnyAudioBuffer::F32(sample.into_owned()),
             AudioBufferRef::F64(sample) => AnyAudioBuffer::F64(sample.into_owned()),
+        }
+    }
+
+    pub fn spec(&self) -> &symphonia::core::audio::SignalSpec {
+        match self {
+            AnyAudioBuffer::U8(sample) => sample.spec(),
+            AnyAudioBuffer::U16(sample) => sample.spec(),
+            AnyAudioBuffer::U24(sample) => sample.spec(),
+            AnyAudioBuffer::U32(sample) => sample.spec(),
+            AnyAudioBuffer::S8(sample) => sample.spec(),
+            AnyAudioBuffer::S16(sample) => sample.spec(),
+            AnyAudioBuffer::S24(sample) => sample.spec(),
+            AnyAudioBuffer::S32(sample) => sample.spec(),
+            AnyAudioBuffer::F32(sample) => sample.spec(),
+            AnyAudioBuffer::F64(sample) => sample.spec(),
+        }
+    }
+
+    pub fn capacity(&self) -> usize {
+        match self {
+            AnyAudioBuffer::U8(sample) => sample.capacity(),
+            AnyAudioBuffer::U16(sample) => sample.capacity(),
+            AnyAudioBuffer::U24(sample) => sample.capacity(),
+            AnyAudioBuffer::U32(sample) => sample.capacity(),
+            AnyAudioBuffer::S8(sample) => sample.capacity(),
+            AnyAudioBuffer::S16(sample) => sample.capacity(),
+            AnyAudioBuffer::S24(sample) => sample.capacity(),
+            AnyAudioBuffer::S32(sample) => sample.capacity(),
+            AnyAudioBuffer::F32(sample) => sample.capacity(),
+            AnyAudioBuffer::F64(sample) => sample.capacity(),
         }
     }
 }
