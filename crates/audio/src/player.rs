@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
-use log::{error, warn};
+use log::{error, trace, warn};
 use souvlaki::{MediaPlayback, MediaPosition};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
@@ -18,7 +18,7 @@ use symphonia::core::units::Time;
 use clef_db::queries::SongId;
 use clef_shared::queue::Queue;
 
-use self::preloader::{Preloader, PreloaderAction, PreloaderEffect};
+use self::preloader::{PreloadedContent, Preloader, PreloaderAction, PreloaderEffect};
 
 use super::track_info::{first_supported_track, TrackInfo};
 
@@ -104,6 +104,8 @@ pub struct Player {
     media_controls: WrappedControls,
     to_preloader: Sender<PreloaderAction>,
     from_preloader: Receiver<PreloaderEffect>,
+    // FIXME this needs to be inside PlayerState,
+    // which means that PlayerState can't just be an optional any more
 }
 
 struct PlayerState {
@@ -115,6 +117,7 @@ struct PlayerState {
     track_info: TrackInfo,
     queue: Queue<QueuedSong>,
     timestamp: u64,
+    preloaded_content: Option<PreloadedContent>,
 }
 
 impl std::fmt::Debug for PlayerState {
@@ -253,9 +256,14 @@ impl Player {
             if let Some(preloaded) = preloaded {
                 match preloaded {
                     PreloaderEffect::Loaded(content) => {
-                        let path = content.path;
-                        log::debug!("got preload: {path:#?}");
+                        let path = content.path.clone();
+                        trace!("Got preloaded decoder: {path}");
+
+                        if let Some(state) = &mut state {
+                            state.preloaded_content = Some(content);
+                        }
                     }
+
                     PreloaderEffect::PreloaderDied => todo!(),
                 }
             }
@@ -391,6 +399,20 @@ impl AudioEffects {
 }
 
 impl PlayerState {
+    fn play_preloaded(queue: Queue<QueuedSong>, preloaded: PreloadedContent) -> Self {
+        Self {
+            queue,
+            reader: preloaded.reader,
+            decoder: preloaded.decoder,
+            track_info: preloaded.track_info,
+            seek_ts: None,
+            audio_output: None,
+            playing: true,
+            timestamp: 0,
+            preloaded_content: None,
+        }
+    }
+
     // This is based on the main loop in the symphonia-play example
     fn play_queue(queue: Queue<QueuedSong>) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
@@ -436,6 +458,7 @@ impl PlayerState {
             decoder,
             track_info,
             queue,
+            preloaded_content: None,
         })
     }
 
@@ -459,7 +482,20 @@ impl PlayerState {
     fn forward(self) -> StepResult {
         match self.queue.try_forward() {
             Ok(new_queue) => {
-                let mut new_state = Self::play_queue(new_queue)?;
+                let mut new_state = match self.preloaded_content {
+                    // hit preload
+                    Some(preloaded) if preloaded.path == new_queue.current.path => {
+                        log::debug!("hit preload");
+                        Self::play_preloaded(new_queue, preloaded)
+                    }
+
+                    // missed preload
+                    _ => {
+                        log::debug!("missed preload");
+                        Self::play_queue(new_queue)?
+                    }
+                };
+
                 new_state.playing = self.playing;
 
                 Ok(publish_display_update(new_state))
