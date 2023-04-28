@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::File;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -5,8 +6,9 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
-use log::{error, warn};
+use log::{error, info, trace, warn};
 use souvlaki::{MediaPlayback, MediaPosition};
+use symphonia::core::audio::{AsAudioBufferRef, AudioBufferRef};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
@@ -18,11 +20,18 @@ use symphonia::core::units::Time;
 use clef_db::queries::SongId;
 use clef_shared::queue::Queue;
 
+use self::preloader::{
+    AnyAudioBuffer, PredecodedPacket, PreloadedContent, Preloader, PreloaderAction,
+    PreloaderEffect,
+};
+
+use super::track_info::{first_supported_track, TrackInfo};
+
 mod media_controls;
 use media_controls::*;
 mod output;
-use super::track_info::{first_supported_track, TrackInfo};
 use output::AudioOutput;
+mod preloader;
 
 /// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]
@@ -94,10 +103,13 @@ impl ProgressTimes {
 
 #[derive(Debug)]
 pub struct Player {
-    state: Option<PlayerState>, // None = stopped
+    /// Audio state for the current song; None = stopped
+    state: Option<PlayerState>,
     inbox: Receiver<AudioAction>,
     to_ui: Sender<AudioMessage>,
     media_controls: WrappedControls,
+    to_preloader: Sender<PreloaderAction>,
+    from_preloader: Receiver<PreloaderEffect>,
 }
 
 struct PlayerState {
@@ -109,6 +121,10 @@ struct PlayerState {
     track_info: TrackInfo,
     queue: Queue<QueuedSong>,
     timestamp: u64,
+    /// pre-decoded data about the next song in the queue
+    preloaded_content: Option<PreloadedContent>,
+    /// pre-decoded packets for the currrently playing song
+    predecoded_packets: VecDeque<PredecodedPacket>,
 }
 
 impl std::fmt::Debug for PlayerState {
@@ -161,18 +177,33 @@ impl Player {
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
         to_self: Sender<AudioAction>,
-    ) -> std::result::Result<JoinHandle<()>, std::io::Error> {
-        std::thread::Builder::new()
+    ) -> anyhow::Result<JoinHandle<()>> {
+        let (to_preloader, preloader_inbox) =
+            flume::unbounded::<preloader::PreloaderAction>();
+        let (to_player, from_preloader) =
+            flume::unbounded::<preloader::PreloaderEffect>();
+
+        Preloader::spawn(preloader_inbox, to_player)
+            .context("failed to spawn preloader")?;
+
+        let join_handle = std::thread::Builder::new()
             .name("ClefAudioPlayer".to_string())
             .spawn(move || {
-                let player = Player::new(inbox, to_ui.clone(), to_self);
+                let player = Player::new(
+                    inbox,
+                    to_ui.clone(),
+                    to_self,
+                    to_preloader,
+                    from_preloader,
+                );
 
                 if let Err(err) = player.run_loop() {
                     to_ui.send(AudioMessage::AudioDied).ok();
 
                     match err {
                         AudioThreadError::Disconnected => {
-                            // This can happen both during startup and shutdown.
+                            // This can happen both during startup and shutdown,
+                            // before the the ui exists or after its closed.
                             // In both cases we just wait for the app.
                         }
 
@@ -181,13 +212,17 @@ impl Player {
                         }
                     }
                 }
-            })
+            })?;
+
+        Ok(join_handle)
     }
 
     pub fn new(
         inbox: Receiver<AudioAction>,
         to_ui: Sender<AudioMessage>,
         to_self: Sender<AudioAction>,
+        to_preloader: Sender<PreloaderAction>,
+        from_preloader: Receiver<PreloaderEffect>,
     ) -> Self {
         let media_controls = WrappedControls::new(to_self);
 
@@ -196,18 +231,20 @@ impl Player {
             inbox,
             to_ui,
             media_controls,
+            to_preloader,
+            from_preloader,
         }
     }
 
     pub fn run_loop(self) -> Result<(), AudioThreadError> {
         let Player {
-            state,
+            mut state,
             inbox,
             to_ui,
             mut media_controls,
+            to_preloader,
+            from_preloader,
         } = self;
-
-        let mut state = state;
 
         loop {
             let action = match inbox.try_recv() {
@@ -217,6 +254,29 @@ impl Player {
                     return Err(AudioThreadError::Disconnected);
                 }
             };
+
+            let preloaded = match from_preloader.try_recv() {
+                Ok(action) => Some(action),
+                Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => None,
+            };
+
+            if let Some(preloaded) = preloaded {
+                match preloaded {
+                    PreloaderEffect::Loaded(content) => {
+                        let path = content.path.clone();
+                        trace!("Got preloaded decoder: {path}");
+
+                        if let Some(state) = &mut state {
+                            state.preloaded_content = Some(content);
+                        }
+                    }
+
+                    PreloaderEffect::PreloaderDied => {
+                        // this error is logged in Preloader::spawn
+                        // the player can continue working with gaps
+                    }
+                }
+            }
 
             let was_playing = state.is_some();
 
@@ -239,6 +299,10 @@ impl Player {
                 media_controls.deinit();
             }
 
+            if let Some(preload) = effects.preload {
+                to_preloader.send(preload).ok();
+            }
+
             state = effects.player_state;
         }
     }
@@ -249,7 +313,10 @@ impl Player {
         match (msg, state) {
             (Some(PlayQueue(queue)), _any_state) => {
                 let player_state = PlayerState::play_queue(*queue)?;
-                Ok(publish_display_update(player_state))
+                let mut effects = publish_display_update(player_state);
+                effects.preload_next();
+
+                Ok(effects)
             }
 
             (Some(Pause), Some(mut player_state)) if player_state.playing => {
@@ -268,13 +335,28 @@ impl Player {
                 player_state.playing = !player_state.playing;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Toggle), None) => Ok(AudioEffects::none()),
+            (Some(Toggle), None) => Ok(AudioEffects::same(None)),
 
-            (Some(Forward), Some(player_state)) => player_state.forward(),
-            (Some(Forward), None) => Ok(AudioEffects::none()),
+            (Some(Forward), Some(player_state)) => {
+                let mut effects = player_state.forward()?;
+                effects.preload_next();
 
-            (Some(Back), Some(player_state)) => player_state.back(),
-            (Some(Back), None) => Ok(AudioEffects::none()),
+                Ok(effects)
+            }
+            (Some(Forward), None) => Ok(AudioEffects::same(None)),
+
+            (Some(Back), Some(player_state)) => {
+                let mut effects = player_state.back()?;
+
+                effects.preload = effects
+                    .player_state
+                    .as_ref()
+                    .and_then(|state| state.up_next())
+                    .map(|up_next| PreloaderAction::Load(up_next.path.clone()));
+
+                Ok(effects)
+            }
+            (Some(Back), None) => Ok(AudioEffects::same(None)),
 
             (Some(Seek(proportion)), Some(player_state)) => {
                 let Some(ProgressTimes { total, .. }) = player_state
@@ -291,10 +373,25 @@ impl Player {
 
                 Ok(publish_seek_complete(player_state))
             }
-            (Some(Seek(_)), None) => Ok(AudioEffects::none()),
+            (Some(Seek(_)), None) => Ok(AudioEffects::same(None)),
 
             (None, Some(player_state)) if player_state.playing => {
-                player_state.continue_playing()
+                let before = player_state.queue.current.id;
+
+                let mut effects = player_state.continue_playing()?;
+
+                let after = effects
+                    .player_state
+                    .as_ref()
+                    .map(|state| state.queue.current.id);
+
+                // if we started playing a new song,
+                // then try to preload the one after that
+                if matches!(after, Some(after) if before != after) {
+                    effects.preload_next();
+                }
+
+                Ok(effects)
             }
             (None, state) => Ok(AudioEffects::same(state)),
         }
@@ -313,29 +410,45 @@ struct AudioEffects {
     metadata: Option<ControlsMetadata>,
     /// playback & progress to publish to media controls
     playback: Option<MediaPlayback>,
+    preload: Option<PreloaderAction>,
 }
 
 impl AudioEffects {
+    /// preserve the player state, doing nothing else
     fn same(player_state: Option<PlayerState>) -> Self {
         Self {
             player_state,
             audio_message: None,
             metadata: None,
             playback: None,
+            preload: None,
         }
     }
 
-    fn none() -> Self {
-        Self {
-            player_state: None,
-            audio_message: None,
-            metadata: None,
-            playback: None,
+    /// add a preload action for the next track if there is one
+    fn preload_next(&mut self) {
+        if let Some(up_next) = self.player_state.as_ref().and_then(PlayerState::up_next) {
+            self.preload = Some(PreloaderAction::Load(up_next.path.clone()));
         }
     }
 }
 
 impl PlayerState {
+    fn play_preloaded(queue: Queue<QueuedSong>, preloaded: PreloadedContent) -> Self {
+        Self {
+            queue,
+            reader: preloaded.reader,
+            decoder: preloaded.decoder,
+            track_info: preloaded.track_info,
+            seek_ts: None,
+            audio_output: None,
+            playing: true,
+            timestamp: 0,
+            preloaded_content: None,
+            predecoded_packets: preloaded.predecoded_packets,
+        }
+    }
+
     // This is based on the main loop in the symphonia-play example
     fn play_queue(queue: Queue<QueuedSong>) -> anyhow::Result<Self> {
         let mut hint = Hint::new();
@@ -381,6 +494,8 @@ impl PlayerState {
             decoder,
             track_info,
             queue,
+            preloaded_content: None,
+            predecoded_packets: Default::default(),
         })
     }
 
@@ -401,16 +516,35 @@ impl PlayerState {
         self
     }
 
-    fn forward(self) -> StepResult {
+    fn forward(mut self) -> StepResult {
         match self.queue.try_forward() {
             Ok(new_queue) => {
-                let mut new_state = Self::play_queue(new_queue)?;
+                let mut new_state = match self.preloaded_content {
+                    // hit preload
+                    Some(preloaded) if preloaded.path == new_queue.current.path => {
+                        trace!("hit preload");
+                        Self::play_preloaded(new_queue, preloaded)
+                    }
+
+                    // missed preload
+                    _ => {
+                        info!("missed preload");
+                        Self::play_queue(new_queue)?
+                    }
+                };
+
                 new_state.playing = self.playing;
 
                 Ok(publish_display_update(new_state))
             }
 
-            Err(_old_queue) => Ok(publish_stop()),
+            Err(_old_queue) => {
+                if let Some(output) = &mut self.audio_output {
+                    output.flush();
+                }
+
+                Ok(publish_stop())
+            }
         }
     }
 
@@ -445,39 +579,45 @@ impl PlayerState {
     fn continue_playing(self) -> StepResult {
         let mut player_state = self;
 
-        // Get the next packet from the format reader.
-        let packet = match player_state.reader.next_packet() {
-            Ok(packet) => packet,
-
-            // NOTE this is the normal way to reach the end of the file,
-            // not really an error
-            // https://github.com/pdeljanov/Symphonia/issues/134
-            Err(SymphoniaError::IoError(io_error))
-                if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
+        let (timestamp, decoded) = {
+            if let Some(PredecodedPacket { timestamp, decoded }) =
+                player_state.predecoded_packets.pop_front()
             {
-                if let Some(output) = &mut player_state.audio_output {
-                    output.flush();
-                }
+                (timestamp, DecodedPacket::Preloaded((timestamp, decoded)))
+            } else {
+                // Get the next packet from the format reader.
+                let packet = match player_state.reader.next_packet() {
+                    Ok(packet) => packet,
 
-                return player_state.forward();
+                    // NOTE this is the normal way to reach the end of the file,
+                    // not really an error
+                    // https://github.com/pdeljanov/Symphonia/issues/134
+                    Err(SymphoniaError::IoError(io_error))
+                        if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
+                    {
+                        return player_state.forward();
+                    }
+
+                    Err(error) => {
+                        bail!("error reading next packet: {error}");
+                    }
+                };
+
+                let decoded = match player_state.decoder.decode(&packet) {
+                    Ok(decoded) => DecodedPacket::JustDecoded(decoded),
+
+                    Err(SymphoniaError::DecodeError(err)) => {
+                        // Decode errors are not fatal.
+                        // Print the error message and try to decode the next packet as usual.
+                        warn!("decode error: {}", err);
+                        return Ok(AudioEffects::same(Some(player_state)));
+                    }
+
+                    Err(err) => bail!("failed to read packet: {err}"),
+                };
+
+                (packet.ts(), decoded)
             }
-
-            Err(error) => {
-                bail!("error reading next packet: {error}");
-            }
-        };
-
-        let decoded = match player_state.decoder.decode(&packet) {
-            Ok(decoded) => decoded,
-
-            Err(SymphoniaError::DecodeError(err)) => {
-                // Decode errors are not fatal.
-                // Print the error message and try to decode the next packet as usual.
-                warn!("decode error: {}", err);
-                return Ok(publish_nothing(player_state));
-            }
-
-            Err(err) => bail!("failed to read packet: {err}"),
         };
 
         // If the audio output is not open, try to open it.
@@ -500,13 +640,13 @@ impl PlayerState {
         // Write the decoded audio samples to the audio output
         // If the timestamp for the packet is >= a seek position,
         // then continue 'playing' until seek is reached.
-        player_state.timestamp = packet.ts();
+        player_state.timestamp = timestamp;
         let seeking = player_state
             .seek_ts
-            .map(|seek_ts| player_state.timestamp < seek_ts)
+            .map(|seek_ts| timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
-            return Ok(publish_nothing(player_state));
+            return Ok(AudioEffects::same(Some(player_state)));
         } else {
             // when a seek is complete, return to publishing the real timestamp
             player_state.seek_ts = None;
@@ -517,17 +657,50 @@ impl PlayerState {
             .as_deref_mut()
             .ok_or_else(|| anyhow!("no audio device"))?;
 
-        audio_output.write(decoded).context("writing audio")?;
+        match decoded {
+            DecodedPacket::Preloaded((_ts, buf)) => audio_output
+                .write(buf.as_audio_buffer_ref())
+                .context("writing preloaded audio")?,
+
+            DecodedPacket::JustDecoded(buf) => {
+                audio_output.write(buf).context("writing audio")?
+            }
+        }
 
         Ok(publish_display_update(player_state))
     }
 
     // NOTE This is to avoid flashing the 'old' timestamp while seeking
     // to the new timestamp; we publish the timestamp where we're going to.
-    // This relies on resetting seek_ts to none in continue_playing
+    // This relies on resetting seek_ts to None in continue_playing
     // when the seek is complete.
     fn optimistic_timestamp(&self) -> u64 {
         self.seek_ts.unwrap_or(self.timestamp)
+    }
+
+    fn up_next(&self) -> Option<&QueuedSong> {
+        self.queue.next.iter().next()
+    }
+}
+
+enum DecodedPacket<'a> {
+    Preloaded((u64, AnyAudioBuffer)),
+    JustDecoded(AudioBufferRef<'a>),
+}
+
+impl<'a> DecodedPacket<'a> {
+    fn spec(&self) -> &symphonia::core::audio::SignalSpec {
+        match self {
+            DecodedPacket::Preloaded((_ts, buf)) => buf.spec(),
+            DecodedPacket::JustDecoded(buf) => buf.spec(),
+        }
+    }
+
+    fn capacity(&self) -> usize {
+        match self {
+            DecodedPacket::Preloaded((_ts, buf)) => buf.capacity(),
+            DecodedPacket::JustDecoded(buf) => buf.capacity(),
+        }
     }
 }
 
@@ -539,6 +712,7 @@ fn publish_display_update(new_state: PlayerState) -> AudioEffects {
         audio_message: Some(AudioMessage::DisplayUpdate(Some(display))),
         metadata: Some(metadata),
         playback: Some(playback),
+        preload: None,
     }
 }
 
@@ -550,6 +724,7 @@ fn publish_seek_complete(new_state: PlayerState) -> AudioEffects {
         audio_message: Some(AudioMessage::SeekComplete(display)),
         metadata: Some(metadata),
         playback: Some(playback),
+        preload: None,
     }
 }
 
@@ -559,15 +734,7 @@ fn publish_stop() -> AudioEffects {
         player_state: None,
         metadata: None,
         playback: None,
-    }
-}
-
-fn publish_nothing(player_state: PlayerState) -> AudioEffects {
-    AudioEffects {
-        player_state: Some(player_state),
-        audio_message: None,
-        metadata: None,
-        playback: None,
+        preload: None,
     }
 }
 

@@ -1,19 +1,5 @@
 * Now
-- [X] refactor to a cargo workspace
-  - [X] make audio backend a crate
-  - [X] make iced frontend a crate
-  - [X] make db a crate
-  - [X] make main/coordination types a crate? just queue?
-
-- [X] clean up extra dependencies
-- [X] make sure this still works on windows
-  - [X] where does window_handle_hack go? shared
-- [X] set up lint rules / forbid/deny unsafe code by crate
-- [X] move crawler usage of symphonia into an audio crate module
-
-- [ ] make sure that debug logging still works in sub-packages
-
-- [ ] gapless playback
+- [-] gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
   - have a separate dedicated 'preloader' thread?
     like, decode the first N seconds and send me a decoder
@@ -22,6 +8,42 @@
   - have a second audio thread and swap between them?
     this also involves a third mixer/coordinator
     does this break how i handled seek times in the ui?
+  - [X] try the preloader version and see if it works out
+    - [X] launch a preloader thread in a ready state when spawning the player
+    - [X] send a message to the preloader in play_queue, forward, and back
+      - check that it's working with a log message or something
+  - [X] build a decoder on the preloader, and read n seconds or the whole file
+    could also limit attempted time by the length of the current/previous track
+     don't include any audio device anything
+    - [X] first, load a decoder without any decoding done at first
+    - [X] send the prepared decoder to the player thread
+  - [-] recieve the preloaded decoder on the player thread
+    - [X] store it in a new field
+    - [X] in forward, back, and play_queue, check the new field first,
+      before loading a new decoder
+      - [X] handle forward, back, and continue_playing
+      - [X] add some logging when a non-preloaded track is played?
+        maybe only for continue
+    - [X] do some actual decoding on the preloader thread; the gap is still audible
+    - [ ] there's still an audible gap on windows
+      - [ ] move resampling out of audio_output?
+        what's the right way to do this?
+        want to avoid cfg() everywhere
+        change the write method to take an enum?
+        add a separate write_prepared method that skips resampling
+          could also type-enforce that somehow
+        going to need a dyn trait version of resampler,
+        that also returns a dyn trait version of samples
+          could also be a problem with the generic in audio_output::cpal though?
+          might need to just hardcode an f32? seems real bad
+          what if preload requests include all the config to make a new resampler?
+      - [ ] add a resampler to the preloader
+      - [ ] add a way for the audio output to handle pre-resampled writes
+    - [ ] test that this doesn't screw with displayed times
+      could just only preload a couple packets?
+    - [ ] look for other bugs
+
+  - [ ] think over what other changes are necessary to do the swapping version
 
 * Next
 - [ ] think about how to do search ui
