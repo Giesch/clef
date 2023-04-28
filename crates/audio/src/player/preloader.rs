@@ -37,7 +37,20 @@ pub struct PreloadedContent {
     pub reader: Box<dyn FormatReader>,
     pub decoder: Box<dyn Decoder>,
     pub track_info: TrackInfo,
-    pub predecoded_packets: VecDeque<(u64, AnyAudioBuffer)>,
+    pub predecoded_packets: VecDeque<PredecodedPacket>,
+}
+
+pub struct PredecodedPacket {
+    pub timestamp: u64,
+    pub decoded: AnyAudioBuffer,
+}
+
+impl std::fmt::Debug for PredecodedPacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PredecodedPacket")
+            .field("timestamp", &self.timestamp)
+            .finish()
+    }
 }
 
 impl std::fmt::Debug for PreloadedContent {
@@ -160,7 +173,7 @@ fn preload(path: Utf8PathBuf) -> anyhow::Result<PreloadedContent> {
             Err(e) => bail!("failed to decode packet: {e}"),
         };
 
-        predecoded_packets.push_back((timestamp, decoded));
+        predecoded_packets.push_back(PredecodedPacket { timestamp, decoded });
 
         let Some(progress) = track_info.progress_times(timestamp) else {
             bail!("missing track info");

@@ -21,7 +21,8 @@ use clef_db::queries::SongId;
 use clef_shared::queue::Queue;
 
 use self::preloader::{
-    AnyAudioBuffer, PreloadedContent, Preloader, PreloaderAction, PreloaderEffect,
+    AnyAudioBuffer, PredecodedPacket, PreloadedContent, Preloader, PreloaderAction,
+    PreloaderEffect,
 };
 
 use super::track_info::{first_supported_track, TrackInfo};
@@ -102,7 +103,8 @@ impl ProgressTimes {
 
 #[derive(Debug)]
 pub struct Player {
-    state: Option<PlayerState>, // None = stopped
+    /// Audio state for the current song; None = stopped
+    state: Option<PlayerState>,
     inbox: Receiver<AudioAction>,
     to_ui: Sender<AudioMessage>,
     media_controls: WrappedControls,
@@ -119,10 +121,10 @@ struct PlayerState {
     track_info: TrackInfo,
     queue: Queue<QueuedSong>,
     timestamp: u64,
-    // the recieved information about the possible next song
+    /// pre-decoded data about the next song in the queue
     preloaded_content: Option<PreloadedContent>,
-    // preloaded packets for the currrent song
-    predecoded_packets: VecDeque<(u64, AnyAudioBuffer)>,
+    /// pre-decoded packets for the currrently playing song
+    predecoded_packets: VecDeque<PredecodedPacket>,
 }
 
 impl std::fmt::Debug for PlayerState {
@@ -577,9 +579,10 @@ impl PlayerState {
         let mut player_state = self;
 
         let (timestamp, decoded) = {
-            if let Some((timestamp, buffer)) = player_state.predecoded_packets.pop_front()
+            if let Some(PredecodedPacket { timestamp, decoded }) =
+                player_state.predecoded_packets.pop_front()
             {
-                (timestamp, DecodedPacket::Preloaded((timestamp, buffer)))
+                (timestamp, DecodedPacket::Preloaded((timestamp, decoded)))
             } else {
                 // Get the next packet from the format reader.
                 let packet = match player_state.reader.next_packet() {
@@ -668,7 +671,7 @@ impl PlayerState {
 
     // NOTE This is to avoid flashing the 'old' timestamp while seeking
     // to the new timestamp; we publish the timestamp where we're going to.
-    // This relies on resetting seek_ts to none in continue_playing
+    // This relies on resetting seek_ts to None in continue_playing
     // when the seek is complete.
     fn optimistic_timestamp(&self) -> u64 {
         self.seek_ts.unwrap_or(self.timestamp)
