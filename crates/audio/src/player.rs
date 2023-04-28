@@ -427,11 +427,9 @@ impl AudioEffects {
 
     /// add a preload action for the next track if there is one
     fn preload_next(&mut self) {
-        self.preload = self
-            .player_state
-            .as_ref()
-            .and_then(|state| state.up_next())
-            .map(|up_next| PreloaderAction::Load(up_next.path.clone()));
+        if let Some(up_next) = self.player_state.as_ref().and_then(PlayerState::up_next) {
+            self.preload = Some(PreloaderAction::Load(up_next.path.clone()));
+        }
     }
 }
 
