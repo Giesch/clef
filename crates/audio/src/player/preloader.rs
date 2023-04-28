@@ -40,6 +40,16 @@ pub struct PreloadedContent {
     pub predecoded_packets: VecDeque<PredecodedPacket>,
 }
 
+impl std::fmt::Debug for PreloadedContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreloadedContent")
+            .field("path", &self.path)
+            .field("track_info", &self.track_info)
+            .field("predecoded_packets", &self.predecoded_packets.len())
+            .finish()
+    }
+}
+
 pub struct PredecodedPacket {
     pub timestamp: u64,
     pub decoded: AnyAudioBuffer,
@@ -49,16 +59,6 @@ impl std::fmt::Debug for PredecodedPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PredecodedPacket")
             .field("timestamp", &self.timestamp)
-            .finish()
-    }
-}
-
-impl std::fmt::Debug for PreloadedContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PreloadedContent")
-            .field("path", &self.path)
-            .field("track_info", &self.track_info)
-            .field("predecoded_packets", &self.predecoded_packets.len())
             .finish()
     }
 }
