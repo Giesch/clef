@@ -271,7 +271,10 @@ impl Player {
                         }
                     }
 
-                    PreloaderEffect::PreloaderDied => todo!(),
+                    PreloaderEffect::PreloaderDied => {
+                        // this error is logged in Preloader::spawn
+                        // the player can continue working with gaps
+                    }
                 }
             }
 
