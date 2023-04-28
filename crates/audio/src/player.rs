@@ -265,9 +265,7 @@ impl Player {
                         trace!("Got preloaded decoder: {path}");
 
                         if let Some(state) = &mut state {
-                            // FIXME
                             state.preloaded_content = Some(content);
-                            // state.decoder = content.decoder;
                         }
                     }
 
@@ -659,6 +657,7 @@ impl PlayerState {
             DecodedPacket::Preloaded((_ts, buf)) => audio_output
                 .write(buf.as_audio_buffer_ref())
                 .context("writing preloaded audio")?,
+
             DecodedPacket::JustDecoded(buf) => {
                 audio_output.write(buf).context("writing audio")?
             }

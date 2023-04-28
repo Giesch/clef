@@ -5,7 +5,7 @@ use std::thread::JoinHandle;
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
 use flume::{Receiver, RecvError, Sender};
-use log::error;
+use log::{error, trace};
 use symphonia::core::audio::{AsAudioBufferRef, AudioBuffer, AudioBufferRef};
 use symphonia::core::codecs::Decoder;
 use symphonia::core::formats::{FormatOptions, FormatReader};
@@ -98,20 +98,21 @@ impl Preloader {
                 Err(RecvError::Disconnected) => return Err(PreloaderError::Disconnected),
             };
 
-            log::debug!("Got PreloaderAction: {action:#?}");
+            trace!("Got PreloaderAction: {action:#?}");
 
             let content = match action {
-                PreloaderAction::Load(path) => prepare_decoder(path)?,
+                PreloaderAction::Load(path) => preload(path)?,
             };
+
+            trace!("Finished preload");
 
             to_player.send(PreloaderEffect::Loaded(content)).ok();
         }
     }
 }
 
-// TODO, the gap is still audible; this has to do some actual decoding
 // TODO see if it's worth sharing this code with the player
-fn prepare_decoder(path: Utf8PathBuf) -> anyhow::Result<PreloadedContent> {
+fn preload(path: Utf8PathBuf) -> anyhow::Result<PreloadedContent> {
     let mut hint = Hint::new();
 
     if let Some(extension) = path.extension() {
@@ -147,7 +148,7 @@ fn prepare_decoder(path: Utf8PathBuf) -> anyhow::Result<PreloadedContent> {
 
     let mut predecoded_packets = VecDeque::new();
     loop {
-        // TODO handle EOF differently if looping
+        // TODO handle EOF
         let Ok(packet) = reader.next_packet() else {
             bail!("failed to read packet");
         };
@@ -195,7 +196,7 @@ pub enum AnyAudioBuffer {
 }
 
 impl AnyAudioBuffer {
-    pub fn from_ref<'a>(buffer_ref: AudioBufferRef<'a>) -> AnyAudioBuffer {
+    pub fn from_ref(buffer_ref: AudioBufferRef<'_>) -> AnyAudioBuffer {
         match buffer_ref {
             AudioBufferRef::U8(sample) => AnyAudioBuffer::U8(sample.into_owned()),
             AudioBufferRef::U16(sample) => AnyAudioBuffer::U16(sample.into_owned()),

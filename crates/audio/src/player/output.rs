@@ -345,8 +345,8 @@ mod cpal {
                 return Ok(());
             }
 
-            let mut samples = if let Some(resampler) = &mut self.resampler {
-                // Resampling is required. The resampelr will return interleaved
+            let mut samples: &[T] = if let Some(resampler) = &mut self.resampler {
+                // Resampling is required. The resampler will return interleaved
                 // samples in the correct sample format.
                 match resampler.resample(decoded) {
                     Some(resampled) => resampled,
@@ -360,10 +360,6 @@ mod cpal {
             };
 
             // Write all the interleaved samples to the ring buffer.
-            while let Some(written) = self.ring_buf_producer.write_blocking(samples) {
-                samples = &samples[written..];
-            }
-
             while let Some(written) = self.ring_buf_producer.write_blocking(samples) {
                 samples = &samples[written..];
             }
