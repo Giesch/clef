@@ -32,6 +32,11 @@
         change the write method to take an enum?
         add a separate write_prepared method that skips resampling
           could also type-enforce that somehow
+        going to need a dyn trait version of resampler,
+        that also returns a dyn trait version of samples
+          could also be a problem with the generic in audio_output::cpal though?
+          might need to just hardcode an f32? seems real bad
+          what if preload requests include all the config to make a new resampler?
       - [ ] add a resampler to the preloader
       - [ ] add a way for the audio output to handle pre-resampled writes
     - [ ] test that this doesn't screw with displayed times
