@@ -51,8 +51,6 @@
 
 - [ ] look into parking_lot again
   - [ ] use parking_lot::Mutex instead iced or std Mutex?
-  - [ ] use parking_lot::Once instead of once_cell?
-    could also be possible to use just the stabilized portion of once_cell, after rustc 1.70
 
 - [ ] figure out why hover is slow on windows
   try using tracy?

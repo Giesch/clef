@@ -11,6 +11,9 @@ dev:
 dev:
     cargo run -- --debug
 
+test:
+    cargo test --all
+
 # run in release mode
 [linux]
 run:

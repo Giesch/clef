@@ -824,6 +824,8 @@ mod tests {
             track_info,
             timestamp: 0,
             queue,
+            predecoded_packets: Default::default(),
+            preloaded_content: None,
         };
 
         let effects = player_state.continue_playing().unwrap();
