@@ -508,7 +508,6 @@ name = "clef_shared"
 version = "0.0.1"
 dependencies = [
  "log",
- "once_cell",
  "windows 0.48.0",
 ]
 

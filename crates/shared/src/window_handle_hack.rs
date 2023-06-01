@@ -2,16 +2,16 @@
 //! It's a workaround for iced not yet providing a way to access the window handle.
 //! The hwnd is necessary on windows for supporting os media controls / keys.
 
-use std::sync::Mutex;
+use std::sync::OnceLock;
 
-use super::WINDOW_TITLE;
 use log::{error, trace};
-use once_cell::sync::Lazy;
 use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
 
-static WINDOW_HANDLE: Lazy<Mutex<Option<HWND>>> = Lazy::new(|| Mutex::new(None));
+use super::WINDOW_TITLE;
+
+static WINDOW_HANDLE: OnceLock<HWND> = OnceLock::new();
 
 #[allow(unsafe_code)]
 pub fn set_hwnd() {
@@ -26,10 +26,9 @@ pub fn set_hwnd() {
 
     trace!("setting hwnd: {window:?}");
 
-    let mut handle = WINDOW_HANDLE.lock().unwrap();
-    *handle = Some(window);
+    WINDOW_HANDLE.set(window).ok();
 }
 
 pub fn get_hwnd() -> Option<HWND> {
-    *WINDOW_HANDLE.lock().unwrap()
+    WINDOW_HANDLE.get().copied()
 }
