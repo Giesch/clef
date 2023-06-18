@@ -25,7 +25,7 @@
       - [X] add some logging when a non-preloaded track is played?
         maybe only for continue
     - [X] do some actual decoding on the preloader thread; the gap is still audible
-    - [ ] there's still an audible gap on windows
+    - [-] there's still an audible gap on windows
       - [ ] move resampling out of audio_output?
         what's the right way to do this?
         want to avoid cfg() everywhere
@@ -37,7 +37,8 @@
           could also be a problem with the generic in audio_output::cpal though?
           might need to just hardcode an f32? seems real bad
           what if preload requests include all the config to make a new resampler?
-      - [ ] add a resampler to the preloader
+      - [-] add a resampler to the preloader
+        NOTE this does not work, because it would still require the preloader to be generic
       - [ ] add a way for the audio output to handle pre-resampled writes
     - [ ] test that this doesn't screw with displayed times
       could just only preload a couple packets?

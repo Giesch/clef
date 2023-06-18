@@ -2,8 +2,6 @@ Clef is a native local music player, similar to classic iTunes or MediaMonkey. I
 
 ![music player screenshot](./screenshot.png)
 
-My goal is to make something that feels nicer to use than streaming services, to the point that I prefer to use it myself every day.
-
 Windows and (ubuntu-ish) linux are supported. It might work on other platforms and it might not.
 To build from source on linux, you'll need some native dependencies. Using apt:
 
@@ -24,7 +22,7 @@ cargo install diesel_cli --no-default-features --features sqlite
 
 On windows, it can be easier to have diesel_cli use bundled sqlite than install your own copy:
 
-``` sh
+```sh
 cargo install diesel_cli --no-default-features --features "sqlite-bundled"
 ```
 
