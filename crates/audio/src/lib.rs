@@ -2,6 +2,7 @@
 #![deny(missing_debug_implementations)]
 #![forbid(unsafe_code)]
 
+pub mod blue_green_player;
 pub mod metadata;
 pub mod player;
 pub mod track_info;
