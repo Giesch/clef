@@ -306,8 +306,9 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
-            key_code, ..
-        })) if key_code == KeyCode::Space => toggle(ui),
+            key_code: KeyCode::Space,
+            ..
+        })) => toggle(ui),
 
         Message::Native(_) => Effect::none(),
 
@@ -533,7 +534,7 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     let length = Length::Fixed(IMAGE_SIZE as f32);
 
     let Some(image_bytes) = image_bytes else {
-        return Space::new(length,length).into();
+        return Space::new(length, length).into();
     };
 
     Image::new(image_bytes)

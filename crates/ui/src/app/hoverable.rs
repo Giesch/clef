@@ -85,7 +85,7 @@ where
             return event::Status::Captured;
         }
 
-        let mut state = tree.state.downcast_mut::<State>();
+        let state = tree.state.downcast_mut::<State>();
         let was_hovered = state.is_hovered;
         let now_hovered = layout.bounds().contains(cursor_position);
 
