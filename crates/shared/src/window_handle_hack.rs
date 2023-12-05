@@ -1,6 +1,10 @@
 //! This is a way for the app to look up its own window handle during startup on windows.
 //! It's a workaround for iced not yet providing a way to access the window handle.
 //! The hwnd is necessary on windows for supporting os media controls / keys.
+//!
+//! NOTE This is brittle, and should be replaced with whatever way to expose
+//! the handle iced decides on.
+//! https://github.com/iced-rs/iced/issues/576
 
 use std::sync::OnceLock;
 

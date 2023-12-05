@@ -1,4 +1,9 @@
 * Now
+- [ ] upgrade iced
+  - [ ] start in a separate ui crate?
+  - [ ] get versions working
+  - [ ] make sure unicode works now
+
 - [-] gapless playback
   see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
   - have a separate dedicated 'preloader' thread?
@@ -240,3 +245,7 @@
             └── souvlaki v0.5.1 (https://github.com/Giesch/souvlaki?branch=main#ede6a666)
                 └── clef v0.1.0 (/home/danielknutson/Projects/clef)
 
+- [ ] try to simplify developer setup
+  - setup script?
+  - bundle native deps?
+  - avoid .env with diesel cli
