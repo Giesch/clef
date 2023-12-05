@@ -1,5 +1,9 @@
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
+# list available commands
+list:
+    just -l
+
 # run with debug logs and backtraces
 [linux]
 dev:
@@ -11,8 +15,13 @@ dev:
 dev:
     cargo run -- --debug
 
+# run all tests once
 test:
     cargo test --all
+
+# run all tests continuously
+test-watch:
+    bacon test -- --all
 
 # run in release mode
 [linux]
@@ -33,17 +42,17 @@ reset: remove-db remove-cache
 remove-db:
     rm $HOME/.local/share/clef/db.sqlite*
 
-# clear the cache of resized images
-[linux]
-remove-cache:
-    rm -rf $HOME/.local/share/clef/resized_images
-
-# clear the cache of resized images
+# delete the sqlite database
 [windows]
 remove-db:
     rm $HOME\AppData\Local\Clef\data\db.sqlite*
 
-# clear the cache of resized images
+# delete the cache of resized images
+[linux]
+remove-cache:
+    rm -rf $HOME/.local/share/clef/resized_images
+
+# delete the cache of resized images
 [windows]
 remove-cache:
     rm $HOME\AppData\Local\Clef\data\resized_images\*

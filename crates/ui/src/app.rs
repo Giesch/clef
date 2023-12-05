@@ -728,7 +728,7 @@ fn format_seconds(seconds: f64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{assert_eq, str::FromStr};
 
     use camino::Utf8PathBuf;
 
@@ -776,12 +776,13 @@ mod tests {
 
         let effect = update(&mut ui, message);
 
-        assert!(matches!(
-            effect,
-            Effect::ToResizer(ResizeRequest { album_id, source_path, .. })
-                if album_id == crawled.album.id &&
-                   source_path == crawled.album.original_art.unwrap()
-        ))
+        match effect {
+            Effect::ToResizer(ResizeRequest { album_id, source_path, .. }) => {
+                assert_eq!(album_id, crawled.album.id);
+                assert_eq!(source_path, crawled.album.original_art.unwrap());
+            }
+            _ => panic!("expected resize request"),
+        }
     }
 
     fn crawled_album_message(crawled: &CrawledAlbum) -> Message {
