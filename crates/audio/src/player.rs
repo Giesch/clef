@@ -247,6 +247,10 @@ impl Player {
         } = self;
 
         loop {
+            // FIXME this should use an await or similar mechanism to avoid spinlocking
+            // could use a cond var?
+            // there should be an already implemented version of that
+            // does flume selector work for this?
             let action = match inbox.try_recv() {
                 Ok(action) => Some(action),
                 Err(TryRecvError::Empty) => None,
@@ -323,19 +327,19 @@ impl Player {
                 player_state.playing = false;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Pause), state) => Ok(AudioEffects::same(state)),
+            (Some(Pause), state) => Ok(AudioEffects::none(state)),
 
             (Some(PlayPaused), Some(mut player_state)) if !player_state.playing => {
                 player_state.playing = true;
                 Ok(publish_display_update(player_state))
             }
-            (Some(PlayPaused), state) => Ok(AudioEffects::same(state)),
+            (Some(PlayPaused), state) => Ok(AudioEffects::none(state)),
 
             (Some(Toggle), Some(mut player_state)) => {
                 player_state.playing = !player_state.playing;
                 Ok(publish_display_update(player_state))
             }
-            (Some(Toggle), None) => Ok(AudioEffects::same(None)),
+            (Some(Toggle), None) => Ok(AudioEffects::none(None)),
 
             (Some(Forward), Some(player_state)) => {
                 let mut effects = player_state.forward()?;
@@ -343,7 +347,7 @@ impl Player {
 
                 Ok(effects)
             }
-            (Some(Forward), None) => Ok(AudioEffects::same(None)),
+            (Some(Forward), None) => Ok(AudioEffects::none(None)),
 
             (Some(Back), Some(player_state)) => {
                 let mut effects = player_state.back()?;
@@ -356,15 +360,16 @@ impl Player {
 
                 Ok(effects)
             }
-            (Some(Back), None) => Ok(AudioEffects::same(None)),
+            (Some(Back), None) => Ok(AudioEffects::none(None)),
 
             (Some(Seek(proportion)), Some(player_state)) => {
                 let Some(ProgressTimes { total, .. }) = player_state
                     .track_info
-                    .progress_times(player_state.timestamp) else {
-                        error!("missing track info: {:#?}", player_state.track_info);
-                        return Ok(publish_seek_complete(player_state))
-                    };
+                    .progress_times(player_state.timestamp)
+                else {
+                    error!("missing track info: {:#?}", player_state.track_info);
+                    return Ok(publish_seek_complete(player_state));
+                };
 
                 let mut seek_seconds = total.seconds as f32 * proportion;
                 seek_seconds += total.frac as f32 * proportion;
@@ -373,7 +378,7 @@ impl Player {
 
                 Ok(publish_seek_complete(player_state))
             }
-            (Some(Seek(_)), None) => Ok(AudioEffects::same(None)),
+            (Some(Seek(_)), None) => Ok(AudioEffects::none(None)),
 
             (None, Some(player_state)) if player_state.playing => {
                 let before = player_state.queue.current.id;
@@ -393,7 +398,7 @@ impl Player {
 
                 Ok(effects)
             }
-            (None, state) => Ok(AudioEffects::same(state)),
+            (None, state) => Ok(AudioEffects::none(state)),
         }
     }
 }
@@ -415,7 +420,7 @@ struct AudioEffects {
 
 impl AudioEffects {
     /// preserve the player state, doing nothing else
-    fn same(player_state: Option<PlayerState>) -> Self {
+    fn none(player_state: Option<PlayerState>) -> Self {
         Self {
             player_state,
             audio_message: None,
@@ -610,7 +615,7 @@ impl PlayerState {
                         // Decode errors are not fatal.
                         // Print the error message and try to decode the next packet as usual.
                         warn!("decode error: {}", err);
-                        return Ok(AudioEffects::same(Some(player_state)));
+                        return Ok(AudioEffects::none(Some(player_state)));
                     }
 
                     Err(err) => bail!("failed to read packet: {err}"),
@@ -646,7 +651,7 @@ impl PlayerState {
             .map(|seek_ts| timestamp < seek_ts)
             .unwrap_or_default();
         if seeking {
-            return Ok(AudioEffects::same(Some(player_state)));
+            return Ok(AudioEffects::none(Some(player_state)));
         } else {
             // when a seek is complete, return to publishing the real timestamp
             player_state.seek_ts = None;
