@@ -193,7 +193,8 @@ fn preload(path: Utf8PathBuf) -> anyhow::Result<PreloadedContent> {
     })
 }
 
-// an owned version of AudioBufferRef, so I don't have to deal with generic lifetimes
+// an owned version of AudioBufferRef,
+// so I don't have to deal with generic lifetimes
 #[allow(missing_debug_implementations)]
 pub enum AnyAudioBuffer {
     U8(AudioBuffer<u8>),

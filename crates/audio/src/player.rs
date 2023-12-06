@@ -33,6 +33,14 @@ mod output;
 use output::AudioOutput;
 mod preloader;
 
+#[allow(unused)]
+#[cfg(not(target_os = "linux"))]
+mod device_config;
+
+#[allow(unused)]
+#[cfg(not(target_os = "linux"))]
+use device_config::CpalDeviceConfig;
+
 /// An mpsc message to the audio thread from the ui
 #[derive(Debug, Clone, PartialEq)]
 pub enum AudioAction {
@@ -110,6 +118,10 @@ pub struct Player {
     media_controls: WrappedControls,
     to_preloader: Sender<PreloaderAction>,
     from_preloader: Receiver<PreloaderEffect>,
+
+    #[allow(unused)]
+    #[cfg(not(target_os = "linux"))]
+    device_config: CpalDeviceConfig,
 }
 
 struct PlayerState {
@@ -195,7 +207,8 @@ impl Player {
                     to_self,
                     to_preloader,
                     from_preloader,
-                );
+                )
+                .expect("failed to create player");
 
                 if let Err(err) = player.run_loop() {
                     to_ui.send(AudioMessage::AudioDied).ok();
@@ -223,20 +236,31 @@ impl Player {
         to_self: Sender<AudioAction>,
         to_preloader: Sender<PreloaderAction>,
         from_preloader: Receiver<PreloaderEffect>,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let media_controls = WrappedControls::new(to_self);
 
-        Self {
+        #[allow(unused)]
+        #[cfg(not(target_os = "linux"))]
+        let device_config = CpalDeviceConfig::get_default()
+            .context("failed to get default device config")?;
+
+        Ok(Self {
             state: None,
             inbox,
             to_ui,
             media_controls,
             to_preloader,
             from_preloader,
-        }
+
+            #[allow(unused)]
+            #[cfg(not(target_os = "linux"))]
+            device_config,
+        })
     }
 
     pub fn run_loop(self) -> Result<(), AudioThreadError> {
+        #[allow(unused)]
+        #[cfg(target_os = "linux")]
         let Player {
             mut state,
             inbox,
@@ -246,11 +270,19 @@ impl Player {
             from_preloader,
         } = self;
 
+        #[allow(unused)]
+        #[cfg(not(target_os = "linux"))]
+        let Player {
+            mut state,
+            inbox,
+            to_ui,
+            mut media_controls,
+            to_preloader,
+            from_preloader,
+            device_config,
+        } = self;
+
         loop {
-            // FIXME this should use an await or similar mechanism to avoid spinlocking
-            // could use a cond var?
-            // there should be an already implemented version of that
-            // does flume selector work for this?
             let action = match inbox.try_recv() {
                 Ok(action) => Some(action),
                 Err(TryRecvError::Empty) => None,
@@ -261,7 +293,11 @@ impl Player {
 
             let preloaded = match from_preloader.try_recv() {
                 Ok(action) => Some(action),
-                Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => None,
+                Err(TryRecvError::Empty) => None,
+                // NOTE the player can continue functioning without the preloader,
+                // it'll just have audible gaps;
+                // the disconnect should be logged elsewhere
+                Err(TryRecvError::Disconnected) => None,
             };
 
             if let Some(preloaded) = preloaded {

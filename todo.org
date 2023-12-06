@@ -1,55 +1,34 @@
 * Now
-- [ ] upgrade iced
-  - [ ] start in a separate ui crate?
-  - [ ] get versions working
-  - [ ] make sure unicode works now
-
-- [-] gapless playback
-  see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
-  - have a separate dedicated 'preloader' thread?
-    like, decode the first N seconds and send me a decoder
-    this requires less changes to what i have now
-    it probably as issues with preloading after very short tracks
-  - have a second audio thread and swap between them?
-    this also involves a third mixer/coordinator
-    does this break how i handled seek times in the ui?
-  - [X] try the preloader version and see if it works out
-    - [X] launch a preloader thread in a ready state when spawning the player
-    - [X] send a message to the preloader in play_queue, forward, and back
-      - check that it's working with a log message or something
-  - [X] build a decoder on the preloader, and read n seconds or the whole file
-    could also limit attempted time by the length of the current/previous track
-     don't include any audio device anything
-    - [X] first, load a decoder without any decoding done at first
-    - [X] send the prepared decoder to the player thread
-  - [-] recieve the preloaded decoder on the player thread
-    - [X] store it in a new field
-    - [X] in forward, back, and play_queue, check the new field first,
-      before loading a new decoder
-      - [X] handle forward, back, and continue_playing
-      - [X] add some logging when a non-preloaded track is played?
-        maybe only for continue
-    - [X] do some actual decoding on the preloader thread; the gap is still audible
-    - [-] there's still an audible gap on windows
-      - [ ] move resampling out of audio_output?
-        what's the right way to do this?
-        want to avoid cfg() everywhere
-        change the write method to take an enum?
-        add a separate write_prepared method that skips resampling
-          could also type-enforce that somehow
-        going to need a dyn trait version of resampler,
-        that also returns a dyn trait version of samples
-          could also be a problem with the generic in audio_output::cpal though?
-          might need to just hardcode an f32? seems real bad
-          what if preload requests include all the config to make a new resampler?
-      - [-] add a resampler to the preloader
-        NOTE this does not work, because it would still require the preloader to be generic
-      - [ ] add a way for the audio output to handle pre-resampled writes
+- [ ] gapless playback on windows
+  - [ ] try to make current preloader thread method work
+    basically, put cfg macros all over the place
+    - [ ] get cpal device config on startup
+    - [ ] preloader makes its own resampler
+    - [ ] figure out how to send maybe-resampled samples to player thread
+      does this still cause problems with the preloader needing a generic?
+      or does having device config already solve that?
+      can it just use AnyAudioBuffer again?
+    - [ ] add a way for the audio output to handle pre-resampled writes
+      this needs to work as before on linux
+    - [ ] remove resampler from audio output
     - [ ] test that this doesn't screw with displayed times
       could just only preload a couple packets?
     - [ ] look for other bugs
 
-  - [ ] think over what other changes are necessary to do the swapping version
+  - [ ] if that doesn't work, rewrite with blue/green player
+    see the answer here: https://github.com/pdeljanov/Symphonia/discussions/169
+    - do not close & reopen the audio device
+      hold on to the 'spec' of the device from the beginning
+      this probably requires redoing the output module
+      on windows, at least, it needs the resample rate earlier
+        but this is also always known from startup, because it uses the default config; we could put the resampler before the output module
+      the problem is that makes the whole pipeline platform-dependent
+    - use a blue/green swapping pair of audio threads
+
+- [ ] upgrade iced
+  - [ ] start in a separate ui crate?
+  - [ ] get all lib versions working
+  - [ ] make sure unicode works now
 
 * Next
 - [ ] think about how to do search ui
@@ -64,6 +43,7 @@
 - [ ] reduce cpu usage
   where is it coming from? me, iced, or symphonia? audio thread spinning?
   other flume worker threads spinning on empty queues?
+  never starting the audio thread still takes 40% CPU
 
 - [ ] handle text overflow in bottom bar gracefully
   do the scroll back and forth thing? needs animations
@@ -249,3 +229,5 @@
   - setup script?
   - bundle native deps?
   - avoid .env with diesel cli
+
+- [ ] figure out if/how/why AnyAudioBuffer is bad, maybe get rid of it
