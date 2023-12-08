@@ -201,12 +201,20 @@ impl Player {
         let join_handle = std::thread::Builder::new()
             .name("ClefAudioPlayer".to_string())
             .spawn(move || {
+                #[allow(unused)]
+                #[cfg(not(target_os = "linux"))]
+                let device_config = CpalDeviceConfig::get_default()
+                    .expect("failed to get default device config");
+
                 let player = Player::new(
                     inbox,
                     to_ui.clone(),
                     to_self,
                     to_preloader,
                     from_preloader,
+                    #[allow(unused)]
+                    #[cfg(not(target_os = "linux"))]
+                    device_config,
                 )
                 .expect("failed to create player");
 
@@ -236,13 +244,12 @@ impl Player {
         to_self: Sender<AudioAction>,
         to_preloader: Sender<PreloaderAction>,
         from_preloader: Receiver<PreloaderEffect>,
-    ) -> anyhow::Result<Self> {
-        let media_controls = WrappedControls::new(to_self);
 
         #[allow(unused)]
         #[cfg(not(target_os = "linux"))]
-        let device_config = CpalDeviceConfig::get_default()
-            .context("failed to get default device config")?;
+        device_config: CpalDeviceConfig,
+    ) -> anyhow::Result<Self> {
+        let media_controls = WrappedControls::new(to_self);
 
         Ok(Self {
             state: None,
@@ -283,14 +290,6 @@ impl Player {
         } = self;
 
         loop {
-            let action = match inbox.try_recv() {
-                Ok(action) => Some(action),
-                Err(TryRecvError::Empty) => None,
-                Err(TryRecvError::Disconnected) => {
-                    return Err(AudioThreadError::Disconnected);
-                }
-            };
-
             let preloaded = match from_preloader.try_recv() {
                 Ok(action) => Some(action),
                 Err(TryRecvError::Empty) => None,
@@ -300,23 +299,31 @@ impl Player {
                 Err(TryRecvError::Disconnected) => None,
             };
 
-            if let Some(preloaded) = preloaded {
-                match preloaded {
-                    PreloaderEffect::Loaded(content) => {
-                        let path = content.path.clone();
-                        trace!("Got preloaded decoder: {path}");
+            match preloaded {
+                Some(PreloaderEffect::Loaded(content)) => {
+                    let path = content.path.clone();
+                    trace!("Got preloaded decoder: {path}");
 
-                        if let Some(state) = &mut state {
-                            state.preloaded_content = Some(content);
-                        }
-                    }
-
-                    PreloaderEffect::PreloaderDied => {
-                        // this error is logged in Preloader::spawn
-                        // the player can continue working with gaps
+                    if let Some(state) = &mut state {
+                        state.preloaded_content = Some(content);
                     }
                 }
+                Some(PreloaderEffect::PreloaderDied) => {
+                    // this error is logged in Preloader::spawn
+                    // the player can continue working with gaps
+                    #[cfg(debug_assertions)]
+                    panic!("preloader thread died")
+                }
+                None => {}
             }
+
+            let action = match inbox.try_recv() {
+                Ok(action) => Some(action),
+                Err(TryRecvError::Empty) => None,
+                Err(TryRecvError::Disconnected) => {
+                    return Err(AudioThreadError::Disconnected);
+                }
+            };
 
             let was_playing = state.is_some();
 
@@ -672,6 +679,9 @@ impl PlayerState {
             // decoder, but the length is not.
             let duration = decoded.capacity() as u64;
 
+            // FIXME this needs to happen much earlier,
+            //   but that means we need to be able to swap out the spec,
+            //   and reallocate  based on changing duration?
             // Try to open the audio output.
             let new_audio_output =
                 output::try_open(spec, duration).context("opening audio device")?;

@@ -1,8 +1,8 @@
 * Now
-- [ ] gapless playback on windows
-  - [ ] try to make current preloader thread method work
+- [-] gapless playback on windows
+  - [-] try to make current preloader thread method work
     basically, put cfg macros all over the place
-    - [ ] get cpal device config on startup
+    - [X] get cpal device config on startup
     - [ ] preloader makes its own resampler
     - [ ] figure out how to send maybe-resampled samples to player thread
       does this still cause problems with the preloader needing a generic?

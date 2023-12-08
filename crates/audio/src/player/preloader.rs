@@ -4,7 +4,7 @@ use std::thread::JoinHandle;
 
 use anyhow::{bail, Context};
 use camino::Utf8PathBuf;
-use flume::{Receiver, RecvError, Sender};
+use flume::{Receiver, Sender};
 use log::{error, trace};
 use symphonia::core::audio::{AsAudioBufferRef, AudioBuffer, AudioBufferRef};
 use symphonia::core::codecs::Decoder;
@@ -16,9 +16,17 @@ use symphonia::core::sample::{i24, u24};
 
 use crate::track_info::{first_supported_track, TrackInfo};
 
+#[allow(unused)]
+#[cfg(not(target_os = "linux"))]
+use super::device_config::CpalDeviceConfig;
+
 pub struct Preloader {
     inbox: Receiver<PreloaderAction>,
     to_player: Sender<PreloaderEffect>,
+
+    #[allow(unused)]
+    #[cfg(not(target_os = "linux"))]
+    device_config: CpalDeviceConfig,
 }
 
 #[derive(Debug)]
@@ -80,7 +88,18 @@ impl Preloader {
         std::thread::Builder::new()
             .name("ClefAudioPreloader".to_string())
             .spawn(move || {
-                let preloader = Self::new(inbox, to_player.clone());
+                #[allow(unused)]
+                #[cfg(not(target_os = "linux"))]
+                let device_config = CpalDeviceConfig::get_default()
+                    .expect("failed to get default device config");
+
+                let preloader = Self::new(
+                    inbox,
+                    to_player.clone(),
+                    #[allow(unused)]
+                    #[cfg(not(target_os = "linux"))]
+                    device_config,
+                );
 
                 if let Err(err) = preloader.run_loop() {
                     to_player.send(PreloaderEffect::PreloaderDied).ok();
@@ -98,18 +117,25 @@ impl Preloader {
     pub fn new(
         inbox: Receiver<PreloaderAction>,
         to_player: Sender<PreloaderEffect>,
+
+        #[allow(unused)]
+        #[cfg(not(target_os = "linux"))]
+        device_config: CpalDeviceConfig,
     ) -> Self {
-        Self { inbox, to_player }
+        Self { inbox, to_player, device_config }
     }
 
     pub fn run_loop(self) -> Result<(), PreloaderError> {
+        #[allow(unused)]
+        #[cfg(target_os = "linux")]
         let Preloader { inbox, to_player } = self;
 
+        #[allow(unused)]
+        #[cfg(not(target_os = "linux"))]
+        let Preloader { inbox, to_player, device_config } = self;
+
         loop {
-            let action = match inbox.recv() {
-                Ok(action) => action,
-                Err(RecvError::Disconnected) => return Err(PreloaderError::Disconnected),
-            };
+            let action = inbox.recv().map_err(|_| PreloaderError::Disconnected)?;
 
             trace!("Got PreloaderAction: {action:#?}");
 
