@@ -5,17 +5,17 @@ edition = "2021"
 authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 
 [dependencies]
-anyhow = { version = "1.0.66", features = ["backtrace"] }
-camino = "1.1.1"
-flume = { version = "0.10.14" }
-log = { version = "0.4", features = ["release_max_level_info"] }
-thiserror = "1.0.37"
-
-iced_style = "0.8.0"
+anyhow.workspace = true
+camino.workspace = true
+flume.workspace = true
+log.workspace = true
+thiserror.workspace = true
 
 clef_shared = { path = "../shared" }
 clef_db = { path = "../db" }
 clef_audio = { path = "../audio" }
+
+iced_style = "0.8.0"
 
 [dependencies.iced]
 version = "0.9"

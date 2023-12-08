@@ -5,11 +5,12 @@ edition = "2021"
 authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 
 [dependencies]
-anyhow = { version = "1.0.66", features = ["backtrace"] }
-camino = "1.1.1"
-directories = "4.0.1"
-flume = { version = "0.10.14" }
-log = { version = "0.4", features = ["release_max_level_info"] }
+anyhow.workspace = true
+camino.workspace = true
+directories.workspace = true
+flume.workspace = true
+log.workspace = true
+
 pretty_env_logger = "0.4"
 
 clef_shared = { path = "./crates/shared" }
@@ -29,3 +30,12 @@ members = [
     "crates/audio",
     "crates/ui"
 ]
+
+[workspace.dependencies]
+anyhow = { version = "1.0.66", features = ["backtrace"] }
+camino = "1.1.1"
+directories = "4.0.1"
+flume = { version = "0.10.14" }
+log = { version = "0.4", features = ["release_max_level_info"] }
+
+thiserror = "1.0.37"

@@ -5,14 +5,14 @@ edition = "2021"
 authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 
 [dependencies]
-camino = "1.1.1"
+camino.workspace = true
+thiserror.workspace = true
+# this is unused, but it probably shouldn't be
+log.workspace = true
+
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 libsqlite3-sys = { version = "0.25.2", features = ["bundled"] }
 r2d2 = "0.8.10"
-thiserror = "1.0.37"
-
-# this is unused, but it probably shouldn't be
-log = { version = "0.4", features = ["release_max_level_info"] }
 
 [dependencies.diesel]
 version = "2.0.2"
