@@ -122,7 +122,15 @@ impl Preloader {
         #[cfg(not(target_os = "linux"))]
         device_config: CpalDeviceConfig,
     ) -> Self {
-        Self { inbox, to_player, device_config }
+        #[allow(unused)]
+        #[cfg(not(target_os = "linux"))]
+        let new = Self { inbox, to_player, device_config };
+
+        #[allow(unused)]
+        #[cfg(target_os = "linux")]
+        let new = Self { inbox, to_player };
+
+        new
     }
 
     pub fn run_loop(self) -> Result<(), PreloaderError> {
