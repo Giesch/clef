@@ -3,14 +3,11 @@ use std::fs::File;
 
 use camino::Utf8Path;
 use log::error;
-use symphonia::core::meta::{Metadata, StandardTagKey};
 use symphonia::core::{
-    formats::FormatOptions,
+    formats::{probe::Hint, FormatOptions},
     io::MediaSourceStream,
-    meta::{MetadataOptions, MetadataRevision},
-    probe::Hint,
+    meta::{MetadataRevision, StandardTag},
 };
-use symphonia::default::get_probe;
 
 use crate::track_info::{first_supported_track, TrackInfo};
 
@@ -20,83 +17,82 @@ pub struct DecodedMetadata {
     pub total_seconds: u64,
 }
 
-/// NOTE This includes an empty tag map if the tags are missing,
-/// and None for file not found or unsupported format
+/// Includes an empty tag map when tags are absent. Returns None for unreadable media.
 pub fn decode_metadata(path: &Utf8Path) -> Option<DecodedMetadata> {
-    let mut hint = Hint::new();
-    let source = {
-        // Provide the file extension as a hint.
+    let result = (|| -> anyhow::Result<DecodedMetadata> {
+        let mut hint = Hint::new();
         if let Some(extension) = path.extension() {
             hint.with_extension(extension);
         }
-
-        let file = match File::open(path) {
-            Ok(f) => f,
-            Err(e) => {
-                error!("unexpected file not found: {:?}", e);
-                return None;
+        let source =
+            MediaSourceStream::new(Box::new(File::open(path)?), Default::default());
+        let mut reader = symphonia::default::get_probe().probe(
+            &hint,
+            source,
+            FormatOptions::default(),
+            Default::default(),
+        )?;
+        let track = first_supported_track(reader.tracks())
+            .ok_or_else(|| anyhow::anyhow!("no audio track"))?;
+        let info = TrackInfo::from(track);
+        let times = info
+            .progress_times(symphonia::core::units::Timestamp::ZERO)
+            .ok_or_else(|| anyhow::anyhow!("missing track timing"))?;
+        let mut tags = HashMap::new();
+        let mut metadata = reader.metadata();
+        loop {
+            if let Some(revision) = metadata.current() {
+                gather_tags(revision, info.id, &mut tags);
             }
-        };
-
-        Box::new(file)
-    };
-    let mss = MediaSourceStream::new(source, Default::default());
-    let format_opts = FormatOptions {
-        enable_gapless: true,
-        ..Default::default()
-    };
-    let metadata_opts: MetadataOptions = Default::default();
-
-    let mut probed = match get_probe().format(&hint, mss, &format_opts, &metadata_opts) {
-        Ok(p) => p,
-        Err(e) => {
-            let path_str = path.as_str();
-            error!("file in unsupported format: {path_str} {e}");
-            return None;
+            if metadata.pop().is_none() {
+                break;
+            }
         }
-    };
-
-    let Some(track) = first_supported_track(probed.format.tracks()) else {
-        error!("no supported track");
-        return None;
-    };
-    let track_info: TrackInfo = track.into();
-
-    let Some(times) = track_info.progress_times(0) else {
-        error!("missing time information for audio file: {path}");
-        return None;
-    };
-
-    let tags = if let Some(metadata_rev) = probed.format.metadata().current() {
-        Some(gather_tags(metadata_rev))
-    } else {
-        probed
-            .metadata
-            .get()
-            .as_ref()
-            .and_then(Metadata::current)
-            .map(gather_tags)
-    };
-    let tags = tags.unwrap_or_default();
-
-    let total_seconds = times.total.seconds;
-
-    Some(DecodedMetadata { tags, total_seconds })
-}
-
-fn gather_tags(metadata_rev: &MetadataRevision) -> HashMap<TagKey, String> {
-    let mut result = HashMap::new();
-
-    for tag in metadata_rev.tags().iter() {
-        if let Some(key) = tag.std_key.and_then(|key| TagKey::try_from(key).ok()) {
-            result.insert(key, tag.value.to_string());
+        Ok(DecodedMetadata {
+            tags,
+            total_seconds: times.total.seconds,
+        })
+    })();
+    match result {
+        Ok(metadata) => Some(metadata),
+        Err(err) => {
+            error!("cannot read metadata for {path}: {err}");
+            None
         }
     }
-
-    result
 }
 
-/// A limited set of standard tag keys used by the application
+fn gather_tags(
+    revision: &MetadataRevision,
+    track_id: u32,
+    result: &mut HashMap<TagKey, String>,
+) {
+    let containers = std::iter::once(&revision.media).chain(
+        revision
+            .per_track
+            .iter()
+            .filter(|track| track.track_id == u64::from(track_id))
+            .map(|track| &track.metadata),
+    );
+    for container in containers {
+        for tag in &container.tags {
+            if let Some(key) = tag.std.as_ref().and_then(tag_key) {
+                let value = match tag.std.as_ref() {
+                    Some(
+                        StandardTag::TrackNumber(value)
+                        | StandardTag::TrackTotal(value)
+                        | StandardTag::PartTotal(value)
+                        | StandardTag::MovementNumber(value),
+                    ) => value.to_string(),
+                    _ => tag.raw.value.to_string(),
+                };
+                result.insert(key, value);
+            }
+        }
+    }
+}
+
+/// The standard tags exposed to the application.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TagKey {
     Album,
@@ -124,42 +120,31 @@ pub enum TagKey {
     TrackTotal,
 }
 
-impl TryFrom<StandardTagKey> for TagKey {
-    type Error = IgnoredTagError;
-
-    fn try_from(value: StandardTagKey) -> Result<Self, Self::Error> {
-        match value {
-            StandardTagKey::Album => Ok(TagKey::Album),
-            StandardTagKey::AlbumArtist => Ok(TagKey::AlbumArtist),
-            StandardTagKey::Artist => Ok(TagKey::Artist),
-            StandardTagKey::Composer => Ok(TagKey::Composer),
-            StandardTagKey::Conductor => Ok(TagKey::Conductor),
-            StandardTagKey::Date => Ok(TagKey::Date),
-            StandardTagKey::Description => Ok(TagKey::Description),
-            StandardTagKey::Genre => Ok(TagKey::Genre),
-            StandardTagKey::Label => Ok(TagKey::Label),
-            StandardTagKey::Language => Ok(TagKey::Language),
-            StandardTagKey::Lyrics => Ok(TagKey::Lyrics),
-            StandardTagKey::Mood => Ok(TagKey::Mood),
-            StandardTagKey::MovementName => Ok(TagKey::MovementName),
-            StandardTagKey::MovementNumber => Ok(TagKey::MovementNumber),
-            StandardTagKey::Part => Ok(TagKey::Part),
-            StandardTagKey::PartTotal => Ok(TagKey::PartTotal),
-            StandardTagKey::Producer => Ok(TagKey::Producer),
-            StandardTagKey::ReleaseDate => Ok(TagKey::ReleaseDate),
-            StandardTagKey::Remixer => Ok(TagKey::Remixer),
-            StandardTagKey::TrackNumber => Ok(TagKey::TrackNumber),
-            StandardTagKey::TrackSubtitle => Ok(TagKey::TrackSubtitle),
-            StandardTagKey::TrackTitle => Ok(TagKey::TrackTitle),
-            StandardTagKey::TrackTotal => Ok(TagKey::TrackTotal),
-
-            _ => Err(IgnoredTagError::Ignored),
-        }
-    }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum IgnoredTagError {
-    #[error("ignored tag key")]
-    Ignored,
+fn tag_key(tag: &StandardTag) -> Option<TagKey> {
+    Some(match tag {
+        StandardTag::Album(_) => TagKey::Album,
+        StandardTag::AlbumArtist(_) => TagKey::AlbumArtist,
+        StandardTag::Artist(_) => TagKey::Artist,
+        StandardTag::Composer(_) => TagKey::Composer,
+        StandardTag::Conductor(_) => TagKey::Conductor,
+        StandardTag::RecordingDate(_) => TagKey::Date,
+        StandardTag::Description(_) => TagKey::Description,
+        StandardTag::Genre(_) => TagKey::Genre,
+        StandardTag::Label(_) => TagKey::Label,
+        StandardTag::Language(_) => TagKey::Language,
+        StandardTag::Lyrics(_) => TagKey::Lyrics,
+        StandardTag::Mood(_) => TagKey::Mood,
+        StandardTag::MovementName(_) => TagKey::MovementName,
+        StandardTag::MovementNumber(_) => TagKey::MovementNumber,
+        StandardTag::Part(_) => TagKey::Part,
+        StandardTag::PartTotal(_) => TagKey::PartTotal,
+        StandardTag::Producer(_) => TagKey::Producer,
+        StandardTag::ReleaseDate(_) => TagKey::ReleaseDate,
+        StandardTag::Remixer(_) => TagKey::Remixer,
+        StandardTag::TrackNumber(_) => TagKey::TrackNumber,
+        StandardTag::TrackSubtitle(_) => TagKey::TrackSubtitle,
+        StandardTag::TrackTitle(_) => TagKey::TrackTitle,
+        StandardTag::TrackTotal(_) => TagKey::TrackTotal,
+        _ => return None,
+    })
 }

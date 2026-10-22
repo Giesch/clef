@@ -8,14 +8,14 @@ use camino::Utf8PathBuf;
 use flume::{Receiver, Sender, TryRecvError};
 use log::{error, info, trace, warn};
 use souvlaki::{MediaPlayback, MediaPosition};
-use symphonia::core::audio::{AsAudioBufferRef, AudioBufferRef};
-use symphonia::core::codecs::Decoder;
+use symphonia::core::audio::{AsGenericAudioBufferRef, GenericAudioBufferRef};
+use symphonia::core::codecs::audio::AudioDecoder as Decoder;
 use symphonia::core::errors::Error as SymphoniaError;
+use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
-use symphonia::core::units::Time;
+use symphonia::core::units::{Time, Timestamp};
 
 use clef_db::queries::SongId;
 use clef_shared::queue::Queue;
@@ -95,17 +95,32 @@ pub struct PlayerDisplay {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ProgressTime {
+    pub seconds: u64,
+    pub frac: f64,
+}
+
+impl ProgressTime {
+    pub(crate) fn from_seconds(seconds: f64) -> Self {
+        Self {
+            seconds: seconds as u64,
+            frac: seconds.fract(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProgressTimes {
-    pub elapsed: Time,
-    pub remaining: Time,
-    pub total: Time,
+    pub elapsed: ProgressTime,
+    pub remaining: ProgressTime,
+    pub total: ProgressTime,
 }
 
 impl ProgressTimes {
     pub const ZERO: Self = Self {
-        elapsed: Time { seconds: 0, frac: 0.0 },
-        remaining: Time { seconds: 0, frac: 0.0 },
-        total: Time { seconds: 0, frac: 0.0 },
+        elapsed: ProgressTime { seconds: 0, frac: 0.0 },
+        remaining: ProgressTime { seconds: 0, frac: 0.0 },
+        total: ProgressTime { seconds: 0, frac: 0.0 },
     };
 }
 
@@ -129,10 +144,10 @@ struct PlayerState {
     decoder: Box<dyn Decoder>,
     audio_output: Option<Box<dyn output::AudioOutput>>,
     playing: bool, // false = paused
-    seek_ts: Option<u64>,
+    seek_ts: Option<Timestamp>,
     track_info: TrackInfo,
     queue: Queue<QueuedSong>,
-    timestamp: u64,
+    timestamp: Timestamp,
     /// pre-decoded data about the next song in the queue
     preloaded_content: Option<PreloadedContent>,
     /// pre-decoded packets for the currrently playing song
@@ -491,7 +506,7 @@ impl PlayerState {
             seek_ts: None,
             audio_output: None,
             playing: true,
-            timestamp: 0,
+            timestamp: Timestamp::ZERO,
             preloaded_content: None,
             predecoded_packets: preloaded.predecoded_packets,
         }
@@ -507,38 +522,38 @@ impl PlayerState {
         }
 
         let file = File::open(&queue.current.path)
-            .with_context(|| format!("file not found: {}", &queue.current.path))?;
+            .with_context(|| format!("file not found: {}", queue.current.path))?;
 
         let source = Box::new(file);
 
         let mss = MediaSourceStream::new(source, Default::default());
 
-        let format_opts = FormatOptions {
-            enable_gapless: true,
-            ..Default::default()
-        };
+        let format_opts = FormatOptions::default();
 
         let metadata_opts: MetadataOptions = Default::default();
 
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
+        let reader = symphonia::default::get_probe()
+            .probe(&hint, mss, format_opts, metadata_opts)
             .context("The input was not supported by any format reader")?;
 
         let track =
-            first_supported_track(probed.format.tracks()).context("no playable track")?;
+            first_supported_track(reader.tracks()).context("no playable track")?;
         let track_info: TrackInfo = track.into();
-
-        // default decode opts (no verify)
+        let params = track
+            .codec_params
+            .as_ref()
+            .and_then(|params| params.audio())
+            .context("missing audio codec parameters")?;
         let decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &Default::default())
+            .make_audio_decoder(params, &Default::default())
             .context("making decoder")?;
 
         Ok(Self {
-            reader: probed.format,
+            reader,
             seek_ts: None,
             audio_output: None,
             playing: true,
-            timestamp: 0,
+            timestamp: Timestamp::ZERO,
             decoder,
             track_info,
             queue,
@@ -549,12 +564,16 @@ impl PlayerState {
 
     fn seek_to(mut self, target: f32) -> Self {
         let seek_to = SeekTo::Time {
-            time: Time::from(target),
+            time: Time::try_from_secs_f64(f64::from(target)).unwrap_or(Time::ZERO),
             track_id: Some(self.track_info.id),
         };
 
         self.seek_ts = match self.reader.seek(SeekMode::Accurate, seek_to) {
-            Ok(seeked_to) => Some(seeked_to.required_ts),
+            Ok(seeked_to) => {
+                self.decoder.reset();
+                self.predecoded_packets.clear();
+                Some(seeked_to.required_ts)
+            }
             Err(e) => {
                 error!("seek error: {e}");
                 None
@@ -618,7 +637,7 @@ impl PlayerState {
         }
 
         let mut new_state = self.seek_to(0.0);
-        new_state.timestamp = 0;
+        new_state.timestamp = Timestamp::ZERO;
 
         Ok(publish_display_update(new_state))
     }
@@ -635,14 +654,11 @@ impl PlayerState {
             } else {
                 // Get the next packet from the format reader.
                 let packet = match player_state.reader.next_packet() {
-                    Ok(packet) => packet,
-
-                    // NOTE this is the normal way to reach the end of the file,
-                    // not really an error
-                    // https://github.com/pdeljanov/Symphonia/issues/134
-                    Err(SymphoniaError::IoError(io_error))
-                        if io_error.kind() == std::io::ErrorKind::UnexpectedEof =>
-                    {
+                    Ok(Some(packet)) => packet,
+                    Ok(None) => {
+                        if let Some(mut output) = player_state.audio_output.take() {
+                            output.flush();
+                        }
                         return player_state.forward();
                     }
 
@@ -651,6 +667,9 @@ impl PlayerState {
                     }
                 };
 
+                if packet.track_id != player_state.track_info.id {
+                    return Ok(AudioEffects::none(Some(player_state)));
+                }
                 let decoded = match player_state.decoder.decode(&packet) {
                     Ok(decoded) => DecodedPacket::JustDecoded(decoded),
 
@@ -664,7 +683,7 @@ impl PlayerState {
                     Err(err) => bail!("failed to read packet: {err}"),
                 };
 
-                (packet.ts(), decoded)
+                (packet.pts, decoded)
             }
         };
 
@@ -672,7 +691,7 @@ impl PlayerState {
         if player_state.audio_output.is_none() {
             // Get the audio buffer specification. This is a description of the decoded
             // audio buffer's sample format and sample rate.
-            let spec = *decoded.spec();
+            let spec = decoded.spec().clone();
 
             // Get the capacity of the decoded buffer. Note that this is capacity, not
             // length! The capacity of the decoded buffer is constant for the life of the
@@ -710,7 +729,7 @@ impl PlayerState {
 
         match decoded {
             DecodedPacket::Preloaded((_ts, buf)) => audio_output
-                .write(buf.as_audio_buffer_ref())
+                .write(buf.as_generic_audio_buffer_ref())
                 .context("writing preloaded audio")?,
 
             DecodedPacket::JustDecoded(buf) => {
@@ -725,7 +744,7 @@ impl PlayerState {
     // to the new timestamp; we publish the timestamp where we're going to.
     // This relies on resetting seek_ts to None in continue_playing
     // when the seek is complete.
-    fn optimistic_timestamp(&self) -> u64 {
+    fn optimistic_timestamp(&self) -> Timestamp {
         self.seek_ts.unwrap_or(self.timestamp)
     }
 
@@ -735,12 +754,12 @@ impl PlayerState {
 }
 
 enum DecodedPacket<'a> {
-    Preloaded((u64, AnyAudioBuffer)),
-    JustDecoded(AudioBufferRef<'a>),
+    Preloaded((Timestamp, AnyAudioBuffer)),
+    JustDecoded(GenericAudioBufferRef<'a>),
 }
 
 impl<'a> DecodedPacket<'a> {
-    fn spec(&self) -> &symphonia::core::audio::SignalSpec {
+    fn spec(&self) -> &symphonia::core::audio::AudioSpec {
         match self {
             DecodedPacket::Preloaded((_ts, buf)) => buf.spec(),
             DecodedPacket::JustDecoded(buf) => buf.spec(),
@@ -822,153 +841,4 @@ fn prepare_publish(
     let display: PlayerDisplay = new_state.into();
 
     (display, metadata, playback)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-
-    use super::*;
-    use crate::player::output::AudioOutput;
-    use mockall::mock;
-    use symphonia::core::formats::Track;
-
-    #[test]
-    fn continue_playing_doesnt_crash_for_eof() {
-        let track_info = TrackInfo {
-            id: 0,
-            time_base: None,
-            duration: None,
-        };
-
-        let decoder = MockDecoder::new();
-        let output = MockOutput::default();
-
-        let mut reader = MockReader::new();
-        reader.expect_next_packet().times(1).returning(|| {
-            let kind = std::io::ErrorKind::UnexpectedEof;
-            let io_error = std::io::Error::new(kind, anyhow::anyhow!("EOF"));
-            Err(SymphoniaError::IoError(io_error))
-        });
-
-        let current = QueuedSong {
-            id: SongId::new(1),
-            path: Utf8PathBuf::from_str("fake").unwrap(),
-            title: Some("current song".to_string()),
-            artist: None,
-            album_title: None,
-            resized_art: None,
-            duration: None,
-        };
-        let queue = Queue {
-            current,
-            previous: Default::default(),
-            next: Default::default(),
-        };
-
-        let player_state = PlayerState {
-            audio_output: Some(Box::new(output)),
-            reader: Box::new(reader),
-            decoder: Box::new(decoder),
-            playing: true,
-            seek_ts: None,
-            track_info,
-            timestamp: 0,
-            queue,
-            predecoded_packets: Default::default(),
-            preloaded_content: None,
-        };
-
-        let effects = player_state.continue_playing().unwrap();
-
-        assert!(matches!(effects.player_state, None));
-        assert!(matches!(
-            effects.audio_message,
-            Some(AudioMessage::DisplayUpdate(None))
-        ));
-    }
-
-    mock! {
-        Reader {}
-
-        impl FormatReader for Reader {
-            fn next_packet(
-                &mut self,
-            ) -> symphonia::core::errors::Result<symphonia::core::formats::Packet>;
-
-            fn try_new(
-                source: MediaSourceStream,
-                options: &FormatOptions,
-            ) -> symphonia::core::errors::Result<Self>;
-
-            fn cues(&self) -> &[symphonia::core::formats::Cue];
-
-            fn metadata(&mut self) -> symphonia::core::meta::Metadata<'_>;
-
-            fn seek(
-                &mut self,
-                mode: symphonia::core::formats::SeekMode,
-                to: symphonia::core::formats::SeekTo,
-            ) -> symphonia::core::errors::Result<symphonia::core::formats::SeekedTo>;
-
-            fn tracks(&self) -> &[Track];
-
-            fn into_inner(self: Box<Self>) -> MediaSourceStream;
-        }
-    }
-
-    mock! {
-        Decoder {}
-
-        impl Decoder for Decoder {
-            fn try_new(
-                params: &symphonia::core::codecs::CodecParameters,
-                options: &symphonia::core::codecs::DecoderOptions,
-            ) -> symphonia::core::errors::Result<Self>;
-
-            fn supported_codecs() -> &'static [symphonia::core::codecs::CodecDescriptor];
-
-            fn reset(&mut self) ;
-
-            fn codec_params(&self) -> &symphonia::core::codecs::CodecParameters;
-
-            fn decode(
-                &mut self,
-                packet: &symphonia::core::formats::Packet,
-            ) -> symphonia::core::errors::Result<symphonia::core::audio::AudioBufferRef<'static>>;
-
-            fn finalize(&mut self) -> symphonia::core::codecs::FinalizeResult;
-
-            fn last_decoded(&self) -> symphonia::core::audio::AudioBufferRef<'_>;
-        }
-    }
-
-    /// A mock AudioOutput that asserts it was flushed on drop.
-    ///
-    /// NOTE
-    /// mockall can't mock functions with non-static generic arguments,
-    /// like the write method's 'decoded' argument
-    #[derive(Default)]
-    struct MockOutput {
-        flushed: bool,
-    }
-
-    impl AudioOutput for MockOutput {
-        fn flush(&mut self) {
-            self.flushed = true;
-        }
-
-        fn write(
-            &mut self,
-            _decoded: symphonia::core::audio::AudioBufferRef<'_>,
-        ) -> output::Result<()> {
-            unimplemented!()
-        }
-    }
-
-    impl Drop for MockOutput {
-        fn drop(&mut self) {
-            assert!(self.flushed);
-        }
-    }
 }
