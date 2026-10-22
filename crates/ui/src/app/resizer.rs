@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use camino::{Utf8Path, Utf8PathBuf};
-use flume::{Receiver, TryRecvError};
+use flume::Receiver;
 use log::error;
 
 use crate::app::old_unfold::old_unfold;
@@ -35,12 +35,13 @@ pub fn resizer_subscription(
     config: Arc<Config>,
     db: SqlitePool,
     inbox: Receiver<ResizeRequest>,
+    generation: u64,
 ) -> iced::Subscription<ResizerMessage> {
     struct ResizerSub;
 
     old_unfold(
-        std::any::TypeId::of::<ResizerSub>(),
-        ResizerState::Working,
+        (std::any::TypeId::of::<ResizerSub>(), generation),
+        || ResizerState::Working,
         move |state| step(state, config.clone(), db.clone(), inbox.clone()),
     )
 }
@@ -60,14 +61,9 @@ async fn step(
         ResizerState::Working => {
             let images_directory = &config.resized_images_directory;
 
-            let request = match inbox.try_recv() {
+            let request = match inbox.recv_async().await {
                 Ok(request) => request,
-                Err(TryRecvError::Empty) => {
-                    return (None, ResizerState::Working);
-                }
-                Err(TryRecvError::Disconnected) => {
-                    return (None, ResizerState::Stopped);
-                }
+                Err(_) => return (None, ResizerState::Stopped),
             };
 
             let message = match resize(&request, images_directory, db) {
@@ -81,7 +77,7 @@ async fn step(
             (message, ResizerState::Working)
         }
 
-        ResizerState::Stopped => (None, ResizerState::Stopped),
+        ResizerState::Stopped => iced::futures::future::pending().await,
     }
 }
 

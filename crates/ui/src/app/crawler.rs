@@ -39,12 +39,13 @@ pub struct CrawledSong {
 pub fn crawler_subcription(
     config: Arc<Config>,
     db: SqlitePool,
+    generation: u64,
 ) -> iced::Subscription<CrawlerMessage> {
     struct CrawlerSub;
 
     old_unfold(
-        std::any::TypeId::of::<CrawlerSub>(),
-        CrawlerState::Initial,
+        (std::any::TypeId::of::<CrawlerSub>(), generation),
+        || CrawlerState::Initial,
         move |state| step(state, config.clone(), db.clone()),
     )
 }
@@ -100,7 +101,7 @@ async fn step(
             )
         }
 
-        CrawlerState::Final => (None, CrawlerState::Final),
+        CrawlerState::Final => iced::futures::future::pending().await,
     }
 }
 

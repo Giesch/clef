@@ -15,15 +15,13 @@ clef_shared = { path = "../shared" }
 clef_db = { path = "../db" }
 clef_audio = { path = "../audio" }
 
-iced_style = "0.8.0"
-
 [dependencies.iced]
-version = "0.9"
+version = "0.14.0"
 features = ["svg", "image", "debug"]
-
-[dependencies.iced_native]
-version = "0.10.1"
 
 [dependencies.image_rs]
 package = "image"
-version = "0.24"
+version = "0.25.10"
+
+[dev-dependencies]
+iced_test = "0.14.0"

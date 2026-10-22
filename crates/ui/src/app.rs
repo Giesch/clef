@@ -2,16 +2,15 @@ use std::sync::Arc;
 
 use camino::Utf8PathBuf;
 use flume::{Receiver, Sender};
-use iced::keyboard::KeyCode;
+use iced::keyboard::Event as KeyboardEvent;
+use iced::keyboard::{key::Named, Key};
 use iced::widget::{
-    button, column, container, horizontal_space, row, scrollable, slider, text, Column,
-    Container, Image, Row, Space,
+    button, column, container, row, scrollable, slider, text, Column, Container, Image,
+    Row, Space,
 };
 use iced::{
-    alignment, executor, Alignment, Application, Command, ContentFit, Element, Event,
-    Length, Subscription, Theme,
+    alignment, Alignment, ContentFit, Element, Event, Length, Subscription, Task, Theme,
 };
-use iced_native::keyboard::Event as KeyboardEvent;
 use log::error;
 
 use clef_audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
@@ -22,7 +21,7 @@ mod audio_subscription;
 pub(crate) mod crawler;
 mod custom_style;
 mod effect;
-mod hoverable;
+
 mod icons;
 mod music_cache;
 mod old_unfold;
@@ -33,7 +32,7 @@ use audio_subscription::audio_subscription;
 use crawler::*;
 use custom_style::no_background;
 use effect::Effect;
-use hoverable::*;
+use iced::widget::mouse_area;
 use music_cache::*;
 use resizer::*;
 use rgba::*;
@@ -49,6 +48,7 @@ pub struct App {
     to_resizer: Sender<ResizeRequest>,
     resizer_inbox: Receiver<ResizeRequest>,
     ui: Ui,
+    source_generation: u64,
 }
 
 #[derive(Debug)]
@@ -84,32 +84,31 @@ impl App {
             to_resizer: to_resizer_tx,
             resizer_inbox: to_resizer_rx,
             ui: Ui::new(),
+            source_generation: {
+                static NEXT: std::sync::atomic::AtomicU64 =
+                    std::sync::atomic::AtomicU64::new(0);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
         }
     }
 
-    fn execute(&mut self, effect: Effect<Message>) -> Command<Message> {
+    fn execute(&mut self, effect: Effect<Message>) -> Task<Message> {
         match effect {
-            Effect::None => Command::none(),
-
-            Effect::Command(cmd) => cmd,
-
-            Effect::ToAudio(audio_action) => {
+            Effect::None => Task::none(),
+            Effect::Command(task) => task,
+            Effect::ToAudio(action) => {
                 self.to_audio
-                    .send(audio_action)
+                    .send(action)
                     .unwrap_or_else(|e| error!("failed to send to audio thread: {e}"));
-
-                Command::none()
+                Task::none()
             }
-
-            Effect::ToResizer(resize_request) => {
+            Effect::ToResizer(request) => {
                 self.to_resizer
-                    .send(resize_request)
+                    .send(request)
                     .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
-
-                Command::none()
+                Task::none()
             }
-
-            Effect::CloseWindow => iced::window::close(),
+            Effect::CloseWindow => iced::window::latest().and_then(iced::window::close),
         }
     }
 }
@@ -158,7 +157,7 @@ impl ProgressDisplay {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub local_data_directory: Utf8PathBuf,
     pub audio_directory: Utf8PathBuf,
@@ -166,7 +165,7 @@ pub struct Config {
     pub resized_images_directory: Utf8PathBuf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Flags {
     pub inbox: Receiver<AudioMessage>,
     pub to_audio: Sender<AudioAction>,
@@ -193,20 +192,15 @@ pub enum Message {
     UnhoveredSong(SongId),
 }
 
-impl Application for App {
-    type Flags = Flags;
-    type Message = Message;
-    type Theme = Theme;
-    type Executor = executor::Default;
-
-    fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
+impl App {
+    pub(crate) fn boot(flags: Flags) -> (Self, Task<Message>) {
         let initial_state = Self::new(flags);
 
         #[cfg(not(target_os = "windows"))]
-        let initial_command = Command::none();
+        let initial_command = Task::none();
 
         #[cfg(target_os = "windows")]
-        let initial_command = Command::perform(
+        let initial_command = Task::perform(
             async move { clef_shared::window_handle_hack::set_hwnd() },
             |_| Message::GotHwnd,
         );
@@ -214,25 +208,29 @@ impl Application for App {
         (initial_state, initial_command)
     }
 
-    fn title(&self) -> String {
+    pub(crate) fn title(&self) -> String {
         // NOTE This is used to look up our own window handle on startup.
         // So on windows, it should not be modified until after recieving GotHwnd.
         WINDOW_TITLE.to_string()
     }
 
-    fn theme(&self) -> Theme {
+    pub(crate) fn theme(&self) -> Theme {
         Theme::Dark
     }
 
-    fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
+    pub(crate) fn update(&mut self, message: Message) -> Task<Message> {
         let effect = update(&mut self.ui, message);
         self.execute(effect)
     }
 
-    fn subscription(&self) -> Subscription<Self::Message> {
+    pub(crate) fn subscription(&self) -> Subscription<Message> {
         let crawler = if self.ui.crawling_music {
-            crawler_subcription(self.config.clone(), self.db.clone())
-                .map(Message::FromCrawler)
+            crawler_subcription(
+                self.config.clone(),
+                self.db.clone(),
+                self.source_generation,
+            )
+            .map(Message::FromCrawler)
         } else {
             Subscription::none()
         };
@@ -241,17 +239,19 @@ impl Application for App {
             self.config.clone(),
             self.db.clone(),
             self.resizer_inbox.clone(),
+            self.source_generation,
         )
         .map(Message::FromResizer);
 
-        let audio = audio_subscription(self.inbox.clone()).map(Message::FromAudio);
+        let audio = audio_subscription(self.inbox.clone(), self.source_generation)
+            .map(Message::FromAudio);
 
-        let native = iced_native::subscription::events().map(Message::Native);
+        let native = iced::event::listen().map(Message::Native);
 
         Subscription::batch([crawler, resizer, audio, native])
     }
 
-    fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
+    pub(crate) fn view(&self) -> Element<'_, Message> {
         view(&self.ui)
     }
 }
@@ -306,7 +306,7 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
-            key_code: KeyCode::Space,
+            key: Key::Named(Named::Space),
             ..
         })) => toggle(ui),
 
@@ -464,12 +464,16 @@ fn view(ui: &Ui) -> Element<'_, Message> {
     let content = fill_container(scrollable(content));
     let bottom_row = view_bottom_row(&ui.current_song, &ui.progress);
 
-    let main_column = column![content, bottom_row, progress_slider]
-        .spacing(10)
-        .padding(20)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_items(Alignment::Center);
+    let main_column = column![
+        content,
+        bottom_row,
+        container(progress_slider).id("playback-seek")
+    ]
+    .spacing(10)
+    .padding(20)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .align_x(Alignment::Center);
 
     main_column.into()
 }
@@ -480,8 +484,8 @@ fn fill_container<'a>(
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .center_x()
-        .center_y()
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
 }
 
 fn view_album_list<'a>(
@@ -498,7 +502,7 @@ fn view_album_list<'a>(
     Column::with_children(rows)
         .spacing(10)
         .width(Length::Fill)
-        .align_items(Alignment::Center)
+        .align_x(Alignment::Center)
 }
 
 fn view_album<'a>(
@@ -534,7 +538,7 @@ fn view_album_image(image_bytes: Option<&RgbaBytes>) -> Element<'_, Message> {
     let length = Length::Fixed(IMAGE_SIZE as f32);
 
     let Some(image_bytes) = image_bytes else {
-        return Space::new(length, length).into();
+        return Space::new().width(length).height(length).into();
     };
 
     Image::new(image_bytes)
@@ -572,53 +576,67 @@ enum SongRowStatus {
 /// A song in the album table
 fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
     let button_slot: Element<'_, Message> = match status {
-        SongRowStatus::Playing => button(icons::pause())
+        SongRowStatus::Playing => button(icons::pause().width(24).height(24))
+            .width(MAGIC_SVG_SIZE)
+            .height(MAGIC_SVG_SIZE)
+            .padding(5)
             .on_press(Message::PauseClicked)
             .style(no_background())
             .into(),
 
-        SongRowStatus::Paused => button(icons::play())
+        SongRowStatus::Paused => button(icons::play().width(24).height(24))
+            .width(MAGIC_SVG_SIZE)
+            .height(MAGIC_SVG_SIZE)
+            .padding(5)
             .on_press(Message::PlayPausedClicked)
             .style(no_background())
             .into(),
 
-        SongRowStatus::Hovered => button(icons::play())
-            .on_press(Message::PlaySongClicked(song.id))
-            .style(no_background())
-            .into(),
+        SongRowStatus::Hovered => button(
+            container(icons::play().width(24).height(24))
+                .id(format!("song-play-{:?}", song.id)),
+        )
+        .width(MAGIC_SVG_SIZE)
+        .height(MAGIC_SVG_SIZE)
+        .padding(5)
+        .on_press(Message::PlaySongClicked(song.id))
+        .style(no_background())
+        .into(),
 
         SongRowStatus::Blank => {
             text(song.track_number.map(|n| n.to_string()).unwrap_or_default())
                 .width(MAGIC_SVG_SIZE)
                 .height(MAGIC_SVG_SIZE)
-                .horizontal_alignment(alignment::Horizontal::Center)
-                .vertical_alignment(alignment::Vertical::Center)
+                .align_x(alignment::Horizontal::Center)
+                .align_y(alignment::Vertical::Center)
                 .into()
         }
     };
 
     let duration = format_seconds(song.total_seconds as f64);
 
-    let hoverable = Hoverable::new(
-        row![
-            button_slot,
-            text(song.display_title().unwrap_or_default()).width(Length::Fill),
-            text(duration),
-            horizontal_space(Length::Fixed(10f32))
-        ]
-        .width(Length::Fill)
-        .align_items(Alignment::Center)
-        .spacing(10)
-        .into(),
-        Message::HoveredSong(song.id),
-        Message::UnhoveredSong(song.id),
+    let hoverable = mouse_area(
+        container(
+            row![
+                container(button_slot).id(format!("song-slot-{:?}", song.id)),
+                text(song.display_title().unwrap_or_default()).width(Length::Fill),
+                text(duration),
+                Space::new().width(10)
+            ]
+            .width(Length::Fill)
+            .align_y(Alignment::Center)
+            .spacing(10),
+        )
+        .padding(2)
+        .id(format!("song-row-{:?}", song.id)),
     )
-    .padding(2);
+    .on_enter(Message::HoveredSong(song.id))
+    .on_exit(Message::UnhoveredSong(song.id));
 
     Element::from(hoverable)
 }
 
-// 24 (svg) + 5 + 5 (default button padding)
+// Inline controls explicitly reserve 24px SVG + 5px padding on each side.
 const MAGIC_SVG_SIZE: Length = Length::Fixed(34f32);
 
 /// The bottom row with the play/pause button and current song info
@@ -629,11 +647,11 @@ fn view_bottom_row<'a>(
     let row_content = match (current_song, progress) {
         (Some(current_song), Some(progress)) => {
             let play_pause_button = if current_song.playing {
-                button(icons::pause())
+                button(container(icons::pause()).id("playback-pause"))
                     .on_press(Message::PauseClicked)
                     .style(no_background())
             } else {
-                button(icons::play())
+                button(container(icons::play()).id("playback-resume"))
                     .on_press(Message::PlayPausedClicked)
                     .style(no_background())
             };
@@ -654,9 +672,9 @@ fn view_bottom_row<'a>(
                 text(&current_song.title)
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .horizontal_alignment(alignment::Horizontal::Center)
-                    .vertical_alignment(alignment::Vertical::Center),
-                button(icons::back())
+                    .align_x(alignment::Horizontal::Center)
+                    .align_y(alignment::Vertical::Center),
+                button(container(icons::back()).id("playback-back"))
                     .on_press(Message::BackClicked)
                     .style(no_background()),
             ]
@@ -664,17 +682,17 @@ fn view_bottom_row<'a>(
             .width(Length::FillPortion(1));
 
             let right_side = row![
-                button(icons::forward())
+                button(container(icons::forward()).id("playback-forward"))
                     .on_press(Message::ForwardClicked)
                     .style(no_background()),
                 view_current_album_artist(current_song)
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .align_items(Alignment::Center),
+                    .align_y(Alignment::Center),
                 text(duration)
                     .height(Length::Fill)
-                    .horizontal_alignment(alignment::Horizontal::Center)
-                    .vertical_alignment(alignment::Vertical::Center),
+                    .align_x(alignment::Horizontal::Center)
+                    .align_y(alignment::Vertical::Center),
             ]
             .height(MAGIC_SVG_SIZE)
             .width(Length::FillPortion(1));
@@ -683,9 +701,9 @@ fn view_bottom_row<'a>(
         }
 
         _ => row![
-            Space::new(Length::Fill, MAGIC_SVG_SIZE),
+            Space::new().width(Length::Fill).height(MAGIC_SVG_SIZE),
             button(icons::play()).style(no_background()),
-            Space::new(Length::Fill, MAGIC_SVG_SIZE),
+            Space::new().width(Length::Fill).height(MAGIC_SVG_SIZE),
         ]
         .height(MAGIC_SVG_SIZE),
     };
@@ -698,7 +716,7 @@ fn view_bottom_row<'a>(
 fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {
     let mut children: Vec<Element<'_, Message>> = Vec::new();
 
-    children.push(horizontal_space(Length::Fill).into());
+    children.push(Space::new().width(Length::Fill).into());
 
     let mut label = String::new();
     if let Some(album) = &current.album {
@@ -712,7 +730,7 @@ fn view_current_album_artist(current: &CurrentSong) -> Row<'_, Message> {
     }
     children.push(text(label).into());
 
-    children.push(horizontal_space(Length::Fill).into());
+    children.push(Space::new().width(Length::Fill).into());
 
     Row::with_children(children).spacing(10)
 }

@@ -1,30 +1,37 @@
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 
-use iced::futures::Future;
-use iced_native::Subscription;
+use iced::futures::{future, stream, Future, FutureExt, StreamExt};
+use iced::Subscription;
 
-/// A copy of the old version of iced::subscription::unfold, that used filter_map
-/// This allows for using flume without spamming the app with no-op messages.
-/// It could be replaced with a custom flume channel helper, based on iced::subscription::channel.
-///   But getting iced streams to hook up to a flume Selector is a bit weird.
-/// It's probably better to just use iced streams for non-audio stuff
-pub fn old_unfold<I, T, Fut, Message>(
+/// Hash only the worker identity; rebuilding a view must not restart its stream.
+struct Worker<I, T, F> {
     id: I,
-    initial: T,
-    mut f: impl FnMut(T) -> Fut + Send + Sync + 'static,
+    initial: fn() -> T,
+    step: F,
+}
+
+impl<I: Hash, T, F> Hash for Worker<I, T, F> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+pub fn old_unfold<I, T, F, Fut, Message>(
+    id: I,
+    initial: fn() -> T,
+    step: F,
 ) -> Subscription<Message>
 where
     I: Hash + 'static,
     T: Send + 'static,
+    F: FnMut(T) -> Fut + Clone + Send + Sync + 'static,
     Fut: Future<Output = (Option<Message>, T)> + Send + 'static,
-    Message: 'static + Send,
+    Message: Send + 'static,
 {
-    use iced::futures::future::{self, FutureExt};
-    use iced::futures::stream::StreamExt;
+    Subscription::run_with(Worker { id, initial, step }, |worker| {
+        let mut step = worker.step.clone();
 
-    iced_native::subscription::run_with_id(
-        id,
-        iced::futures::stream::unfold(initial, move |state| f(state).map(Some))
-            .filter_map(future::ready),
-    )
+        stream::unfold((worker.initial)(), move |state| step(state).map(Some))
+            .filter_map(future::ready)
+    })
 }
