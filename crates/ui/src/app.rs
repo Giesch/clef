@@ -25,6 +25,8 @@ mod effect;
 mod icons;
 mod music_cache;
 mod old_unfold;
+#[cfg(test)]
+mod regression_tests;
 mod resizer;
 mod rgba;
 
