@@ -842,3 +842,7 @@ fn prepare_publish(
 
     (display, metadata, playback)
 }
+
+#[cfg(test)]
+#[path = "player/regression_tests.rs"]
+mod regression_tests;
