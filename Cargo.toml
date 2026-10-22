@@ -3,6 +3,9 @@ name = "clef"
 version = "0.1.0"
 edition = "2021"
 authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
+license = "MPL-2.0"
+description = "A native local music player."
+repository = "https://github.com/Giesch/clef"
 
 [dependencies]
 anyhow.workspace = true

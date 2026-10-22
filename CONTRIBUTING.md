@@ -88,3 +88,40 @@ Use a disposable database when developing migrations. On Linux, `.env.example`
 can be copied to `.env`; inspect its database path before running any commands.
 On Windows set `DATABASE_URL` explicitly to the intended development database.
 Never run test migrations against the user's Clef database.
+
+## Linux packaging
+
+The app ID is `io.github.giesch.clef`. The app ID is in `justfile`,
+`crates/ui/src/setup.rs`, and the files in `resources/`. Do not change the app
+ID after the first release.
+
+- `resources/app.desktop` is the desktop entry.
+- `resources/app.metainfo.xml` is the AppStream metainfo. `scripts/release.sh`
+  writes the release notes into this file.
+- `resources/icons/hicolor/` holds the app icon in 3 PNG sizes.
+
+Validate the desktop entry and the metainfo after each change:
+
+```sh
+desktop-file-validate resources/app.desktop
+appstreamcli validate --no-net resources/app.metainfo.xml
+```
+
+Install into a staging root and remove the files again:
+
+```sh
+just build-release
+just rootdir=/tmp/clef-root install
+just rootdir=/tmp/clef-root uninstall
+```
+
+Without `rootdir`, `install` writes to `/usr` and needs root access.
+
+### Releases
+
+Run `just release` on `main` with a clean working tree. The script sets the
+version in `Cargo.toml`, adds the release notes to the metainfo, commits, tags
+`v<version>`, and pushes.
+
+The tag starts `.github/workflows/release.yml`. This workflow builds a `.deb`
+and creates the GitHub Release.

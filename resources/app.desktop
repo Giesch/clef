@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Clef
+Comment=A native local music player.
+Type=Application
+Icon=io.github.giesch.clef
+Exec=clef
+Terminal=false
+StartupNotify=true
+Categories=AudioVideo;Audio;Player;
+Keywords=music;player;library;
