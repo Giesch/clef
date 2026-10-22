@@ -9,30 +9,30 @@
 use std::sync::OnceLock;
 
 use log::{error, trace};
-use windows::core::*;
-use windows::Win32::Foundation::*;
+use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
 
+use super::window_handle_conversion::window_handle_token;
 use super::WINDOW_TITLE;
 
-static WINDOW_HANDLE: OnceLock<HWND> = OnceLock::new();
+static WINDOW_HANDLE: OnceLock<usize> = OnceLock::new();
 
 #[allow(unsafe_code)]
 pub fn set_hwnd() {
     let window_hstring = HSTRING::from(WINDOW_TITLE);
     let window_pcwstr = PCWSTR(window_hstring.as_ptr());
-    let window: HWND = unsafe { FindWindowW(None, window_pcwstr) };
-
-    if window.0 == 0 {
+    let result = unsafe { FindWindowW(None, window_pcwstr) };
+    let Some(window) = window_handle_token(result.map(|handle| handle.0)) else {
         error!("invalid hwnd for window");
         return;
-    }
+    };
 
     trace!("setting hwnd: {window:?}");
 
     WINDOW_HANDLE.set(window).ok();
 }
 
-pub fn get_hwnd() -> Option<HWND> {
+/// Returns the cached window handle as an integer token, not a shared raw pointer.
+pub fn get_hwnd() -> Option<usize> {
     WINDOW_HANDLE.get().copied()
 }

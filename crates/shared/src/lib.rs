@@ -7,5 +7,8 @@ pub const WINDOW_TITLE: &str = "Clef";
 
 pub mod queue;
 
+#[cfg(any(target_os = "windows", test))]
+mod window_handle_conversion;
+
 #[cfg(target_os = "windows")]
 pub mod window_handle_hack;
