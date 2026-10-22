@@ -1,18 +1,16 @@
-use iced_native::window::Icon;
+use iced::window::Icon;
 
 pub fn get_icon() -> Option<Icon> {
     #[cfg(target_os = "windows")]
-    let icon = {
-        use iced::window::icon;
-        use image_rs::ImageFormat;
-
-        let bytes = include_bytes!("../base_clef.jpg");
-        icon::from_file_data(bytes, Some(ImageFormat::Jpeg)).ok()
-    };
-
-    // making this look ok at a larger size is going to take more work
+    {
+        let image = image_rs::load_from_memory(include_bytes!("../base_clef.jpg"))
+            .ok()?
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        iced::window::icon::from_rgba(image.into_raw(), width, height).ok()
+    }
     #[cfg(not(target_os = "windows"))]
-    let icon = None;
-
-    icon
+    {
+        None
+    }
 }

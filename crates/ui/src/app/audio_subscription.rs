@@ -1,41 +1,30 @@
-use flume::{Receiver, TryRecvError};
+use flume::Receiver;
 
 use crate::app::old_unfold::old_unfold;
 use clef_audio::player::AudioMessage;
 
-#[derive(Debug, PartialEq, Eq)]
-enum AudioSubState {
-    Ready,
-    Disconnected,
-}
-
 pub fn audio_subscription(
     inbox: Receiver<AudioMessage>,
+    generation: u64,
 ) -> iced::Subscription<AudioMessage> {
     struct AudioSub;
 
     old_unfold(
-        std::any::TypeId::of::<AudioSub>(),
-        AudioSubState::Ready,
-        move |state| listen(state, inbox.clone()),
+        (std::any::TypeId::of::<AudioSub>(), generation),
+        || false,
+        move |disconnected| {
+            let inbox = inbox.clone();
+
+            async move {
+                if disconnected {
+                    return iced::futures::future::pending().await;
+                }
+
+                match inbox.recv_async().await {
+                    Ok(message) => (Some(message), false),
+                    Err(_) => (Some(AudioMessage::AudioDied), true),
+                }
+            }
+        },
     )
-}
-
-async fn listen(
-    state: AudioSubState,
-    inbox: Receiver<AudioMessage>,
-) -> (Option<AudioMessage>, AudioSubState) {
-    if state == AudioSubState::Disconnected {
-        return (None, AudioSubState::Disconnected);
-    }
-
-    match inbox.try_recv() {
-        Ok(msg) => (Some(msg), AudioSubState::Ready),
-
-        Err(TryRecvError::Empty) => (None, AudioSubState::Ready),
-
-        Err(TryRecvError::Disconnected) => {
-            (Some(AudioMessage::AudioDied), AudioSubState::Disconnected)
-        }
-    }
 }

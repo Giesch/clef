@@ -1,6 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use iced::widget::image;
-use iced_native::image::Handle;
+use iced::widget::image::Handle;
 use image_rs::Rgba;
 use image_rs::{imageops::FilterType, ColorType, ImageBuffer};
 
@@ -21,7 +21,7 @@ pub struct RgbaBytes {
 impl RgbaBytes {
     #[cfg(test)]
     pub fn empty() -> Self {
-        let handle = Handle::from_pixels(0, 0, vec![]);
+        let handle = Handle::from_rgba(0, 0, vec![]);
         Self { handle }
     }
 
@@ -29,7 +29,7 @@ impl RgbaBytes {
         let width = rgba.width();
         let height = rgba.height();
         let bytes = rgba.into_raw();
-        let handle = Handle::from_pixels(width, height, bytes);
+        let handle = Handle::from_rgba(width, height, bytes);
 
         RgbaBytes { handle }
     }
@@ -66,15 +66,55 @@ pub fn load_cached_rgba_bmp(path: &Utf8Path) -> anyhow::Result<RgbaBytes> {
 }
 
 pub fn save_rgba(path: &Utf8PathBuf, rgba: &RgbaBytes) -> anyhow::Result<()> {
-    use iced_native::image::Data;
-
     let RgbaBytes { handle } = rgba;
-    let (pixels, width, height) = match handle.data() {
-        Data::Path(_) | Data::Bytes(_) => unreachable!(),
-        Data::Rgba { pixels, width, height } => (pixels, width, height),
+    let (pixels, width, height) = match handle {
+        Handle::Rgba { pixels, width, height, .. } => (pixels, width, height),
+        _ => unreachable!("RgbaBytes always contains decoded RGBA pixels"),
     };
 
     image_rs::save_buffer(path, pixels, *width, *height, ColorType::Rgba8)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rgba_image_roundtrip() {
+        let pixels = vec![255, 0, 0, 128, 0, 255, 0, 0];
+        let original =
+            RgbaBytes::from_buffer(ImageBuffer::from_raw(2, 1, pixels.clone()).unwrap());
+        struct Directory(std::path::PathBuf);
+        impl Drop for Directory {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let directory = loop {
+            let sequence = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let directory = std::env::temp_dir()
+                .join(format!("clef-rgba-{}-{sequence}", std::process::id()));
+            match std::fs::create_dir(&directory) {
+                Ok(()) => break Directory(directory),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    continue
+                }
+                Err(error) => panic!("create isolated image directory: {error}"),
+            }
+        };
+        let path = Utf8PathBuf::from_path_buf(directory.0.join("art.bmp")).unwrap();
+        save_rgba(&path, &original).unwrap();
+        let loaded = load_cached_rgba_bmp(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        match loaded.handle {
+            Handle::Rgba { width, height, pixels: loaded, .. } => {
+                assert_eq!((width, height), (2, 1));
+                assert_eq!(loaded.as_ref(), pixels.as_slice());
+            }
+            _ => panic!("expected decoded RGBA handle"),
+        }
+    }
 }

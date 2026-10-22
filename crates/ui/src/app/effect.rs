@@ -1,4 +1,4 @@
-use iced::Command;
+use iced::Task;
 
 use crate::app::resizer::ResizeRequest;
 use clef_audio::player::AudioAction;
@@ -7,7 +7,7 @@ use clef_audio::player::AudioAction;
 pub enum Effect<Message> {
     None,
     #[allow(unused)] // will need this for one-off commands
-    Command(Command<Message>),
+    Command(Task<Message>),
     ToAudio(AudioAction),
     ToResizer(ResizeRequest),
     CloseWindow,

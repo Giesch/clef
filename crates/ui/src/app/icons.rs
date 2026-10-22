@@ -1,45 +1,21 @@
 use iced::widget::{svg, Svg};
-use iced_style::svg::StyleSheet;
 
-pub fn play<Renderer>() -> Svg<Renderer>
-where
-    Renderer: iced_native::svg::Renderer,
-    Renderer::Theme: StyleSheet,
-{
+pub fn play() -> Svg<'static> {
     svg_icon("play.svg")
 }
-
-pub fn pause<Renderer>() -> Svg<Renderer>
-where
-    Renderer: iced_native::svg::Renderer,
-    Renderer::Theme: StyleSheet,
-{
+pub fn pause() -> Svg<'static> {
     svg_icon("pause.svg")
 }
-
-pub fn forward<Renderer>() -> Svg<Renderer>
-where
-    Renderer: iced_native::svg::Renderer,
-    Renderer::Theme: StyleSheet,
-{
+pub fn forward() -> Svg<'static> {
     svg_icon("skip-forward.svg")
 }
-
-pub fn back<Renderer>() -> Svg<Renderer>
-where
-    Renderer: iced_native::svg::Renderer,
-    Renderer::Theme: StyleSheet,
-{
+pub fn back() -> Svg<'static> {
     svg_icon("skip-back.svg")
 }
 
-fn svg_icon<Renderer>(file_name: &str) -> Svg<Renderer>
-where
-    Renderer: iced_native::svg::Renderer,
-    Renderer::Theme: StyleSheet,
-{
-    let project_root = env!("CARGO_MANIFEST_DIR");
-    let path = format!("{project_root}/resources/{file_name}");
-
-    svg(svg::Handle::from_path(path))
+fn svg_icon(file_name: &str) -> Svg<'static> {
+    let root = env!("CARGO_MANIFEST_DIR");
+    svg(svg::Handle::from_path(format!(
+        "{root}/resources/{file_name}"
+    )))
 }
