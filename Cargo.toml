@@ -11,7 +11,7 @@ directories.workspace = true
 flume.workspace = true
 log.workspace = true
 
-pretty_env_logger = "0.4"
+pretty_env_logger = "0.5.0"
 
 clef_shared = { path = "./crates/shared" }
 clef_db = { path = "./crates/db" }
@@ -32,10 +32,10 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = { version = "1.0.66", features = ["backtrace"] }
-camino = "1.1.1"
-directories = "4.0.1"
-flume = { version = "0.10.14" }
-log = { version = "0.4", features = ["release_max_level_info"] }
+anyhow = { version = "1.0.104", features = ["backtrace"] }
+camino = "1.2.6"
+directories = "6.0.0"
+flume = { version = "0.12.0" }
+log = { version = "0.4.34", features = ["release_max_level_info"] }
 
-thiserror = "1.0.37"
+thiserror = "2.0.21"
