@@ -1,0 +1,31 @@
+{
+  "verified_on": "2026-10-16",
+  "source": "https://crates.io/api/v1/crates/{crate}/{version}",
+  "targets": {
+    "anyhow": "1.0.104",
+    "camino": "1.2.6",
+    "directories": "6.0.0",
+    "flume": "0.12.0",
+    "log": "0.4.34",
+    "thiserror": "2.0.21",
+    "pretty_env_logger": "0.5.0",
+    "souvlaki": "0.8.3",
+    "symphonia": "0.6.1",
+    "libpulse-binding": "2.30.1",
+    "libpulse-simple-binding": "2.29.0",
+    "cpal": "0.18.2",
+    "rb": "0.4.1",
+    "arrayvec": "0.7.8",
+    "rubato": "5.0.1",
+    "mockall": "0.15.0",
+    "diesel": "2.3.14",
+    "diesel_migrations": "2.3.2",
+    "libsqlite3-sys": "0.38.2",
+    "r2d2": "0.8.10",
+    "iced": "0.14.0",
+    "image": "0.25.10",
+    "windows": "0.62.2",
+    "iced_test": "0.14.0",
+    "tempfile": "3.27.0"
+  }
+}
