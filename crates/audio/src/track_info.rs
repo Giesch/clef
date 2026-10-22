@@ -1,46 +1,84 @@
-use symphonia::core::codecs::{CodecParameters, CODEC_TYPE_NULL};
 use symphonia::core::formats::Track;
-use symphonia::core::units::TimeBase;
+use symphonia::core::units::{Duration, TimeBase, Timestamp};
 
-use crate::player::ProgressTimes;
+use crate::player::{ProgressTime, ProgressTimes};
 
 pub fn first_supported_track(tracks: &[Track]) -> Option<&Track> {
-    tracks
-        .iter()
-        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+    tracks.iter().find(|track| {
+        track
+            .codec_params
+            .as_ref()
+            .and_then(|params| params.audio())
+            .is_some()
+    })
 }
 
 #[derive(Debug, Clone)]
 pub struct TrackInfo {
     pub id: u32,
     pub time_base: Option<TimeBase>,
-    pub duration: Option<u64>,
+    pub duration: Option<Duration>,
 }
 
 impl TrackInfo {
-    /// Given a packet timestamp, returns the progress times to display for the track
-    /// None = either time base or duration is missing from the track info
-    pub fn progress_times(&self, timestamp: u64) -> Option<ProgressTimes> {
-        match (self.time_base, self.duration) {
-            (Some(time_base), Some(duration)) => Some(ProgressTimes {
-                elapsed: time_base.calc_time(timestamp),
-                remaining: time_base.calc_time(duration.saturating_sub(timestamp)),
-                total: time_base.calc_time(duration),
-            }),
-
-            _ => None,
-        }
+    /// Convert presentation timestamps to nonnegative display times.
+    pub fn progress_times(&self, timestamp: Timestamp) -> Option<ProgressTimes> {
+        let time_base = self.time_base?;
+        let duration = self.duration?;
+        let total = time_base.calc_duration(duration)?;
+        let elapsed = time_base
+            .calc_time(timestamp)?
+            .as_secs_f64()
+            .clamp(0.0, total.as_secs_f64());
+        Some(ProgressTimes {
+            elapsed: ProgressTime::from_seconds(elapsed),
+            remaining: ProgressTime::from_seconds(total.as_secs_f64() - elapsed),
+            total: ProgressTime::from_seconds(total.as_secs_f64()),
+        })
     }
 }
 
 impl From<&Track> for TrackInfo {
     fn from(track: &Track) -> Self {
-        let CodecParameters { time_base, n_frames, start_ts, .. } = track.codec_params;
-
         Self {
             id: track.id,
-            time_base,
-            duration: n_frames.map(|frames| start_ts + frames),
+            time_base: track.time_base,
+            duration: track.duration,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn timing_missing_overflow_and_bounds() {
+        let base = TimeBase::try_from_recip(44_100).unwrap();
+        let mut info = TrackInfo {
+            id: 0,
+            time_base: Some(base),
+            duration: Some(44_100u64.into()),
+        };
+        assert_eq!(
+            info.progress_times((-100i64).into())
+                .unwrap()
+                .elapsed
+                .seconds,
+            0
+        );
+        assert_eq!(
+            info.progress_times(88_200i64.into())
+                .unwrap()
+                .remaining
+                .seconds,
+            0
+        );
+        info.duration = None;
+        assert!(info.progress_times(Timestamp::ZERO).is_none());
+        info.duration = Some(u64::MAX.into());
+        info.time_base = TimeBase::try_from_recip(1);
+        assert!(info.progress_times(Timestamp::ZERO).is_none());
+        info.time_base = None;
+        assert!(info.progress_times(Timestamp::ZERO).is_none());
     }
 }

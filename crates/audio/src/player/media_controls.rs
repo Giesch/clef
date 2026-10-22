@@ -116,6 +116,7 @@ impl WrappedControls {
                     MediaControlEvent::OpenUri(_) => None,
                     MediaControlEvent::Raise => None,
                     MediaControlEvent::Quit => None,
+                    MediaControlEvent::SetVolume(_) => None,
                 };
 
                 if let Some(action) = action {
