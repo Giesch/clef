@@ -40,7 +40,7 @@ pub fn crawler_subcription(
     config: Arc<Config>,
     db: SqlitePool,
     generation: u64,
-) -> iced::Subscription<CrawlerMessage> {
+) -> cosmic::iced::Subscription<CrawlerMessage> {
     struct CrawlerSub;
 
     old_unfold(
@@ -101,7 +101,7 @@ async fn step(
             )
         }
 
-        CrawlerState::Final => iced::futures::future::pending().await,
+        CrawlerState::Final => cosmic::iced::futures::future::pending().await,
     }
 }
 

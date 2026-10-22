@@ -1,6 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use iced::widget::image;
-use iced::widget::image::Handle;
+use cosmic::iced::widget::image;
+use cosmic::iced::widget::image::Handle;
 use image_rs::Rgba;
 use image_rs::{imageops::FilterType, ColorType, ImageBuffer};
 

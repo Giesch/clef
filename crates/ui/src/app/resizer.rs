@@ -36,7 +36,7 @@ pub fn resizer_subscription(
     db: SqlitePool,
     inbox: Receiver<ResizeRequest>,
     generation: u64,
-) -> iced::Subscription<ResizerMessage> {
+) -> cosmic::iced::Subscription<ResizerMessage> {
     struct ResizerSub;
 
     old_unfold(
@@ -77,7 +77,7 @@ async fn step(
             (message, ResizerState::Working)
         }
 
-        ResizerState::Stopped => iced::futures::future::pending().await,
+        ResizerState::Stopped => cosmic::iced::futures::future::pending().await,
     }
 }
 

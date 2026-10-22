@@ -76,21 +76,10 @@ impl WrappedControls {
     fn init(&mut self) -> anyhow::Result<()> {
         trace!("initializing media controls");
 
-        #[cfg(not(target_os = "windows"))]
-        let hwnd = None;
-
-        #[cfg(target_os = "windows")]
-        let hwnd = {
-            use std::ffi::c_void;
-
-            let hwnd = clef_shared::window_handle_hack::get_hwnd();
-            hwnd.map(|hwnd| hwnd as *mut c_void)
-        };
-
         let platform_config = PlatformConfig {
             dbus_name: "clef.player",
             display_name: "Clef",
-            hwnd,
+            hwnd: None,
         };
 
         let mut media_controls = MediaControls::new(platform_config)

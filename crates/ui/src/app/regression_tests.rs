@@ -1,6 +1,8 @@
 use super::*;
 use crate::test_util::fake_album;
-use iced::futures::{channel::mpsc, executor::LocalPool, task::LocalSpawnExt, StreamExt};
+use cosmic::iced::futures::{
+    channel::mpsc, executor::LocalPool, task::LocalSpawnExt, StreamExt,
+};
 use iced_test::futures::subscription::{into_recipes, Tracker};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -62,14 +64,16 @@ fn ui_library_and_playback_scenario() {
         .unwrap()
         .visible_bounds()
         .unwrap();
-    simulator.point_at(iced::Point::new(
+    simulator.point_at(cosmic::iced::Point::new(
         bounds.x + bounds.width * 0.25,
         bounds.center_y(),
     ));
     simulator.simulate([
-        Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)),
-        Event::Mouse(iced::mouse::Event::ButtonReleased(
-            iced::mouse::Button::Left,
+        Event::Mouse(cosmic::iced::mouse::Event::ButtonPressed(
+            cosmic::iced::mouse::Button::Left,
+        )),
+        Event::Mouse(cosmic::iced::mouse::Event::ButtonReleased(
+            cosmic::iced::mouse::Button::Left,
         )),
     ]);
     let messages: Vec<_> = simulator.into_messages().collect();
@@ -191,11 +195,16 @@ fn song_row_controls_emit_expected_messages() {
             .unwrap()
             .visible_bounds()
             .unwrap();
-        simulator.point_at(iced::Point::new(row.x + 2.0 + 17.0, row.y + 2.0 + 17.0));
+        simulator.point_at(cosmic::iced::Point::new(
+            row.x + 2.0 + 17.0,
+            row.y + 2.0 + 17.0,
+        ));
         simulator.simulate([
-            Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)),
-            Event::Mouse(iced::mouse::Event::ButtonReleased(
-                iced::mouse::Button::Left,
+            Event::Mouse(cosmic::iced::mouse::Event::ButtonPressed(
+                cosmic::iced::mouse::Button::Left,
+            )),
+            Event::Mouse(cosmic::iced::mouse::Event::ButtonReleased(
+                cosmic::iced::mouse::Button::Left,
             )),
         ]);
         let messages: Vec<_> = simulator.into_messages().collect();
@@ -225,7 +234,9 @@ fn ui_hover_controls_scenario() {
     let target = simulator.find("First").unwrap();
     let position = target.visible_bounds().unwrap().center();
     simulator.point_at(position);
-    simulator.simulate([Event::Mouse(iced::mouse::Event::CursorMoved { position })]);
+    simulator.simulate([Event::Mouse(cosmic::iced::mouse::Event::CursorMoved {
+        position,
+    })]);
     let messages: Vec<_> = simulator.into_messages().collect();
     assert!(messages
         .iter()
@@ -243,10 +254,12 @@ fn ui_hover_controls_scenario() {
         .find(iced_test::selector::id(control_id.clone()))
         .is_ok());
     simulator.point_at(position);
-    simulator.simulate([Event::Mouse(iced::mouse::Event::CursorMoved { position })]);
-    simulator.point_at(iced::Point::ORIGIN);
-    simulator.simulate([Event::Mouse(iced::mouse::Event::CursorMoved {
-        position: iced::Point::ORIGIN,
+    simulator.simulate([Event::Mouse(cosmic::iced::mouse::Event::CursorMoved {
+        position,
+    })]);
+    simulator.point_at(cosmic::iced::Point::ORIGIN);
+    simulator.simulate([Event::Mouse(cosmic::iced::mouse::Event::CursorMoved {
+        position: cosmic::iced::Point::ORIGIN,
     })]);
     for message in simulator.into_messages() {
         update(&mut ui, message);
@@ -259,8 +272,8 @@ fn ui_hover_controls_scenario() {
 #[test]
 fn ui_space_key_mapping() {
     let mut ui = library();
-    let events =
-        iced_test::simulator::tap_key(Key::Named(Named::Space), None).collect::<Vec<_>>();
+    let events = iced_test::simulator::tap_key(Key::Character(" ".into()), None)
+        .collect::<Vec<_>>();
     let mut simulator = iced_test::simulator(view(&ui));
     simulator.simulate(events.clone());
     assert_eq!(simulator.into_messages().count(), 0);
@@ -322,7 +335,7 @@ fn subscription_identity_and_delivery() {
                         Guard(counts.clone())
                     });
                     if closed {
-                        return iced::futures::future::pending().await;
+                        return cosmic::iced::futures::future::pending().await;
                     }
                     match inbox.recv_async().await {
                         Ok(message) => (Some(message), (Some(guard), false)),
@@ -383,7 +396,7 @@ fn subscription_identity_and_delivery() {
     assert_eq!(counts.closed.load(Ordering::SeqCst), 1);
     assert_eq!(pool.run_until(received.next()), Some(255));
     assert_eq!(install(&mut tracker, &mut pool, 1, replacement_inbox), 0);
-    use iced::futures::FutureExt;
+    use cosmic::iced::futures::FutureExt;
     assert!(
         received.next().now_or_never().is_none(),
         "terminal message delivered more than once"
@@ -395,4 +408,43 @@ fn subscription_identity_and_delivery() {
     pool.run_until_stalled();
     assert_eq!(counts.drops.load(Ordering::SeqCst), 2);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn ui_hover_clears_outside_library() {
+    let mut ui = library();
+    update(&mut ui, Message::HoveredSong(SongId::new(1)));
+    let mut simulator = iced_test::simulator(view(&ui));
+    let row = simulator
+        .find(iced_test::selector::id(format!(
+            "song-row-{:?}",
+            SongId::new(1)
+        )))
+        .unwrap()
+        .visible_bounds()
+        .unwrap()
+        .center();
+    let seek = simulator
+        .find(iced_test::selector::id("playback-seek"))
+        .unwrap()
+        .visible_bounds()
+        .unwrap()
+        .center();
+    for position in [row, seek] {
+        simulator.point_at(position);
+        simulator.simulate([Event::Mouse(cosmic::iced::mouse::Event::CursorMoved {
+            position,
+        })]);
+    }
+    for message in simulator.into_messages() {
+        update(&mut ui, message);
+    }
+    assert_eq!(ui.hovered_song_id, None);
+
+    update(&mut ui, Message::HoveredSong(SongId::new(1)));
+    update(
+        &mut ui,
+        Message::Native(Event::Mouse(cosmic::iced::mouse::Event::CursorLeft)),
+    );
+    assert_eq!(ui.hovered_song_id, None);
 }

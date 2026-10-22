@@ -1,4 +1,4 @@
-use iced::Task;
+use cosmic::iced::Task;
 
 use crate::app::resizer::ResizeRequest;
 use clef_audio::player::AudioAction;

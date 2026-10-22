@@ -28,20 +28,3 @@ jobs:
         run: python scripts/test_headless.py
       - run: cargo clippy --workspace --all-targets --locked
 
-  windows_workspace_locked:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: dependency_targets_match_registry_snapshot and locked_resolution
-        run: python scripts/check_dependencies.py
-      - run: cargo fmt --all -- --check
-      - run: cargo check --workspace --all-targets --locked
-      - name: isolated_headless_harness
-        run: python scripts/test_headless.py
-      - run: cargo clippy --workspace --all-targets --locked

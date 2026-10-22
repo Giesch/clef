@@ -18,6 +18,7 @@ def dependency_targets_match_registry_snapshot():
     packages = {package["id"]: package for package in metadata["packages"]}
     nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
     targets = SNAPSHOT["targets"]
+    git_targets = SNAPSHOT.get("git", {})
     seen = set()
     errors = []
     for member in metadata["workspace_members"]:
@@ -28,23 +29,40 @@ def dependency_targets_match_registry_snapshot():
                 continue
             name = dependency["name"]
             seen.add(name)
+            resolutions = [packages[edge["pkg"]] for edge in node["deps"]
+                           if packages[edge["pkg"]]["name"] == name]
+            if dependency["source"].startswith("git+"):
+                errors.extend(git_dependency_errors(package["name"], dependency,
+                                                    resolutions, git_targets))
+                continue
             if name not in targets:
                 errors.append(f"{package['name']}: unexpected direct dependency {name}")
                 continue
             expected = targets[name]
             if dependency["req"] != f"^{expected}":
                 errors.append(f"{package['name']}: {name} requirement {dependency['req']} != ^{expected}")
-            alias = (dependency["rename"] or name).replace("-", "_")
-            resolutions = [packages[edge["pkg"]] for edge in node["deps"]
-                           if edge["name"] == alias]
             if not resolutions or any(p["version"] != expected for p in resolutions):
                 errors.append(f"{package['name']}: {name} does not resolve to {expected}")
-    if missing := targets.keys() - seen:
+    if missing := (targets.keys() | git_targets.keys()) - seen:
         errors.append(f"snapshot dependencies missing from manifests: {sorted(missing)}")
     if errors:
         raise SystemExit("\n".join(errors))
     print(f"dependency_targets_match_registry_snapshot: PASS ({SNAPSHOT['verified_on']})")
     print("locked_resolution: PASS (cargo metadata --locked)")
+
+
+def git_dependency_errors(member, dependency, resolutions, git_targets):
+    name = dependency["name"]
+    if name not in git_targets:
+        return [f"{member}: unexpected git dependency {name}"]
+    expected = git_targets[name]
+    source = f"git+{expected['url']}?rev={expected['rev']}"
+    if dependency["source"] != source:
+        return [f"{member}: {name} source {dependency['source']} != {source}"]
+    if not resolutions or any(p["source"] != f"{source}#{expected['rev']}"
+                              for p in resolutions):
+        return [f"{member}: {name} does not resolve to {expected['rev']}"]
+    return []
 
 
 def verify_registry():

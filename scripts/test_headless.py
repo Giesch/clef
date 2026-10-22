@@ -17,8 +17,7 @@ def isolated_headless_harness():
         # The simulator must not initialize a GPU in a headless session.
         env["ICED_TEST_BACKEND"] = "tiny-skia"
         # Keep HOME/CARGO_HOME/RUSTUP_HOME: toolchain caches are not application data.
-        for variable in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME",
-                         "APPDATA", "LOCALAPPDATA"):
+        for variable in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
             path = root / variable.lower()
             path.mkdir()
             env[variable] = str(path)

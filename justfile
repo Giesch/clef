@@ -1,5 +1,3 @@
-set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
-
 # Name of the application's binary.
 name := 'clef'
 # The unique ID of the application.
@@ -25,14 +23,8 @@ list:
     just -l
 
 # run with debug logs and backtraces
-[linux]
 dev:
     __NV_PRIME_RENDER_OFFLOAD=1 \
-    cargo run -- --debug
-
-# run with debug logs and backtraces
-[windows]
-dev:
     cargo run -- --debug
 
 # run all tests once
@@ -44,14 +36,8 @@ test-watch:
     bacon test -- --all
 
 # run in release mode
-[linux]
 run:
     __NV_PRIME_RENDER_OFFLOAD=1 \
-    cargo run --release
-
-# run in release mode
-[windows]
-run:
     cargo run --release
 
 # compile with the debug profile
@@ -69,17 +55,15 @@ check *args:
 check-json: (check '--message-format=json')
 
 # install the release binary, desktop entry, metainfo, and icons
-[linux]
 install:
     install -Dm0755 {{ cargo-target-dir / 'release' / name }} {{bin-dst}}
-    install -Dm0644 resources/app.desktop {{desktop-dst}}
-    install -Dm0644 resources/app.metainfo.xml {{metainfo-dst}}
+    install -Dm0644 target/xdgen/app.desktop {{desktop-dst}}
+    install -Dm0644 target/xdgen/app.metainfo.xml {{metainfo-dst}}
     for size in {{icon-sizes}}; do \
         install -Dm0644 "resources/icons/hicolor/$size/apps/{{appid}}.png" "{{icons-dst}}/$size/apps/{{appid}}.png"; \
     done
 
 # remove the files that 'install' copies
-[linux]
 uninstall:
     rm -f {{bin-dst}} {{desktop-dst}} {{metainfo-dst}}
     for size in {{icon-sizes}}; do rm -f "{{icons-dst}}/$size/apps/{{appid}}.png"; done
@@ -89,7 +73,6 @@ clean:
     cargo clean
 
 # set the version, tag v<version>, and push a release
-[linux]
 release:
     scripts/release.sh
 
@@ -97,24 +80,12 @@ release:
 reset: remove-db remove-cache
 
 # delete the sqlite database
-[linux]
 remove-db:
     rm $HOME/.local/share/clef/db.sqlite*
 
-# delete the sqlite database
-[windows]
-remove-db:
-    rm $HOME\AppData\Local\Clef\data\db.sqlite*
-
 # delete the cache of resized images
-[linux]
 remove-cache:
     rm -rf $HOME/.local/share/clef/resized_images
-
-# delete the cache of resized images
-[windows]
-remove-cache:
-    rm $HOME\AppData\Local\Clef\data\resized_images\*
 
 # NOTE
 # 'unused' depends on cargo-udeps and rust nightly:

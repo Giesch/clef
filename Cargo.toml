@@ -21,6 +21,9 @@ clef_db = { path = "./crates/db" }
 clef_audio = { path = "./crates/audio" }
 clef_ui = { path = "./crates/ui" }
 
+[build-dependencies]
+xdgen = "0.1.0"
+
 # compile all external dependencies in release mode
 [profile.dev.package."*"]
 opt-level = 3

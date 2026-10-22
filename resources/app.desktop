@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Clef
-Comment=A native local music player.
+Comment=A native local music player
 Type=Application
 Icon=io.github.giesch.clef
 Exec=clef

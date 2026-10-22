@@ -39,8 +39,8 @@ jobs:
           mkdir -p "${PKG_DIR}/DEBIAN"
 
           install -Dm755 target/release/clef "${PKG_DIR}/usr/bin/clef"
-          install -Dm644 resources/app.desktop "${PKG_DIR}/usr/share/applications/io.github.giesch.clef.desktop"
-          install -Dm644 resources/app.metainfo.xml "${PKG_DIR}/usr/share/metainfo/io.github.giesch.clef.metainfo.xml"
+          install -Dm644 target/xdgen/app.desktop "${PKG_DIR}/usr/share/applications/io.github.giesch.clef.desktop"
+          install -Dm644 target/xdgen/app.metainfo.xml "${PKG_DIR}/usr/share/metainfo/io.github.giesch.clef.metainfo.xml"
           for size in 64x64 128x128 256x256; do
             install -Dm644 "resources/icons/hicolor/${size}/apps/io.github.giesch.clef.png" "${PKG_DIR}/usr/share/icons/hicolor/${size}/apps/io.github.giesch.clef.png"
           done

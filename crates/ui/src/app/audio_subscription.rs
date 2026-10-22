@@ -6,7 +6,7 @@ use clef_audio::player::AudioMessage;
 pub fn audio_subscription(
     inbox: Receiver<AudioMessage>,
     generation: u64,
-) -> iced::Subscription<AudioMessage> {
+) -> cosmic::iced::Subscription<AudioMessage> {
     struct AudioSub;
 
     old_unfold(
@@ -17,7 +17,7 @@ pub fn audio_subscription(
 
             async move {
                 if disconnected {
-                    return iced::futures::future::pending().await;
+                    return cosmic::iced::futures::future::pending().await;
                 }
 
                 match inbox.recv_async().await {

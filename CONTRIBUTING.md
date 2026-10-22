@@ -1,7 +1,7 @@
 # Local Development
 
-Clef supports Windows and Linux. Use the current stable Rust toolchain, with
-Rustfmt and Clippy. The dependency update was verified on 2026-10-16; this
+Clef supports Linux. The UI uses libcosmic. Use the current stable Rust
+toolchain, with Rustfmt and Clippy. libcosmic requires Rust 1.93 or newer. The dependency update was verified on 2026-10-16; this
 project does not claim an independently tested minimum Rust version. Keep the
 2021 edition and commit `Cargo.lock` when changing dependencies.
 
@@ -14,13 +14,12 @@ sudo apt-get install pkg-config cmake libpulse-dev libfontconfig1-dev libfreetyp
 ```
 
 SQLite is bundled by `libsqlite3-sys`; no system SQLite installation is needed.
-Linux audio uses PulseAudio. Windows uses CPAL and requires the native MSVC
-build tools supplied by a standard Rust Windows development installation.
+Audio uses PulseAudio.
 The CI workflow installs prerequisites only on its disposable runners.
 
 ## Reproducible validation
 
-Run these commands from the repository root on each supported OS. The examples
+Run these commands from the repository root. The examples
 use `python`; on Linux installations without that command, use `python3` instead
 (Python 3.11 or newer is recommended).
 
@@ -37,9 +36,8 @@ The headless script runs `cargo test --workspace --locked` with temporary
 configuration, data and cache roots, removes inherited `DATABASE_URL`, and clears
 desktop-session environment variables. Tests must not initialize live audio
 devices, media-control services, or use the application's database or a personal
-music library. Native Windows CI is required for Windows-gated platform and resampling code; Linux checks do
-not establish Windows runtime compatibility. Automated UI tests use the Iced
-simulator with `ICED_TEST_BACKEND=tiny-skia`, not screenshots or a GPU. The
+music library. Automated UI tests use the `iced_test`
+simulator from the libcosmic iced fork with `ICED_TEST_BACKEND=tiny-skia`, not screenshots or a GPU. The
 headless script sets this CPU-renderer selection automatically; set it explicitly
 when running the simulator tests directly.
 
@@ -54,23 +52,36 @@ cargo update
 ```
 
 Update the snapshot and requirements together if the registry has newer stable
-versions, then refresh and commit the lockfile and rerun validation. Synthetic
+versions, then refresh and commit the lockfile and rerun validation.
+
+`libcosmic` and `iced_test` are git dependencies on
+`pop-os/libcosmic`, pinned to one `rev`. `iced_test` comes from the iced
+submodule of the same commit, so the simulator and the app use the same iced
+types. To upgrade, set the same new `rev` on both dependencies in
+`crates/ui/Cargo.toml` and in the `git` section of
+`scripts/dependency_snapshot.json`, then run `cargo update -p libcosmic` and
+rerun validation. The `--verify-registry` check does not query git
+dependencies. Synthetic
 media fixtures must document their generator, license, tags and exact expected
 sample/frame counts next to the fixtures. Do not add private music recordings.
 
 ## Manual desktop smoke checks
 
-Run these supplementary checks on both real Linux and Windows desktops; passing
-headless tests does not validate hardware or desktop integration:
+Run these supplementary checks on a real COSMIC desktop; passing headless tests
+does not validate hardware or desktop integration:
 
 - Launch with an existing library and verify album navigation and artwork.
 - Play, pause, skip forward/back and seek; let tracks finish and advance.
 - Verify channel order and audio quality, including differently sampled files.
 - Resize, hover rows and use Space; verify visible playback state and controls.
+- Move the pointer from a hovered row to the header bar, to the playback
+  controls, and out of the window; verify the row play button disappears.
+- Switch the COSMIC theme between light and dark; verify the icons stay visible.
+- Open About from the header bar; verify the links open.
 - Verify OS media keys, media metadata and artwork.
 - Exit and restart; verify the library and playback configuration remain intact.
 
-Record which platforms and devices were actually checked. No database schema or
+Record which devices were actually checked. No database schema or
 user configuration migration is intended by the dependency upgrade.
 
 ## Optional development tools
@@ -84,27 +95,35 @@ cargo install --locked bacon
 cargo install diesel_cli --no-default-features --features sqlite-bundled
 ```
 
-Use a disposable database when developing migrations. On Linux, `.env.example`
-can be copied to `.env`; inspect its database path before running any commands.
-On Windows set `DATABASE_URL` explicitly to the intended development database.
+Use a disposable database when developing migrations. `.env.example` can be
+copied to `.env`; inspect its database path before running any commands.
 Never run test migrations against the user's Clef database.
 
 ## Linux packaging
 
 The app ID is `io.github.giesch.clef`. The app ID is in `justfile`,
-`crates/ui/src/setup.rs`, and the files in `resources/`. Do not change the app
+`crates/ui/src/app.rs`, and the files in `resources/`. Do not change the app
 ID after the first release.
 
-- `resources/app.desktop` is the desktop entry.
-- `resources/app.metainfo.xml` is the AppStream metainfo. `scripts/release.sh`
-  writes the release notes into this file.
+- `resources/app.desktop` is the desktop entry template.
+- `resources/app.metainfo.xml` is the AppStream metainfo template.
+  `scripts/release.sh` writes the release notes into this file.
 - `resources/icons/hicolor/` holds the app icon in 3 PNG sizes.
+- `crates/ui/i18n/en/clef_ui.ftl` holds the English strings, including the app
+  name, comment, and keywords.
 
-Validate the desktop entry and the metainfo after each change:
+`build.rs` runs `xdgen`. It adds the translated name, comment, and keywords to
+the templates and writes `target/xdgen/app.desktop` and
+`target/xdgen/app.metainfo.xml`. The install recipe and the release workflow
+read these files. `xdgen` always writes to `target/`, also when
+`CARGO_TARGET_DIR` is set.
+
+Validate the generated files after each change:
 
 ```sh
-desktop-file-validate resources/app.desktop
-appstreamcli validate --no-net resources/app.metainfo.xml
+cargo build
+desktop-file-validate target/xdgen/app.desktop
+appstreamcli validate --no-net target/xdgen/app.metainfo.xml
 ```
 
 Install into a staging root and remove the files again:
