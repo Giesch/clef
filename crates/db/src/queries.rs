@@ -62,7 +62,7 @@ impl Album {
             return self.title.as_deref();
         }
 
-        let directory_name = self.directory.components().last();
+        let directory_name = self.directory.components().next_back();
 
         directory_name.map(|c| c.as_str())
     }
