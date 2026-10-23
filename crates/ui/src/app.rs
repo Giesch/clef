@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
 use camino::Utf8PathBuf;
+use cosmic::app::context_drawer::{self, ContextDrawer};
+use cosmic::app::{Core, Task};
+use cosmic::iced::keyboard::Event as KeyboardEvent;
+use cosmic::iced::keyboard::Key;
+use cosmic::iced::widget::{column, container, row, slider, text, Image, Space};
+use cosmic::iced::{
+    alignment, Alignment, ContentFit, Event, Length, Padding, Subscription,
+};
+use cosmic::widget::about::About;
+use cosmic::widget::{button, mouse_area, scrollable};
+use cosmic::{theme, Application, ApplicationExt, Element, Renderer, Theme};
 use flume::{Receiver, Sender};
-use iced::keyboard::Event as KeyboardEvent;
-use iced::keyboard::{key::Named, Key};
-use iced::widget::{
-    button, column, container, row, scrollable, slider, text, Column, Container, Image,
-    Row, Space,
-};
-use iced::{
-    alignment, Alignment, ContentFit, Element, Event, Length, Subscription, Task, Theme,
-};
 use log::error;
 
 use clef_audio::player::{AudioAction, AudioMessage, PlayerDisplay, ProgressTimes};
@@ -19,7 +21,6 @@ use clef_db::SqlitePool;
 
 mod audio_subscription;
 pub(crate) mod crawler;
-mod custom_style;
 mod effect;
 
 mod icons;
@@ -32,17 +33,24 @@ mod rgba;
 
 use audio_subscription::audio_subscription;
 use crawler::*;
-use custom_style::no_background;
 use effect::Effect;
-use iced::widget::mouse_area;
 use music_cache::*;
 use resizer::*;
 use rgba::*;
 
-use clef_shared::WINDOW_TITLE;
+use crate::fl;
 
-#[derive(Debug)]
+type Column<'a, Message> = cosmic::iced::widget::Column<'a, Message, Theme, Renderer>;
+type Container<'a, Message> =
+    cosmic::iced::widget::Container<'a, Message, Theme, Renderer>;
+type Row<'a, Message> = cosmic::iced::widget::Row<'a, Message, Theme, Renderer>;
+
+pub const APP_ID: &str = "io.github.giesch.clef";
+
 pub struct App {
+    core: Core,
+    about: About,
+    show_about: bool,
     config: Arc<Config>,
     db: SqlitePool,
     inbox: Receiver<AudioMessage>,
@@ -74,11 +82,37 @@ impl Ui {
     }
 }
 
+impl std::fmt::Debug for App {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("App")
+            .field("config", &self.config)
+            .field("show_about", &self.show_about)
+            .field("ui", &self.ui)
+            .field("source_generation", &self.source_generation)
+            .finish_non_exhaustive()
+    }
+}
+
 impl App {
-    fn new(flags: Flags) -> Self {
+    fn new(core: Core, flags: Flags) -> Self {
         let (to_resizer_tx, to_resizer_rx) = flume::unbounded::<ResizeRequest>();
 
+        let about = About::default()
+            .name(fl!("app-title"))
+            .icon(cosmic::widget::icon::from_name(APP_ID))
+            .version(flags.version)
+            .license("MPL-2.0")
+            .license_url("https://www.mozilla.org/en-US/MPL/2.0/")
+            .developers([("Dan Knutson", "dan.knutson@gmail.com")])
+            .links([
+                (fl!("repository"), "https://github.com/Giesch/clef"),
+                (fl!("support"), "https://github.com/Giesch/clef/issues"),
+            ]);
+
         Self {
+            core,
+            about,
+            show_about: false,
             config: Arc::new(flags.config),
             inbox: flags.inbox,
             to_audio: flags.to_audio,
@@ -97,7 +131,7 @@ impl App {
     fn execute(&mut self, effect: Effect<Message>) -> Task<Message> {
         match effect {
             Effect::None => Task::none(),
-            Effect::Command(task) => task,
+            Effect::Command(task) => task.map(cosmic::Action::App),
             Effect::ToAudio(action) => {
                 self.to_audio
                     .send(action)
@@ -110,7 +144,9 @@ impl App {
                     .unwrap_or_else(|e| error!("failed to send to resizer thread: {e}"));
                 Task::none()
             }
-            Effect::CloseWindow => iced::window::latest().and_then(iced::window::close),
+            Effect::CloseWindow => {
+                cosmic::iced::window::latest().and_then(cosmic::iced::window::close)
+            }
         }
     }
 }
@@ -173,11 +209,13 @@ pub struct Flags {
     pub to_audio: Sender<AudioAction>,
     pub db_pool: SqlitePool,
     pub config: Config,
+    pub version: &'static str,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GotHwnd,
+    ToggleAbout,
+    OpenUrl(String),
     FromCrawler(CrawlerMessage),
     FromResizer(ResizerMessage),
     FromAudio(AudioMessage),
@@ -192,40 +230,76 @@ pub enum Message {
     SeekWithoutSong(f32),
     HoveredSong(SongId),
     UnhoveredSong(SongId),
+    LeftLibrary,
 }
 
-impl App {
-    pub(crate) fn boot(flags: Flags) -> (Self, Task<Message>) {
-        let initial_state = Self::new(flags);
+impl Application for App {
+    type Executor = cosmic::executor::Default;
+    type Flags = Flags;
+    type Message = Message;
 
-        #[cfg(not(target_os = "windows"))]
-        let initial_command = Task::none();
+    const APP_ID: &'static str = APP_ID;
 
-        #[cfg(target_os = "windows")]
-        let initial_command = Task::perform(
-            async move { clef_shared::window_handle_hack::set_hwnd() },
-            |_| Message::GotHwnd,
-        );
-
-        (initial_state, initial_command)
+    fn core(&self) -> &Core {
+        &self.core
     }
 
-    pub(crate) fn title(&self) -> String {
-        // NOTE This is used to look up our own window handle on startup.
-        // So on windows, it should not be modified until after recieving GotHwnd.
-        WINDOW_TITLE.to_string()
+    fn core_mut(&mut self) -> &mut Core {
+        &mut self.core
     }
 
-    pub(crate) fn theme(&self) -> Theme {
-        Theme::Dark
+    fn init(core: Core, flags: Flags) -> (Self, Task<Message>) {
+        let mut app = Self::new(core, flags);
+
+        let title = fl!("app-title");
+        app.set_header_title(title.clone());
+        let task = match app.core.main_window_id() {
+            Some(id) => app.set_window_title(title, id),
+            None => Task::none(),
+        };
+
+        (app, task)
     }
 
-    pub(crate) fn update(&mut self, message: Message) -> Task<Message> {
-        let effect = update(&mut self.ui, message);
-        self.execute(effect)
+    fn header_end(&self) -> Vec<Element<'_, Message>> {
+        vec![button::text(fl!("about"))
+            .on_press(Message::ToggleAbout)
+            .into()]
     }
 
-    pub(crate) fn subscription(&self) -> Subscription<Message> {
+    fn context_drawer(&self) -> Option<ContextDrawer<'_, Message>> {
+        self.show_about.then(|| {
+            context_drawer::about(
+                &self.about,
+                |url| Message::OpenUrl(url.to_owned()),
+                Message::ToggleAbout,
+            )
+        })
+    }
+
+    fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::ToggleAbout => {
+                self.show_about = !self.show_about;
+                self.set_show_context(self.show_about);
+                Task::none()
+            }
+
+            Message::OpenUrl(url) => {
+                if let Err(e) = open::that_detached(&url) {
+                    error!("failed to open {url}: {e}");
+                }
+                Task::none()
+            }
+
+            message => {
+                let effect = update(&mut self.ui, message);
+                self.execute(effect)
+            }
+        }
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
         let crawler = if self.ui.crawling_music {
             crawler_subcription(
                 self.config.clone(),
@@ -248,12 +322,12 @@ impl App {
         let audio = audio_subscription(self.inbox.clone(), self.source_generation)
             .map(Message::FromAudio);
 
-        let native = iced::event::listen().map(Message::Native);
+        let native = cosmic::iced::event::listen().map(Message::Native);
 
         Subscription::batch([crawler, resizer, audio, native])
     }
 
-    pub(crate) fn view(&self) -> Element<'_, Message> {
+    fn view(&self) -> Element<'_, Message> {
         view(&self.ui)
     }
 }
@@ -262,7 +336,7 @@ impl App {
 
 fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
     match message {
-        Message::GotHwnd => Effect::none(),
+        Message::ToggleAbout | Message::OpenUrl(_) => Effect::none(),
 
         Message::FromCrawler(CrawlerMessage::NoAudioDirectory) => {
             error!("failed to crawl audio directory");
@@ -308,9 +382,15 @@ fn update(ui: &mut Ui, message: Message) -> Effect<Message> {
         }
 
         Message::Native(Event::Keyboard(KeyboardEvent::KeyReleased {
-            key: Key::Named(Named::Space),
+            key: Key::Character(character),
             ..
-        })) => toggle(ui),
+        })) if character == " " => toggle(ui),
+
+        Message::Native(Event::Mouse(cosmic::iced::mouse::Event::CursorLeft))
+        | Message::LeftLibrary => {
+            ui.hovered_song_id = None;
+            Effect::none()
+        }
 
         Message::Native(_) => Effect::none(),
 
@@ -463,19 +543,38 @@ fn view(ui: &Ui) -> Element<'_, Message> {
 
     let content = view_album_list(&ui.music_cache, ui.hovered_song_id, &ui.current_song);
 
-    let content = fill_container(scrollable(content));
-    let bottom_row = view_bottom_row(&ui.current_song, &ui.progress);
+    let library = container(content).padding(Padding {
+        top: 20.0,
+        right: 20.0,
+        bottom: 0.0,
+        left: 20.0,
+    });
 
-    let main_column = column![
-        content,
-        bottom_row,
-        container(progress_slider).id("playback-seek")
-    ]
-    .spacing(10)
-    .padding(20)
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .align_x(Alignment::Center);
+    // Song rows inside the scrollable get no cursor once it leaves the scrollable,
+    // so the controls below it end the hover instead.
+    let controls = mouse_area(
+        column![
+            view_bottom_row(&ui.current_song, &ui.progress),
+            container(progress_slider).id("playback-seek")
+        ]
+        .spacing(10)
+        .padding(Padding {
+            top: 0.0,
+            right: 20.0,
+            bottom: 20.0,
+            left: 20.0,
+        })
+        .align_x(Alignment::Center),
+    )
+    .on_enter(Message::LeftLibrary);
+
+    let library = scrollable(library).width(Length::Fill).height(Length::Fill);
+
+    let main_column = column![fill_container(library), controls]
+        .spacing(10)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Alignment::Center);
 
     main_column.into()
 }
@@ -578,31 +677,30 @@ enum SongRowStatus {
 /// A song in the album table
 fn view_song_row(song: &Song, status: SongRowStatus) -> Element<'_, Message> {
     let button_slot: Element<'_, Message> = match status {
-        SongRowStatus::Playing => button(icons::pause().width(24).height(24))
+        SongRowStatus::Playing => button::custom(icons::pause())
             .width(MAGIC_SVG_SIZE)
             .height(MAGIC_SVG_SIZE)
             .padding(5)
             .on_press(Message::PauseClicked)
-            .style(no_background())
+            .class(theme::Button::Icon)
             .into(),
 
-        SongRowStatus::Paused => button(icons::play().width(24).height(24))
+        SongRowStatus::Paused => button::custom(icons::play())
             .width(MAGIC_SVG_SIZE)
             .height(MAGIC_SVG_SIZE)
             .padding(5)
             .on_press(Message::PlayPausedClicked)
-            .style(no_background())
+            .class(theme::Button::Icon)
             .into(),
 
-        SongRowStatus::Hovered => button(
-            container(icons::play().width(24).height(24))
-                .id(format!("song-play-{:?}", song.id)),
+        SongRowStatus::Hovered => button::custom(
+            container(icons::play()).id(format!("song-play-{:?}", song.id)),
         )
         .width(MAGIC_SVG_SIZE)
         .height(MAGIC_SVG_SIZE)
         .padding(5)
         .on_press(Message::PlaySongClicked(song.id))
-        .style(no_background())
+        .class(theme::Button::Icon)
         .into(),
 
         SongRowStatus::Blank => {
@@ -649,13 +747,13 @@ fn view_bottom_row<'a>(
     let row_content = match (current_song, progress) {
         (Some(current_song), Some(progress)) => {
             let play_pause_button = if current_song.playing {
-                button(container(icons::pause()).id("playback-pause"))
+                button::custom(container(icons::pause()).id("playback-pause"))
                     .on_press(Message::PauseClicked)
-                    .style(no_background())
+                    .class(theme::Button::Icon)
             } else {
-                button(container(icons::play()).id("playback-resume"))
+                button::custom(container(icons::play()).id("playback-resume"))
                     .on_press(Message::PlayPausedClicked)
-                    .style(no_background())
+                    .class(theme::Button::Icon)
             };
 
             let elapsed = match progress {
@@ -676,17 +774,17 @@ fn view_bottom_row<'a>(
                     .height(Length::Fill)
                     .align_x(alignment::Horizontal::Center)
                     .align_y(alignment::Vertical::Center),
-                button(container(icons::back()).id("playback-back"))
+                button::custom(container(icons::back()).id("playback-back"))
                     .on_press(Message::BackClicked)
-                    .style(no_background()),
+                    .class(theme::Button::Icon),
             ]
             .height(MAGIC_SVG_SIZE)
             .width(Length::FillPortion(1));
 
             let right_side = row![
-                button(container(icons::forward()).id("playback-forward"))
+                button::custom(container(icons::forward()).id("playback-forward"))
                     .on_press(Message::ForwardClicked)
-                    .style(no_background()),
+                    .class(theme::Button::Icon),
                 view_current_album_artist(current_song)
                     .width(Length::Fill)
                     .height(Length::Fill)
@@ -704,7 +802,7 @@ fn view_bottom_row<'a>(
 
         _ => row![
             Space::new().width(Length::Fill).height(MAGIC_SVG_SIZE),
-            button(icons::play()).style(no_background()),
+            button::custom(icons::play()).class(theme::Button::Icon),
             Space::new().width(Length::Fill).height(MAGIC_SVG_SIZE),
         ]
         .height(MAGIC_SVG_SIZE),

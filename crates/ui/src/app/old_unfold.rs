@@ -1,7 +1,7 @@
 use std::hash::{Hash, Hasher};
 
-use iced::futures::{future, stream, Future, FutureExt, StreamExt};
-use iced::Subscription;
+use cosmic::iced::futures::{future, stream, Future, FutureExt, StreamExt};
+use cosmic::iced::Subscription;
 
 /// Hash only the worker identity; rebuilding a view must not restart its stream.
 struct Worker<I, T, F> {

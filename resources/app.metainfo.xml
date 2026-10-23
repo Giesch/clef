@@ -16,6 +16,7 @@
   <url type="bugtracker">https://github.com/Giesch/clef/issues</url>
   <launchable type="desktop-id">io.github.giesch.clef.desktop</launchable>
   <provides>
+    <id>com.system76.CosmicApplication</id>
     <binary>clef</binary>
   </provides>
   <screenshots>

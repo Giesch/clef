@@ -25,6 +25,7 @@ fn main() -> anyhow::Result<()> {
         to_audio: to_audio_tx,
         db_pool,
         config,
+        version: env!("CARGO_PKG_VERSION"),
     };
 
     clef_ui::setup::launch(flags)

@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
-pub mod icon;
+pub mod i18n;
 pub mod setup;
 
 pub use app::Config;

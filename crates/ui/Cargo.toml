@@ -11,17 +11,24 @@ flume.workspace = true
 log.workspace = true
 thiserror.workspace = true
 
+i18n-embed = { version = "0.16.0", features = ["fluent-system", "desktop-requester"] }
+i18n-embed-fl = "0.10.1"
+open = "5.4.5"
+rust-embed = "8.13.0"
+
 clef_shared = { path = "../shared" }
 clef_db = { path = "../db" }
 clef_audio = { path = "../audio" }
 
-[dependencies.iced]
-version = "0.14.0"
-features = ["svg", "image", "debug"]
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic.git"
+rev = "430f3d48a97d8779f9c1985473912e594ccca1ae"
+features = ["about", "wgpu"]
 
 [dependencies.image_rs]
 package = "image"
 version = "0.25.10"
 
-[dev-dependencies]
-iced_test = "0.14.0"
+[dev-dependencies.iced_test]
+git = "https://github.com/pop-os/libcosmic.git"
+rev = "430f3d48a97d8779f9c1985473912e594ccca1ae"

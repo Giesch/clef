@@ -5,13 +5,3 @@ edition = "2021"
 authors = [ "Dan Knutson <dan.knutson@gmail.com>" ]
 
 [dependencies]
-
-[target.'cfg(target_os = "windows")'.dependencies]
-log.workspace = true
-
-[target.'cfg(target_os = "windows")'.dependencies.windows]
-version = "0.62.2"
-features = [
-    "Win32_Foundation",
-    "Win32_UI_WindowsAndMessaging"
-]
