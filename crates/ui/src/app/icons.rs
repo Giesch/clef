@@ -1,21 +1,18 @@
 use iced::widget::{svg, Svg};
 
 pub fn play() -> Svg<'static> {
-    svg_icon("play.svg")
+    svg_icon(include_bytes!("../../resources/play.svg"))
 }
 pub fn pause() -> Svg<'static> {
-    svg_icon("pause.svg")
+    svg_icon(include_bytes!("../../resources/pause.svg"))
 }
 pub fn forward() -> Svg<'static> {
-    svg_icon("skip-forward.svg")
+    svg_icon(include_bytes!("../../resources/skip-forward.svg"))
 }
 pub fn back() -> Svg<'static> {
-    svg_icon("skip-back.svg")
+    svg_icon(include_bytes!("../../resources/skip-back.svg"))
 }
 
-fn svg_icon(file_name: &str) -> Svg<'static> {
-    let root = env!("CARGO_MANIFEST_DIR");
-    svg(svg::Handle::from_path(format!(
-        "{root}/resources/{file_name}"
-    )))
+fn svg_icon(bytes: &'static [u8]) -> Svg<'static> {
+    svg(svg::Handle::from_memory(bytes))
 }

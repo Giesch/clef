@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev pkg-config cmake libpulse-dev libfontconfig1-dev libfreetype6-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create .deb package
+        run: |
+          PKG_NAME="clef"
+          PKG_VERSION="${{ steps.version.outputs.VERSION }}"
+          PKG_DIR="${PKG_NAME}_${PKG_VERSION}_amd64"
+
+          mkdir -p "${PKG_DIR}/DEBIAN"
+
+          install -Dm755 target/release/clef "${PKG_DIR}/usr/bin/clef"
+          install -Dm644 resources/app.desktop "${PKG_DIR}/usr/share/applications/io.github.giesch.clef.desktop"
+          install -Dm644 resources/app.metainfo.xml "${PKG_DIR}/usr/share/metainfo/io.github.giesch.clef.metainfo.xml"
+          for size in 64x64 128x128 256x256; do
+            install -Dm644 "resources/icons/hicolor/${size}/apps/io.github.giesch.clef.png" "${PKG_DIR}/usr/share/icons/hicolor/${size}/apps/io.github.giesch.clef.png"
+          done
+
+          cat > "${PKG_DIR}/DEBIAN/control" << EOF
+          Package: clef
+          Version: ${PKG_VERSION}
+          Section: misc
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Dan Knutson <dan.knutson@gmail.com>
+          Depends: libpulse0, libxkbcommon0, libwayland-client0, libfontconfig1, libfreetype6
+          Description: A native local music player.
+          EOF
+
+          dpkg-deb --build "${PKG_DIR}"
+
+          mkdir -p output
+          mv "${PKG_DIR}.deb" output/
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package-amd64
+          path: output/*.deb
+
+  release:
+    name: Create Release
+    needs: build-deb
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts/ -type f
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+
+      - name: Extract release notes from metainfo
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          NOTES=$(xmllint --xpath "//release[@version='${VERSION}']/description/*" resources/app.metainfo.xml 2>/dev/null | \
+            sed 's/<p>/\n/g; s/<\/p>//g; s/<ul>/\n/g; s/<\/ul>//g; s/<li>/- /g; s/<\/li>//g' | \
+            sed '/^$/d' | \
+            sed 's/^[[:space:]]*//')
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Release ${VERSION}"
+          fi
+
+          {
+            echo "NOTES<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: ${{ steps.release_notes.outputs.NOTES }}
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          files: |
+            artifacts/*.deb
